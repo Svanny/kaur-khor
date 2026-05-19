@@ -63,7 +63,7 @@ export function formatSenaQuantity(value: number | null, language: AppLanguage) 
 }
 
 export function formatSenaPercent(value: number | null, language: AppLanguage) {
-  if (value == null) {
+  if (value == null || !Number.isFinite(value)) {
     return '—';
   }
   return new Intl.NumberFormat(localeFor(language), {

@@ -32,6 +32,9 @@ export interface PersistedChartLayoutPreferences {
 }
 
 const SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY = 'kaur-khor:chart-layout:defaults:v1';
+const MAX_PERSISTED_PANE_HEIGHTS = 16;
+const MAX_PERSISTED_PANE_ID_LENGTH = 64;
+const MAX_PERSISTED_PANE_HEIGHT = 5000;
 
 function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
   return `${subtype}:${subjectId}`;
@@ -95,15 +98,49 @@ function normalizeDateRange(value: unknown): ChartVisibleDateRange | null {
   if (typeof candidate.startAt !== 'string' || typeof candidate.endAt !== 'string') {
     return null;
   }
-  const start = Date.parse(candidate.startAt);
-  const end = Date.parse(candidate.endAt);
+  const start = strictIsoTimestampMs(candidate.startAt);
+  const end = strictIsoTimestampMs(candidate.endAt);
   if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
     return null;
   }
   return {
-    startAt: candidate.startAt,
-    endAt: candidate.endAt,
+    startAt: new Date(start).toISOString(),
+    endAt: new Date(end).toISOString(),
   };
+}
+
+function normalizePaneHeights(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  const paneHeights: Record<string, number> = {};
+  let acceptedCount = 0;
+  for (const [paneId, height] of Object.entries(value)) {
+    if (acceptedCount >= MAX_PERSISTED_PANE_HEIGHTS) {
+      break;
+    }
+    if (
+      paneId.length === 0 ||
+      paneId.length > MAX_PERSISTED_PANE_ID_LENGTH ||
+      typeof height !== 'number' ||
+      !Number.isFinite(height) ||
+      height <= 0
+    ) {
+      continue;
+    }
+    paneHeights[paneId] = Math.min(height, MAX_PERSISTED_PANE_HEIGHT);
+    acceptedCount += 1;
+  }
+  return paneHeights;
+}
+
+function strictIsoTimestampMs(value: string) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return Number.NaN;
+  }
+  const normalizedValue = value.includes('.') ? value : value.replace('Z', '.000Z');
+  return new Date(timestamp).toISOString() === normalizedValue ? timestamp : Number.NaN;
 }
 
 export function normalizeChartLayoutPreferences(value: PersistedChartLayoutPreferences | null | undefined): PersistedChartLayoutPreferences {
@@ -124,13 +161,7 @@ export function normalizeChartLayoutPreferences(value: PersistedChartLayoutPrefe
       : null;
   const visibleDateRange = normalizeDateRange(value.visibleDateRange);
   const paneHeightsSource = value.paneHeightsSource === 'manual' ? value.paneHeightsSource : undefined;
-  const paneHeights = paneHeightsSource === 'manual'
-    ? Object.fromEntries(
-        Object.entries(value.paneHeights ?? {}).filter((entry): entry is [string, number] =>
-          typeof entry[0] === 'string' && Number.isFinite(entry[1]) && entry[1] > 0,
-        ),
-      )
-    : {};
+  const paneHeights = paneHeightsSource === 'manual' ? normalizePaneHeights(value.paneHeights) : {};
   return {
     timeframe,
     customTimeframeRange,
@@ -244,7 +275,10 @@ export function readEntityChartLayoutPreferences(
     'catalog',
     'chartLayout',
     null,
-    (value) => value == null ? null : normalizeChartLayoutPreferences(value as PersistedChartLayoutPreferences),
+    (value) =>
+      value == null || typeof value !== 'object' || Array.isArray(value)
+        ? null
+        : normalizeChartLayoutPreferences(value as PersistedChartLayoutPreferences),
     { scope: subjectStorageKey(subtype, subjectId) },
   );
 }
@@ -269,7 +303,9 @@ export function readSubtypeDefaultChartLayoutPreferences(subtype: ChartSettingsS
     SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY,
   );
   const persisted = record[subtype];
-  return persisted ? normalizeChartLayoutPreferences(persisted) : null;
+  return persisted && typeof persisted === 'object' && !Array.isArray(persisted)
+    ? normalizeChartLayoutPreferences(persisted)
+    : null;
 }
 
 export function resolveEntityChartLayoutPreferences(

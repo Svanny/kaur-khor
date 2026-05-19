@@ -13,7 +13,9 @@ import {
   type RankedContributor,
 } from '@/lib/service-control-panel';
 import { displayMoneyFromUsd, formatCurrency, formatNumber, formatWholeNumber } from '@/lib/format';
+import { buildServiceEditHref, buildSkuDetailHref } from '@/lib/navigation-state';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
+import { latestObservationAt } from '@/routes/observation-payload';
 import { formatSenaDate, formatSenaDays, formatSenaPercent } from '@/routes/sku-detail/format';
 
 type ServiceIntervalTone = 'safe' | 'tight' | 'blocked';
@@ -40,6 +42,48 @@ function optionalImagePath(record: object) {
     return null;
   }
   return record.imagePath.trim() || null;
+}
+
+function timestampSortValue(value: string | null | undefined, invalidFallback = Number.NEGATIVE_INFINITY) {
+  if (!value) {
+    return invalidFallback;
+  }
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : invalidFallback;
+}
+
+function parsedTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function compareObservedAtDesc(left: SenaObservationRecord, right: SenaObservationRecord) {
+  return timestampSortValue(right.input.observedAt) - timestampSortValue(left.input.observedAt);
+}
+
+function latestValidReportAt(reports: StockReport[]) {
+  return reports
+    .map((report) => report.reportedAt)
+    .filter((reportedAt) => parsedTimestamp(reportedAt) != null)
+    .sort((left, right) => timestampSortValue(right) - timestampSortValue(left))[0] ?? null;
+}
+
+function latestValidServiceAnchorAt({
+  observations,
+  reports,
+  workspaceSummary,
+}: {
+  observations: SenaObservationRecord[];
+  reports: StockReport[];
+  workspaceSummary: SenaWorkspaceSummary | null;
+}) {
+  if (parsedTimestamp(workspaceSummary?.latestObservedAt) != null) {
+    return workspaceSummary!.latestObservedAt;
+  }
+  return latestObservationAt(observations) ?? latestValidReportAt(reports);
 }
 
 function restockGuidanceLabel(language: AppLanguage, name: string, units: number, mode: 'recommended' | 'optional') {
@@ -196,6 +240,14 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function safeNonNegativeNumber(value: number | null | undefined, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function safeProbability(value: number | null | undefined, fallback = 0) {
+  return clamp(safeNonNegativeNumber(value, fallback), 0, 1);
+}
+
 function regimeFactor(value: string | null | undefined) {
   switch (value) {
     case 'promo':
@@ -218,7 +270,7 @@ function startOfDay(dateLike: Date) {
 }
 
 function addDays(value: string | null, days: number | null) {
-  if (!value || days == null) {
+  if (!value || days == null || !Number.isFinite(days)) {
     return null;
   }
   const date = new Date(value);
@@ -262,10 +314,13 @@ function latestRelevantPrice({
 }) {
   const cutoffTime = cutoff ? new Date(cutoff).getTime() : Number.POSITIVE_INFINITY;
   const observationPrice = [...observations]
-    .sort((left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime())
+    .sort(compareObservedAtDesc)
     .flatMap((entry) =>
       entry.input.servicePrices
-        .filter((price) => price.serviceId === service.serviceId && new Date(entry.input.observedAt).getTime() <= cutoffTime)
+        .filter((price) => {
+          const observedTime = parsedTimestamp(entry.input.observedAt);
+          return price.serviceId === service.serviceId && observedTime != null && observedTime <= cutoffTime && safeNonNegativeNumber(price.price, -1) >= 0;
+        })
         .map((price) => ({ price: price.price, at: entry.input.observedAt })),
     )[0];
 
@@ -277,11 +332,15 @@ function latestRelevantPrice({
     .sort((left, right) => new Date(right.reportedAt).getTime() - new Date(left.reportedAt).getTime())
     .flatMap((report) =>
       report.servicePriceAdjustments
-        .filter((entry) => entry.serviceId === service.serviceId && new Date(report.reportedAt).getTime() <= cutoffTime)
+        .filter((entry) =>
+          entry.serviceId === service.serviceId &&
+          new Date(report.reportedAt).getTime() <= cutoffTime &&
+          safeNonNegativeNumber(entry.price, -1) >= 0,
+        )
         .map((entry) => ({ price: entry.price, at: report.reportedAt })),
     )[0];
 
-  return reportPrice?.price ?? service.price;
+  return reportPrice?.price ?? safeNonNegativeNumber(service.price);
 }
 
 function parsedObservationTime(value: string) {
@@ -304,7 +363,10 @@ function sellableFromStockSnapshot({
     return null;
   }
 
-  return linked.reduce((minimum, entry) => Math.min(minimum, entry.unitsInStock), linked[0].unitsInStock);
+  return linked.reduce(
+    (minimum, entry) => Math.min(minimum, safeNonNegativeNumber(entry.unitsInStock)),
+    safeNonNegativeNumber(linked[0].unitsInStock),
+  );
 }
 
 function contributorRolePriority(roleKey: ServiceContributorViewModel['roleKey']) {
@@ -403,7 +465,7 @@ function buildRestorationEvents({
                   })
                 : translate(language, 'serviceVmReceiptLoggedFallback'),
             detail: translate(language, 'serviceVmRestorationReceiptDetail'),
-            openSkuHref: `/catalog/skus/${signal.skuId}`,
+            openSkuHref: buildSkuDetailHref(signal.skuId),
           });
         }
         openSignals.delete(signal.skuId);
@@ -445,7 +507,7 @@ function buildRestorationEvents({
       detail: contributor.isBottleneck
         ? translate(language, 'serviceVmRestorationBottleneckDetail')
         : translate(language, 'serviceVmRestorationSupportDetail'),
-      openSkuHref: `/catalog/skus/${skuId}`,
+      openSkuHref: buildSkuDetailHref(skuId),
     });
   }
 
@@ -514,7 +576,10 @@ function fallbackInterval({
   service: ServiceRecord;
   workspaceSummary: SenaWorkspaceSummary | null;
 }): SenaRegimePosteriorPoint {
-  const anchor = workspaceSummary?.latestObservedAt ?? new Date().toISOString();
+  const latestObservedAt = workspaceSummary?.latestObservedAt ?? null;
+  const anchor = latestObservedAt && parsedTimestamp(latestObservedAt) != null
+    ? latestObservedAt
+    : new Date().toISOString();
   return {
     intervalIndex: 0,
     startAt: anchor,
@@ -545,11 +610,12 @@ export function deriveServiceDetailViewModel({
   snapshot: InventorySnapshot;
   workspaceSummary: SenaWorkspaceSummary | null;
 }): ServiceDetailViewModel {
+  const latestServiceAnchorAt = latestValidServiceAnchorAt({ observations, reports, workspaceSummary });
   const customerCommercial = buildCommercialEntitySnapshots({
     observations,
     party: 'customer',
     rangeDays: 30,
-    endAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? null,
+    endAt: latestServiceAnchorAt,
   });
   const linkedSkus = serviceLinkedSkus(service, snapshot);
   const rankedContributors = rankedServiceContributors(service, snapshot);
@@ -562,9 +628,12 @@ export function deriveServiceDetailViewModel({
   const canceledCustomerOrders = Math.max(0, customerCommercial.canceledWindowQuantityByEntity.get(commercialKey) ?? 0);
   const blockedOpenOrders = openCustomerOrders > 0 && sellableNow <= 0 ? openCustomerOrders : 0;
   const fragility = deriveFragilitySummary(service, snapshot);
-  const activityMean = detail?.activityMean ?? Math.max(1, Math.min(sellableNow, Math.max(linkedSkus.length, 1)));
+  const activityMean = safeNonNegativeNumber(
+    detail?.activityMean,
+    Math.max(1, Math.min(sellableNow, Math.max(linkedSkus.length, 1))),
+  );
   const credibleBand = deriveCredibleBand({ detail, sellableNow });
-  const disruptionRisk = detail?.bottleneckProbability ?? rankedContributors[0]?.insight?.stockoutRisk ?? 0;
+  const disruptionRisk = safeProbability(detail?.bottleneckProbability ?? rankedContributors[0]?.insight?.stockoutRisk);
   const topContributor = rankedContributors.find((entry) => entry.isBottleneck) ?? rankedContributors[0] ?? null;
   const actionBottleneck = rankedContributors.find((entry) => entry.isBottleneck) ?? null;
   const currentServicePrice = latestRelevantPrice({
@@ -611,11 +680,11 @@ export function deriveServiceDetailViewModel({
         ? restockGuidanceLabel(language, entry.sku.name, reorderRecommendation.recommendedUnits, 'optional')
         : null;
     const limitingProbability = clamp(
-      contributorDetail?.bottleneckProbability ?? entry.insight?.stockoutRisk ?? entry.insight?.reorderTriggerProbability ?? 0,
+      safeProbability(contributorDetail?.bottleneckProbability ?? entry.insight?.stockoutRisk ?? entry.insight?.reorderTriggerProbability),
       0,
       1,
     );
-    const usageProbability = clamp(contributorDetail?.usageProbability ?? 0, 0, 1);
+    const usageProbability = safeProbability(contributorDetail?.usageProbability);
 
     return {
       skuId: entry.sku.skuId,
@@ -642,7 +711,7 @@ export function deriveServiceDetailViewModel({
           ? translate(language, 'serviceVmRecoveryFast')
           : translate(language, 'serviceVmRecoveryMonitor')),
       restockGuidance,
-      openSkuHref: `/catalog/skus/${entry.sku.skuId}`,
+      openSkuHref: buildSkuDetailHref(entry.sku.skuId),
     };
   });
   const contributors = [...contributorDrafts]
@@ -692,10 +761,10 @@ export function deriveServiceDetailViewModel({
     });
 
     const snapshotFromObservation = [...observations]
-      .sort((left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime())
+      .sort(compareObservedAtDesc)
       .find((entry) => {
-        const observedAt = new Date(entry.input.observedAt).getTime();
-        return observedAt <= new Date(interval.endAt).getTime();
+        const observedAt = parsedTimestamp(entry.input.observedAt);
+        return observedAt != null && observedAt <= new Date(interval.endAt).getTime();
       });
 
     const snapshotSellable =
@@ -829,7 +898,7 @@ export function deriveServiceDetailViewModel({
     openSkuHref: entry.openSkuHref,
   }));
 
-  const primarySkuHref = topContributor ? `/catalog/skus/${topContributor.sku.skuId}` : '/catalog';
+  const primarySkuHref = topContributor ? buildSkuDetailHref(topContributor.sku.skuId) : '/catalog';
   const inboundCount = restoration.filter((entry) => entry.state === 'open').length;
   const overviewReason = [
     translate(language, 'serviceVmOverviewRisk', {
@@ -891,8 +960,8 @@ export function deriveServiceDetailViewModel({
     },
     actions: {
       primarySkuHref,
-      editServiceHref: `/catalog/services/${service.serviceId}/edit`,
-      latestObservedAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? reports.at(-1)?.reportedAt ?? null,
+      editServiceHref: buildServiceEditHref(service.serviceId),
+      latestObservedAt: latestServiceAnchorAt,
       noBottleneckHint: translate(language, 'serviceVmNoLimitingContributor'),
       bottleneckSku: actionBottleneck
         ? {

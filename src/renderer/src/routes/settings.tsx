@@ -53,6 +53,7 @@ import {
   restoreBackupSnapshotAction,
   type SettingsExportFormat,
 } from '@/lib/settings-workspace-actions';
+import { parseEditableNumberWithCommas } from '@/lib/format';
 import { isBenchmarkSettingsEnabled, resolveSettingsSection } from '@/lib/settings-navigation';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
@@ -375,7 +376,7 @@ function validateSenaEngineNumberDraft(
     });
   }
 
-  const parsedValue = Number(trimmedValue);
+  const parsedValue = parseEditableNumberWithCommas(trimmedValue);
   if (!Number.isFinite(parsedValue)) {
     return t('settingsParameterEnterNumber', {
       range: senaParameterRangeMessage(field, t),
@@ -402,15 +403,15 @@ function validateSenaEngineNumberDrafts(
   }, {});
 
   if (!errors.intervalLowQuantile && !errors.intervalHighQuantile) {
-    const intervalLowQuantile = Number(drafts.intervalLowQuantile.trim());
-    const intervalHighQuantile = Number(drafts.intervalHighQuantile.trim());
+    const intervalLowQuantile = parseEditableNumberWithCommas(drafts.intervalLowQuantile.trim());
+    const intervalHighQuantile = parseEditableNumberWithCommas(drafts.intervalHighQuantile.trim());
     if (intervalLowQuantile > intervalHighQuantile) {
       errors.intervalLowQuantile = t('settingsRangeLowAboveHigh');
       errors.intervalHighQuantile = t('settingsRangeHighBelowLow');
     }
 
     if (!errors.recommendationQuantile) {
-      const recommendationQuantile = Number(drafts.recommendationQuantile.trim());
+      const recommendationQuantile = parseEditableNumberWithCommas(drafts.recommendationQuantile.trim());
       if (
         Number.isFinite(recommendationQuantile) &&
         (recommendationQuantile < intervalLowQuantile || recommendationQuantile > intervalHighQuantile)
@@ -430,7 +431,7 @@ function applySenaEngineNumberDrafts(
   return normalizeSenaEngineParameters(
     SENA_ENGINE_PARAMETER_FIELD_META.reduce<Partial<SenaEngineParameters>>(
       (nextParameters, parameter) => {
-        const parsedValue = Number(drafts[parameter.key]);
+        const parsedValue = parseEditableNumberWithCommas(drafts[parameter.key]);
         nextParameters[parameter.key] = Number.isFinite(parsedValue)
           ? parsedValue
           : parameters[parameter.key];
@@ -1555,7 +1556,7 @@ export function SettingsRoute() {
     pendingSenaEngineParameters,
     persistedSenaEngineParameters,
   );
-  const exchangeRateValue = Number(exchangeRateDraft);
+  const exchangeRateValue = parseEditableNumberWithCommas(exchangeRateDraft);
   const exchangeRateError =
     exchangeRateDraft.trim().length === 0
       ? t('settingsExchangeRateRequired')

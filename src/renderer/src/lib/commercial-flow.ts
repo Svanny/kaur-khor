@@ -36,6 +36,10 @@ function normalizeCommercialEvents(observation: SenaObservationRecord) {
   return observation.input.commercialEvents ?? [];
 }
 
+function finiteQuantity(value: number) {
+  return Number.isFinite(value) ? value : null;
+}
+
 function latestObservationTime(observations: SenaObservationRecord[]) {
   let latestTime = Number.NEGATIVE_INFINITY;
   for (const observation of observations) {
@@ -52,7 +56,8 @@ export function filterObservationsForDays(
   if (rangeDays <= 0) {
     return [];
   }
-  const endTime = endAt ? observationTime(endAt) : latestObservationTime(observations);
+  const explicitEndTime = endAt ? observationTime(endAt) : Number.NEGATIVE_INFINITY;
+  const endTime = Number.isFinite(explicitEndTime) ? explicitEndTime : latestObservationTime(observations);
   const startTime = endTime - rangeDays * 24 * 60 * 60 * 1000;
   return observations.filter((observation) => {
     const observedAt = observationTime(observation.input.observedAt);
@@ -62,12 +67,14 @@ export function filterObservationsForDays(
 
 export function latestStockUnitsBySku(observations: SenaObservationRecord[]) {
   const ordered = [...observations].sort(
-    (left, right) => observationTime(right.input.observedAt) - observationTime(left.input.observedAt),
+    (left, right) =>
+      observationTime(right.input.observedAt) - observationTime(left.input.observedAt) ||
+      right.observationId.localeCompare(left.observationId),
   );
   const map = new Map<string, number>();
   for (const observation of ordered) {
     for (const snapshot of observation.input.stockSnapshot) {
-      if (!map.has(snapshot.skuId)) {
+      if (!map.has(snapshot.skuId) && Number.isFinite(snapshot.unitsInStock) && snapshot.unitsInStock >= 0) {
         map.set(snapshot.skuId, snapshot.unitsInStock);
       }
     }
@@ -102,12 +109,16 @@ export function buildCommercialEntitySnapshots({
       if (event.party !== party) {
         continue;
       }
+      const quantityDelta = finiteQuantity(event.quantityDelta);
+      if (quantityDelta == null) {
+        continue;
+      }
       const key = entityKey(event.entityType, event.entityId);
       const previousPendingQuantity = pendingQuantityByEntity.get(key) ?? 0;
-      const nextPendingQuantity = previousPendingQuantity + (event.stage === 'pending' ? event.quantityDelta : 0);
+      const nextPendingQuantity = previousPendingQuantity + (event.stage === 'pending' ? quantityDelta : 0);
       pendingQuantityByEntity.set(key, nextPendingQuantity);
       if (event.stage === 'pending') {
-        if (previousPendingQuantity <= 0 && nextPendingQuantity > 0 && event.quantityDelta > 0) {
+        if (previousPendingQuantity <= 0 && nextPendingQuantity > 0 && quantityDelta > 0) {
           oldestOpenPendingAtByEntity.set(key, observation.input.observedAt);
         }
         if (nextPendingQuantity <= 0) {
@@ -123,24 +134,28 @@ export function buildCommercialEntitySnapshots({
       if (event.party !== party) {
         continue;
       }
+      const quantityDelta = finiteQuantity(event.quantityDelta);
+      if (quantityDelta == null) {
+        continue;
+      }
       const key = entityKey(event.entityType, event.entityId);
       if (event.stage === 'realized') {
-        if (event.quantityDelta >= 0) {
+        if (quantityDelta >= 0) {
           realizedWindowQuantityByEntity.set(
             key,
-            (realizedWindowQuantityByEntity.get(key) ?? 0) + event.quantityDelta,
+            (realizedWindowQuantityByEntity.get(key) ?? 0) + quantityDelta,
           );
         } else {
           reversalWindowQuantityByEntity.set(
             key,
-            (reversalWindowQuantityByEntity.get(key) ?? 0) + Math.abs(event.quantityDelta),
+            (reversalWindowQuantityByEntity.get(key) ?? 0) + Math.abs(quantityDelta),
           );
         }
       }
-      if (event.stage === 'pending' && event.quantityDelta < 0) {
+      if (event.stage === 'pending' && quantityDelta < 0) {
         canceledWindowQuantityByEntity.set(
           key,
-          (canceledWindowQuantityByEntity.get(key) ?? 0) + Math.abs(event.quantityDelta),
+          (canceledWindowQuantityByEntity.get(key) ?? 0) + Math.abs(quantityDelta),
         );
       }
     }
@@ -244,10 +259,10 @@ export function commercialEventsForObservation(observation: SenaObservationRecor
 
 export function observationCommercialSummary(events: SenaCommercialEvent[]) {
   return {
-    customerPending: events.filter((event) => event.party === 'customer' && event.stage === 'pending').length,
+    customerPending: events.filter((event) => event.party === 'customer' && event.stage === 'pending' && event.quantityDelta > 0).length,
     customerCompleted: events.filter((event) => event.party === 'customer' && event.stage === 'realized' && event.quantityDelta > 0).length,
     customerRefunded: events.filter((event) => event.party === 'customer' && event.stage === 'realized' && event.quantityDelta < 0).length,
-    supplierPending: events.filter((event) => event.party === 'supplier' && event.stage === 'pending').length,
+    supplierPending: events.filter((event) => event.party === 'supplier' && event.stage === 'pending' && event.quantityDelta > 0).length,
     supplierReceived: events.filter((event) => event.party === 'supplier' && event.stage === 'realized' && event.quantityDelta > 0).length,
     supplierReversed: events.filter((event) => event.party === 'supplier' && event.stage === 'realized' && event.quantityDelta < 0).length,
   };

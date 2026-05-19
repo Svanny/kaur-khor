@@ -60,8 +60,12 @@ export function resolveInventoryColumns(
     return inventoryPresetColumns[preset];
   }
   const validColumns = new Set<InventoryColumnKey>(inventoryCustomColumnOptions);
-  const selectedColumns = customColumns.filter((column): column is InventoryColumnKey =>
-    validColumns.has(column as InventoryColumnKey),
-  );
+  const selectedColumns: InventoryColumnKey[] = [];
+  for (const column of customColumns) {
+    if (!validColumns.has(column as InventoryColumnKey) || selectedColumns.includes(column as InventoryColumnKey)) {
+      continue;
+    }
+    selectedColumns.push(column as InventoryColumnKey);
+  }
   return ['item', ...(selectedColumns.length > 0 ? selectedColumns : inventoryPresetColumns.custom.filter((column) => column !== 'item'))];
 }

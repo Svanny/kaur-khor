@@ -1,7 +1,9 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import type { SenaObservationInput, SenaObservationRecord, SenaTicketEvent, SenaTicketEventType, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
+import type { SenaObservationInput, SenaObservationRecord, SenaTicketEvent, SenaTicketEventType, SenaTicketLine, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
 import {
+  ActionAddBadgeIcon,
+  ActionClipboardAddIcon,
   ActionCreatePackageIcon,
   ActionDatabaseUploadIcon,
   ActionExplosionIcon,
@@ -28,23 +30,33 @@ import { StatusInsightIcon, StatusReadyIcon, StatusTimingIcon, StatusWarningIcon
 import type { IconComponent } from '@icons';
 import { AppProviders } from '@/App';
 import { ItemAvatar } from '@/components/system/item-identity';
+import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { latestObservationAt as latestObservationAtForRecords } from '@/routes/observation-payload';
 import { buildRememberedCatalogHref, buildRememberedInboxHref } from '@/lib/page-state-memory';
+import { parseLocalDateTimeInputIso } from '@/lib/date-input-utils';
 import { recordTicketOptions, sortRecordTicketOptionsByRecent } from '@/lib/record-activity';
 import {
   buildBatchUpdateHref,
+  buildCaptureSessionHref,
   buildSupplierTicketCaptureHref,
+  draftStorageKeyForLane,
   getLaneForTaskAction,
+  laneForCaptureSessionAction,
+  parseRouteIdList,
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
   RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   RECORD_UPDATE_HUB_PATH,
   RECORD_UPDATE_STOCK_COUNT_PATH,
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
+  type CaptureSessionAction,
+  type CaptureSessionTargetType,
   type OverviewTaskAction,
 } from '@/lib/record-update-routes';
 import { activeSenaCatalog, linkedSkuIdsForService, linkedSkusForService, supplierNameForSku } from '@/lib/sena-catalog';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, parseEditableNumberWithCommas } from '@/lib/format';
 import { statusPillClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
@@ -68,8 +80,13 @@ import {
   type OverviewTask,
   type OverviewSupplierTicketTask,
 } from '@/routes/overview/view-model';
-import { RecordUpdateHubRoute } from '@/routes/record-update-hub';
-import { StockUpdateSessionRoute } from '@/routes/stock-update-session';
+
+const LazyRecordUpdateHubRoute = lazy(() =>
+  import('@/routes/record-update-hub').then((module) => ({ default: module.RecordUpdateHubRoute })),
+);
+const LazyStockUpdateSessionRoute = lazy(() =>
+  import('@/routes/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })),
+);
 
 type EmbeddedMode = 'app' | 'demo';
 type PhoneStorage = {
@@ -104,14 +121,31 @@ type MobileActionContextSource =
   | 'explain';
 type MobileActionContextLaneId = PhoneCaptureLaneId;
 type MobileActionContextMode = 'new' | 'edit' | 'receive' | 'complete' | 'cancel' | 'follow-up';
+type MobileCaptureActionContext = {
+  breadcrumb: string;
+  currentQuantity?: number | null;
+  laneId?: MobileActionContextLaneId | null;
+  mode?: MobileActionContextMode | null;
+  quantitySuggestion?: number | null;
+  recentEvidence?: string | null;
+  returnTo: string;
+  source: MobileActionContextSource;
+  supplierName?: string | null;
+  ticketId?: string | null;
+};
 type PhoneHistoryGroup =
-  | 'Stock Count'
+  | 'Products Update'
   | 'Customer Orders Pending'
   | 'Customer Orders Completed'
   | 'Supplier Orders Pending'
   | 'Supplier Receipts'
   | 'Corrections'
   | 'Price/cost changes';
+
+export function parsePhoneExchangeRateDraft(value: string) {
+  const parsed = parseEditableNumberWithCommas(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
 
 type PhoneHistoryEntry = {
   detail: string;
@@ -153,9 +187,13 @@ function isInternalPhoneHref(value: string | null | undefined) {
   return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
 }
 
+export function sanitizePhoneReturnTo(value: string | null | undefined, fallback: string) {
+  return isInternalPhoneHref(value) ? value! : fallback;
+}
+
 function phoneBackHrefFromSearch(searchParams: URLSearchParams, fallback: string) {
   const returnTo = searchParams.get('returnTo');
-  return isInternalPhoneHref(returnTo) ? returnTo! : fallback;
+  return sanitizePhoneReturnTo(returnTo, fallback);
 }
 
 type PhoneTab = {
@@ -315,7 +353,7 @@ function phoneShellHeaderCopy(pathname: string, language: ReturnType<typeof useP
 }
 
 const phoneFocusClassName = 'focus:outline-none focus:ring-2 focus:ring-ring/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70';
-const phoneSurfaceClassName = 'rounded-[1rem] border border-border/70 bg-card/88 shadow-panel';
+const phoneSurfaceClassName = 'rounded-[1rem] border border-border/70 bg-card/88 shadow-xs';
 const phoneActionClassName = cn(phoneFocusClassName, 'h-auto min-h-12 w-full justify-start whitespace-normal rounded-[0.8rem] border-border/70 bg-card py-2.5 text-left text-sm shadow-xs');
 
 function PhonePage({
@@ -435,6 +473,96 @@ function PhoneActionRow({
     >
       {content}
     </Button>
+  );
+}
+
+function phoneCaptureDraftStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function hasPhoneCaptureDraft(draftStorageKey: string | null) {
+  return readPhoneCaptureDraft(draftStorageKey) != null;
+}
+
+function removePhoneCaptureDraft(draftStorageKey: string | null) {
+  const storage = phoneCaptureDraftStorage();
+  if (!draftStorageKey || typeof storage?.removeItem !== 'function') {
+    return;
+  }
+  try {
+    storage.removeItem(draftStorageKey);
+  } catch {
+    // Draft cleanup is best effort; blocked storage should not prevent capture navigation.
+  }
+}
+
+function PhoneCaptureActionRow({
+  action,
+  children,
+  context,
+  icon,
+  targetId,
+  targetType,
+}: {
+  action: CaptureSessionAction;
+  children: ReactNode;
+  context: MobileCaptureActionContext;
+  icon?: ReactNode;
+  targetId: string;
+  targetType: CaptureSessionTargetType;
+}) {
+  const { language } = usePreferences();
+  const navigate = useNavigate();
+  const [confirmPrompt, setConfirmPrompt] = useState<'saved-draft' | 'leave-page' | null>(null);
+  const href = phoneCaptureHrefWithContext(
+    buildCaptureSessionHref({ action, targetId, targetType }),
+    {
+      ...context,
+      targetId,
+      targetType,
+    },
+  );
+  const draftStorageKey = draftStorageKeyForLane(laneForCaptureSessionAction(action));
+  const hasDraftConfirmPrompt = confirmPrompt === 'saved-draft';
+
+  function requestCaptureSession() {
+    setConfirmPrompt(hasPhoneCaptureDraft(draftStorageKey) ? 'saved-draft' : 'leave-page');
+  }
+
+  function openCaptureSession({ deleteDraft }: { deleteDraft: boolean }) {
+    if (deleteDraft) {
+      removePhoneCaptureDraft(draftStorageKey);
+    }
+    setConfirmPrompt(null);
+    navigate(href);
+  }
+
+  return (
+    <>
+      <PhoneActionRow icon={icon} onClick={requestCaptureSession}>
+        {children}
+      </PhoneActionRow>
+      <ConfirmActionDialog
+        cancelLabel={translateUiLiteral(language, 'Cancel')}
+        confirmIcon={hasDraftConfirmPrompt ? <ActionReceiveInventoryIcon /> : <ActionClipboardAddIcon />}
+        confirmLabel={translateUiLiteral(language, hasDraftConfirmPrompt ? 'Resume draft' : 'Continue to capture')}
+        confirmVariant="default"
+        destructiveActionLabel={hasDraftConfirmPrompt ? translateUiLiteral(language, 'Delete draft and start new') : undefined}
+        description={translateUiLiteral(language, hasDraftConfirmPrompt ? 'This capture lane has a saved draft. Resume the draft to keep it, or delete it before starting this targeted capture session.' : 'This will leave the detail page and open a targeted capture session.')}
+        open={confirmPrompt != null}
+        title={translateUiLiteral(language, hasDraftConfirmPrompt ? 'Delete saved draft?' : 'Leave detail page?')}
+        onCancel={() => setConfirmPrompt(null)}
+        onConfirm={() => openCaptureSession({ deleteDraft: false })}
+        onDestructiveAction={hasDraftConfirmPrompt ? () => openCaptureSession({ deleteDraft: true }) : undefined}
+      />
+    </>
   );
 }
 
@@ -817,8 +945,8 @@ const PHONE_CAPTURE_LANES: PhoneCaptureLaneConfig[] = [
     id: 'stock-count',
     path: RECORD_UPDATE_STOCK_COUNT_PATH,
     primaryFieldLabel: 'Counted quantity',
-    reviewCopy: 'Only selected and edited SKUs will be saved.',
-    title: 'Stock Count',
+    reviewCopy: 'Only selected and edited SKUs and services will be saved.',
+    title: 'Products Update',
   },
   {
     description: 'Create a supplier ticket or update an existing supplier ticket, including receipts.',
@@ -829,6 +957,16 @@ const PHONE_CAPTURE_LANES: PhoneCaptureLaneConfig[] = [
     primaryFieldLabel: 'Ordered quantity',
     reviewCopy: 'Kaur Khor will update supplier ticket state, queue timing, and receipts.',
     title: 'Supplier Order',
+  },
+  {
+    description: 'Receive against an existing supplier ticket and reconcile what arrived.',
+    effect: 'Receipt quantities and stock adjustments are saved against the supplier ticket.',
+    icon: <ActionReceiveInventoryIcon data-icon="inline-start" />,
+    id: 'supplier-receipt',
+    path: RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
+    primaryFieldLabel: 'Received quantity',
+    reviewCopy: 'Kaur Khor will update supplier receipt state and stock on hand.',
+    title: 'Supplier Receipt',
   },
   {
     description: 'Record a same-session sale as realized demand without framing it as order fulfillment.',
@@ -852,8 +990,15 @@ const PHONE_CAPTURE_LANES: PhoneCaptureLaneConfig[] = [
   },
 ];
 
+export const PHONE_CAPTURE_ROUTE_PATHS = PHONE_CAPTURE_LANES.map((lane) => `${lane.path}/*`);
+
 function phoneCaptureLaneForPath(pathname: string) {
-  return PHONE_CAPTURE_LANES.find((lane) => pathname.startsWith(lane.path)) ?? null;
+  const pathOnly = pathname.split(/[?#]/, 1)[0] ?? pathname;
+  return PHONE_CAPTURE_LANES.find((lane) => pathOnly === lane.path || pathOnly.startsWith(`${lane.path}/`)) ?? null;
+}
+
+export function phoneCaptureLaneIdForPath(pathname: string) {
+  return phoneCaptureLaneForPath(pathname)?.id ?? null;
 }
 
 function phoneCaptureModesForLane(laneId: PhoneCaptureLaneId | null | undefined): Array<{ label: string; value: PhoneCaptureMode }> {
@@ -1003,7 +1148,7 @@ function phoneEntityName(catalog: ReturnType<typeof activeSenaCatalog>, entityTy
   return entityType === 'service' ? phoneServiceName(catalog, entityId) : phoneSkuName(catalog, entityId);
 }
 
-function buildPhoneTodayInventoryRows({
+export function buildPhoneTodayInventoryRows({
   catalog,
   inventory,
 }: {
@@ -1031,7 +1176,7 @@ function buildPhoneTodayInventoryRows({
     }
 
     for (const signal of observation.input.orderSignals ?? []) {
-      if (signal.receiptArrived) {
+      if (signal.receiptArrived && Number.isFinite(signal.approximateReceiptQuantity ?? 0)) {
         unitsInBySku.set(
           signal.skuId,
           (unitsInBySku.get(signal.skuId) ?? 0) + Math.max(0, signal.approximateReceiptQuantity ?? 0),
@@ -1040,7 +1185,7 @@ function buildPhoneTodayInventoryRows({
     }
 
     for (const event of observation.input.commercialEvents ?? []) {
-      if (event.stage !== 'realized' || event.quantityDelta <= 0) {
+      if (event.stage !== 'realized' || !Number.isFinite(event.quantityDelta) || event.quantityDelta <= 0) {
         continue;
       }
       const skuIds = event.entityType === 'sku' ? [event.entityId] : linkedSkuIdsForService(catalog, event.entityId);
@@ -1081,7 +1226,15 @@ function buildPhoneTodayInventoryRows({
 }
 
 function buildPhoneHistoryEntries(observations: SenaObservationRecord[], catalog: ReturnType<typeof activeSenaCatalog>) {
-  return observations
+  return [...observations]
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.input.observedAt);
+      const rightTime = Date.parse(right.input.observedAt);
+      const timeDelta =
+        (Number.isFinite(rightTime) ? rightTime : Number.NEGATIVE_INFINITY) -
+        (Number.isFinite(leftTime) ? leftTime : Number.NEGATIVE_INFINITY);
+      return timeDelta || right.observationId.localeCompare(left.observationId);
+    })
     .flatMap((observation) => {
       const observedAt = observation.input.observedAt;
       const time = phoneHistoryDateLabel(observedAt);
@@ -1091,7 +1244,7 @@ function buildPhoneHistoryEntries(observations: SenaObservationRecord[], catalog
         entries.push({
           detail: `Physical stock set to ${entry.unitsInStock} units.`,
           entity: phoneSkuName(catalog, entry.skuId),
-          group: 'Stock Count',
+          group: 'Products Update',
           id: `${observation.observationId}:stock:${entry.skuId}:${index}`,
           layer: 'Physical stock truth',
           quantity: `${entry.unitsInStock}u`,
@@ -1137,6 +1290,7 @@ function buildPhoneHistoryEntries(observations: SenaObservationRecord[], catalog
 
       (observation.input.commercialEvents ?? []).forEach((event, index) => {
         const pending = event.stage === 'pending';
+        const quantity = Number.isFinite(event.quantityDelta) ? Math.abs(event.quantityDelta) : null;
         entries.push({
           detail: pending
             ? 'Customer commitment recorded without changing physical stock.'
@@ -1145,7 +1299,7 @@ function buildPhoneHistoryEntries(observations: SenaObservationRecord[], catalog
           group: pending ? 'Customer Orders Pending' : 'Customer Orders Completed',
           id: `${observation.observationId}:commercial:${event.entityType}:${event.entityId}:${index}`,
           layer: pending ? 'Committed demand' : 'Realized customer output',
-          quantity: `${Math.abs(event.quantityDelta)}u`,
+          quantity: quantity != null ? `${quantity}u` : null,
           time,
         });
       });
@@ -1201,7 +1355,7 @@ function phoneCaptureDraftKey(
     : null;
 }
 
-function phoneCaptureDraftCountsByLane() {
+export function phoneCaptureDraftCountsByLane() {
   const counts = new Map<PhoneCaptureLaneId, number>();
   if (typeof window === 'undefined') {
     return counts;
@@ -1214,6 +1368,9 @@ function phoneCaptureDraftCountsByLane() {
       }
       const laneId = key.split(':')[2] as PhoneCaptureLaneId | undefined;
       if (!laneId || !PHONE_CAPTURE_LANES.some((lane) => lane.id === laneId)) {
+        continue;
+      }
+      if (!readPhoneCaptureDraft(key)) {
         continue;
       }
       counts.set(laneId, (counts.get(laneId) ?? 0) + 1);
@@ -1236,9 +1393,7 @@ function readPhoneCaptureDraft(key: string | null) {
       typeof (parsed as { quantity?: unknown }).quantity === 'string' &&
       typeof (parsed as { note?: unknown }).note === 'string'
     ) {
-      const observedAt = typeof (parsed as { observedAt?: unknown }).observedAt === 'string'
-        ? (parsed as { observedAt: string }).observedAt
-        : '';
+      const observedAt = normalizePhoneDraftObservedAt((parsed as { observedAt?: unknown }).observedAt);
       const customerChannel = typeof (parsed as { customerChannel?: unknown }).customerChannel === 'string'
         ? (parsed as { customerChannel: string }).customerChannel
         : '';
@@ -1290,14 +1445,43 @@ function defaultPhoneObservedAtInput() {
   ].join('-') + `T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
-function phoneObservedAtInputToIso(value: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
-  if (!match) {
-    return new Date().toISOString();
+export function normalizePhoneDraftObservedAt(value: unknown) {
+  if (typeof value !== 'string') {
+    return '';
   }
-  const [, year, month, day, hour, minute] = match;
-  const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
-  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  return parseLocalDateTimeInputIso(value) ? value : '';
+}
+
+export function phoneObservedAtInputToIso(value: string) {
+  return parseLocalDateTimeInputIso(value);
+}
+
+export function phoneCaptureQuantityError(laneId: PhoneCaptureLaneId | null | undefined, value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return 'Enter a valid quantity before saving.';
+  }
+  const parsed = parseEditableNumberWithCommas(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 'Enter a valid quantity before saving.';
+  }
+  if (laneId !== 'stock-count' && parsed <= 0) {
+    return 'Enter a quantity greater than zero before saving.';
+  }
+  return null;
+}
+
+export function phoneTicketLineDraftQuantity(line: SenaTicketLine) {
+  const quantity = line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? null;
+  return typeof quantity === 'number' && Number.isFinite(quantity) && quantity > 0 ? quantity : null;
+}
+
+export function parsePhoneLeadTimeHint(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+  const parsed = parseEditableNumberWithCommas(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function phoneContactKey(value: string | null | undefined) {
@@ -1377,12 +1561,33 @@ function usePhoneModels() {
 
 function phoneSupplierTaskHref(task: OverviewTask) {
   if (isOverviewSupplierTicketTask(task)) {
+    const receipt = task.action === 'receive';
+    const skuIds = task.childTasks.map((childTask) => childTask.skuId);
     return buildSupplierTicketCaptureHref({
       mode: 'edit',
+      intent: receipt ? 'receipt' : 'order',
       ticketId: task.ticketId,
+      skuIds: receipt ? skuIds : undefined,
+      flashTargets: receipt
+        ? skuIds.map((skuId) => ({
+            action: 'supplier-receipt',
+            targetId: skuId,
+            targetType: 'sku',
+          }))
+        : undefined,
     });
   }
   if (isOverviewSkuTask(task)) {
+    const receipt = task.action === 'receive';
+    if (task.supplierTicketId) {
+      return buildSupplierTicketCaptureHref({
+        mode: 'edit',
+        intent: receipt ? 'receipt' : 'order',
+        ticketId: task.supplierTicketId,
+        targetId: task.skuId,
+        targetType: 'sku',
+      });
+    }
     return buildBatchUpdateHref({
       batchOrderId: task.batchOrderId,
       childOrderId: task.childOrderId,
@@ -1414,14 +1619,39 @@ function phoneSupplierBatchHref(task: OverviewTask, tasks: OverviewTask[] = []) 
     return null;
   }
   if (isOverviewSupplierTicketTask(task)) {
+    const receipt = task.action === 'receive';
+    const skuIds = groupTasks.map((groupTask) => groupTask.skuId);
     return buildSupplierTicketCaptureHref({
       mode: 'edit',
+      intent: receipt ? 'receipt' : 'order',
       ticketId: task.ticketId,
-      skuIds: groupTasks.map((groupTask) => groupTask.skuId),
+      skuIds,
+      flashTargets: receipt
+        ? skuIds.map((skuId) => ({
+            action: 'supplier-receipt',
+            targetId: skuId,
+            targetType: 'sku',
+          }))
+        : undefined,
     });
   }
   if (!isOverviewSkuTask(task)) {
     return null;
+  }
+  const receipt = task.action === 'receive';
+  if (task.supplierTicketId) {
+    const skuIds = groupTasks.map((groupTask) => groupTask.skuId);
+    return buildSupplierTicketCaptureHref({
+      mode: 'edit',
+      intent: receipt ? 'receipt' : 'order',
+      ticketId: task.supplierTicketId,
+      skuIds,
+      flashTargets: skuIds.map((skuId) => ({
+        action: receipt ? 'supplier-receipt' : 'supplier-order',
+        targetId: skuId,
+        targetType: 'sku',
+      })),
+    });
   }
   return buildBatchUpdateHref({
     batchOrderId: task.batchOrderId,
@@ -1509,16 +1739,15 @@ function phoneQueueSavedSummary(task: PhoneQueueSheetTask, quantity: string, act
 }
 
 function parsePhoneQueueActionQuantity(value: string) {
-  const parsed = Number(value);
+  const parsed = parseEditableNumberWithCommas(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
-function parseExplicitPhoneQueueActionDate(value: string) {
+export function parseExplicitPhoneQueueActionDate(value: string) {
   if (!value.trim()) {
     return null;
   }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  return parseLocalDateTimeInputIso(value);
 }
 
 function phoneQueueActionObservedAt(value: string) {
@@ -1666,17 +1895,7 @@ export function buildPhoneQueueObservationInput(
 
 function phoneCaptureHrefWithContext(
   href: string,
-  context: {
-    breadcrumb: string;
-    currentQuantity?: number | null;
-    laneId?: MobileActionContextLaneId | null;
-    mode?: MobileActionContextMode | null;
-    quantitySuggestion?: number | null;
-    recentEvidence?: string | null;
-    returnTo: string;
-    source: MobileActionContextSource;
-    supplierName?: string | null;
-    ticketId?: string | null;
+  context: MobileCaptureActionContext & {
     targetId?: string | null;
     targetType?: 'sku' | 'service' | null;
   },
@@ -2097,7 +2316,7 @@ function PhoneQueueTaskSheet({
               inputMode="decimal"
               min="0"
               placeholder={task.quantitySuggestion != null ? String(task.quantitySuggestion) : '0'}
-              type="number"
+              type="text"
               value={actionQuantity}
               onChange={(event) => {
                 setSavedAction(false);
@@ -2267,7 +2486,10 @@ function PhoneTodayRoute({
           : topSupplierTask.stateLabel
       : topCustomerTask?.label ?? translateUiLiteral(language, 'Capture a fresh update');
   const nextAction = !hasCatalogItems ? translateUiLiteral(language, 'Open products') : topSupplierTask?.actionLabel ?? topCustomerTask?.actionLabel ?? translateUiLiteral(language, 'Start update');
-  const latestObservation = inventory.observations?.[0] ?? null;
+  const latestObservation = useMemo(() => {
+    const latestAt = latestObservationAtForRecords(inventory.observations ?? []);
+    return inventory.observations?.find((observation) => observation.input.observedAt === latestAt) ?? null;
+  }, [inventory.observations]);
   const latestHistoryEntry = useMemo(
     () => buildPhoneHistoryEntries(latestObservation ? [latestObservation] : [], catalog)[0] ?? null,
     [catalog, latestObservation],
@@ -2748,11 +2970,34 @@ function PhoneCaptureRoute() {
     return (
       <PhonePage className="min-h-full content-center" slot="phone-capture-page">
         <PhonePageHeader eyebrow="Capture" title="Record what changed" />
-        <RecordUpdateHubRoute embedded />
+        <Suspense
+          fallback={(
+            <PhoneLoadingState
+              title="Preparing capture…"
+              detail="Loading record lanes before opening the capture menu."
+            />
+          )}
+        >
+          <LazyRecordUpdateHubRoute embedded />
+        </Suspense>
       </PhonePage>
     );
   }
-  return <StockUpdateSessionRoute />;
+  return (
+    <Suspense
+      fallback={(
+        <PhonePage slot="phone-capture-page">
+          <PhonePageHeader eyebrow="Capture" title="Record what changed" />
+          <PhoneLoadingState
+            title="Preparing capture…"
+            detail="Loading products and saved draft context before opening record lanes."
+          />
+        </PhonePage>
+      )}
+    >
+      <LazyStockUpdateSessionRoute />
+    </Suspense>
+  );
 }
 
 function PhoneLegacyCaptureRoute() {
@@ -2785,10 +3030,10 @@ function PhoneLegacyCaptureRoute() {
     catalog.skus.some((sku) => !sku.archived) ||
     catalog.services.some((service) => !service.archived)
   ));
-  const prefilledSkuId = captureSearchParams.get('skus')?.split(',').find(Boolean) ?? '';
-  const prefilledTargetId = captureSearchParams.get('targetId') ?? prefilledSkuId;
+  const prefilledSkuId = parseRouteIdList(captureSearchParams.get('skus'))[0] ?? '';
+  const prefilledTargetId = captureSearchParams.get('targetId')?.trim() || prefilledSkuId;
   const sourceBreadcrumb = captureSearchParams.get('breadcrumb') ?? '';
-  const returnTo = captureSearchParams.get('returnTo') ?? buildRememberedInboxHref();
+  const returnTo = sanitizePhoneReturnTo(captureSearchParams.get('returnTo'), buildRememberedInboxHref());
   const quantitySuggestion = captureSearchParams.get('quantitySuggestion') ?? '';
   const supplierName = captureSearchParams.get('supplierName') ?? '';
   const captureTicketId = captureSearchParams.get('ticketId') ?? '';
@@ -2872,6 +3117,7 @@ function PhoneLegacyCaptureRoute() {
   const missingContextualTarget = Boolean(prefilledTargetId && step === 'details' && !selectedTarget);
   const draftTargetId = selectedTarget?.id ?? (selectedTargetId || prefilledTargetId);
   const draftKey = phoneCaptureDraftKey(lane?.id, draftTargetId, captureTicketId);
+  const quantityError = useMemo(() => phoneCaptureQuantityError(lane?.id, quantity), [lane?.id, quantity]);
   const hasEditedDraft = Boolean(step !== 'saved' && (
     quantity.trim() ||
     note.trim() ||
@@ -2933,7 +3179,7 @@ function PhoneLegacyCaptureRoute() {
         params.delete('skus');
       }
       setSelectedTargetId(firstLine.entityId);
-      setQuantity((current) => current || String(Math.abs(firstLine.quantityDelta ?? firstLine.orderedQuantity ?? firstLine.receivedQuantity ?? 0) || ''));
+      setQuantity((current) => current || String(phoneTicketLineDraftQuantity(firstLine) ?? ''));
     }
     setIgnorePrefillTarget(false);
     setCaptureSearchParams(params);
@@ -3063,12 +3309,17 @@ function PhoneLegacyCaptureRoute() {
     if (!lane || !selectedTarget) {
       return;
     }
-    const parsedQuantity = Number(quantity);
-    if (!Number.isFinite(parsedQuantity) || parsedQuantity < 0) {
-      setSaveError(translateUiLiteral(language, 'Enter a valid quantity before saving.'));
+    const quantityValidationError = phoneCaptureQuantityError(lane.id, quantity);
+    if (quantityValidationError) {
+      setSaveError(translateUiLiteral(language, quantityValidationError));
       return;
     }
+    const parsedQuantity = parseEditableNumberWithCommas(quantity);
     const observedAt = phoneObservedAtInputToIso(observedAtInput);
+    if (!observedAt) {
+      setSaveError(translateUiLiteral(language, 'Enter a valid date and time.'));
+      return;
+    }
     const input = emptyPhoneObservationInput(observedAt, note.trim() || null);
 
     if (lane.id === 'stock-count') {
@@ -3090,6 +3341,10 @@ function PhoneLegacyCaptureRoute() {
       const receipt = lane.id === 'supplier-receipt';
       const supplierCanceled = captureMode === 'cancel';
       const expectedArrivalAt = supplierEta.trim() ? phoneObservedAtInputToIso(supplierEta) : null;
+      if (supplierEta.trim() && !expectedArrivalAt) {
+        setSaveError(translateUiLiteral(language, 'Enter a valid date and time.'));
+        return;
+      }
       input.orderSignals.push({
         approximateOrderQuantity: receipt || supplierCanceled ? null : parsedQuantity,
         approximateReceiptQuantity: receipt ? parsedQuantity : null,
@@ -3135,8 +3390,8 @@ function PhoneLegacyCaptureRoute() {
           supplierDiscrepancy.trim() || note.trim() || null,
         ].filter(Boolean).join(' · ') || null,
       }];
-      const parsedLeadTime = Number(supplierLeadTime);
-      if (!receipt && !supplierCanceled && Number.isFinite(parsedLeadTime) && parsedLeadTime > 0) {
+      const parsedLeadTime = parsePhoneLeadTimeHint(supplierLeadTime);
+      if (!receipt && !supplierCanceled && parsedLeadTime != null) {
         input.leadTimeHints.push({
           highDays: parsedLeadTime,
           lowDays: parsedLeadTime,
@@ -3508,7 +3763,7 @@ function PhoneLegacyCaptureRoute() {
                       <Input
                         inputMode="decimal"
                         placeholder={translateUiLiteral(language, 'Typical days')}
-                        type="number"
+                        type="text"
                         value={supplierLeadTime}
                         onChange={(event) => setSupplierLeadTime(event.currentTarget.value)}
                       />
@@ -3522,7 +3777,7 @@ function PhoneLegacyCaptureRoute() {
                   inputMode="decimal"
                   min="0"
                   placeholder="0"
-                  type="number"
+                  type="text"
                   value={quantity}
                   onChange={(event) => setQuantity(event.currentTarget.value)}
                 />
@@ -3547,7 +3802,7 @@ function PhoneLegacyCaptureRoute() {
                 <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setStep('choose')}>
                   {translateUiLiteral(language, 'Back')}
                 </Button>
-                <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt disabled={!selectedTarget || !quantity.trim()} type="button" onClick={() => setStep('review')}>
+                <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt disabled={!selectedTarget || !quantity.trim() || Boolean(quantityError)} type="button" onClick={() => setStep('review')}>
                   {translateUiLiteral(language, 'Review')}
                 </Button>
               </div>
@@ -3637,14 +3892,14 @@ function PhoneLegacyCaptureRoute() {
                     icon={<EntitySkuIcon data-icon="inline-start" />}
                     to={phoneCaptureHrefWithContext(RECORD_UPDATE_STOCK_COUNT_PATH, {
                       breadcrumb: `Opened from ${lane.title} · Refund / reversal`,
-                      quantitySuggestion: Number.isFinite(Number(quantity)) ? Number(quantity) : null,
+                      quantitySuggestion: Number.isFinite(parseEditableNumberWithCommas(quantity)) ? parseEditableNumberWithCommas(quantity) : null,
                       returnTo,
                       source: 'sku-detail',
                       targetId: selectedTarget.id,
                       targetType: 'sku',
                     })}
                   >
-                    {translateUiLiteral(language, 'Add returned stock in Stock Count')}
+                    {translateUiLiteral(language, 'Add returned stock in Products Update')}
                   </PhoneActionRow>
                 ) : null}
               </div>
@@ -3959,7 +4214,7 @@ function PhoneProductsRoute() {
                   targetId: selectedAction.sku.skuId,
                   targetType: 'sku',
                 })}>
-                  {translateUiLiteral(language, 'Stock Count')}
+                  {translateUiLiteral(language, 'Products Update')}
                 </PhoneActionRow>
                 <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`, {
                   breadcrumb: `Opened from Products · Search "${query}"`,
@@ -3982,6 +4237,15 @@ function PhoneProductsRoute() {
                     {translateUiLiteral(language, 'Open bottleneck SKU')}
                   </PhoneActionRow>
                 ) : null}
+                <PhoneActionRow icon={<EntityTagsIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_STOCK_COUNT_PATH}?targetAction=service-price`, {
+                  breadcrumb: `Opened from Products · Search "${query}"`,
+                  returnTo: `/catalog?${searchParams.toString()}`,
+                  source: 'products',
+                  targetId: selectedAction.service.serviceId,
+                  targetType: 'service',
+                })}>
+                  {translateUiLiteral(language, 'Updated Price')}
+                </PhoneActionRow>
                 <PhoneActionRow icon={<EntityCustomerIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`, {
                   breadcrumb: `Opened from Products · Search "${query}"`,
                   returnTo: `/catalog?${searchParams.toString()}`,
@@ -4233,18 +4497,35 @@ function PhoneSkuDetailRoute() {
       </PhoneSection>
       <PhoneSection title={translateUiLiteral(language, 'Actions')}>
         <div className="grid gap-2" data-slot="phone-product-actions">
-          <PhoneActionRow icon={<EntitySkuIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_STOCK_COUNT_PATH, detailContext)}>
-            {translateUiLiteral(language, 'Stock Count')}
+          <PhoneActionRow icon={<NavigationCatalogIcon data-icon="inline-start" />} to={productsHref}>
+            {translateUiLiteral(language, 'Back to products')}
           </PhoneActionRow>
-          <PhoneActionRow
-            icon={<ActionCreatePackageIcon data-icon="inline-start" />}
-            to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`, {
+          <PhoneCaptureActionRow action="stock" context={detailContext} icon={<ActionAddBadgeIcon data-icon="inline-start" />} targetId={sku.skuId} targetType="sku">
+            {translateUiLiteral(language, 'Products Update')}
+          </PhoneCaptureActionRow>
+          <PhoneCaptureActionRow
+            action="supplier-order"
+            context={{
               ...detailContext,
               quantitySuggestion: null,
-            })}
+            }}
+            icon={<ActionCreatePackageIcon data-icon="inline-start" />}
+            targetId={sku.skuId}
+            targetType="sku"
           >
             {translateUiLiteral(language, 'Supplier Order')}
-          </PhoneActionRow>
+          </PhoneCaptureActionRow>
+          <PhoneCaptureActionRow action="customer-order" context={detailContext} icon={<EntityCustomerIcon data-icon="inline-start" />} targetId={sku.skuId} targetType="sku">
+            {translateUiLiteral(language, 'Customer Order')}
+          </PhoneCaptureActionRow>
+          <PhoneCaptureActionRow action="immediate-sale" context={detailContext} icon={<EntityRevenueIcon data-icon="inline-start" />} targetId={sku.skuId} targetType="sku">
+            {translateUiLiteral(language, 'Immediate Sale')}
+          </PhoneCaptureActionRow>
+          {sku.soldAsProduct ? (
+            <PhoneCaptureActionRow action="sku-price" context={detailContext} icon={<EntityTagsIcon data-icon="inline-start" />} targetId={sku.skuId} targetType="sku">
+              {translateUiLiteral(language, 'Updated price')}
+            </PhoneCaptureActionRow>
+          ) : null}
         </div>
       </PhoneSection>
     </PhonePage>
@@ -4256,7 +4537,9 @@ function PhoneServiceDetailRoute() {
   const inventory = useInventory();
   const { currency, language, usdToKhrExchangeRate } = usePreferences();
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [confirmingBottleneckSku, setConfirmingBottleneckSku] = useState(false);
   const catalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const decodedServiceId = decodePhoneRouteParam(serviceId);
   const service = catalog?.services.find((candidate) => candidate.serviceId === decodedServiceId && !candidate.archived) ?? null;
@@ -4327,6 +4610,9 @@ function PhoneServiceDetailRoute() {
         targetType: 'sku' as const,
       }
     : null;
+  const bottleneckSkuHref = bottleneckSku
+    ? phoneHrefWithSearch(`/catalog/skus/${encodeURIComponent(bottleneckSku.skuId)}`, searchParams, ['q', 'type', 'filter'])
+    : null;
 
   return (
     <PhonePage slot="phone-product-detail-page">
@@ -4375,27 +4661,41 @@ function PhoneServiceDetailRoute() {
       </PhoneSection>
       <PhoneSection title={translateUiLiteral(language, 'Actions')}>
         <div className="grid gap-2" data-slot="phone-product-actions">
-          {bottleneckSku ? (
-            <PhoneActionRow icon={<ActionOpenExternalIcon data-icon="inline-start" />} to={phoneHrefWithSearch(`/catalog/skus/${encodeURIComponent(bottleneckSku.skuId)}`, searchParams, ['q', 'type', 'filter'])}>
+          <PhoneActionRow icon={<NavigationCatalogIcon data-icon="inline-start" />} to={productsHref}>
+            {translateUiLiteral(language, 'Back to products')}
+          </PhoneActionRow>
+          {bottleneckSku && bottleneckSkuHref ? (
+            <PhoneActionRow icon={<ActionOpenExternalIcon data-icon="inline-start" />} onClick={() => setConfirmingBottleneckSku(true)}>
               {translateUiLiteral(language, 'Open bottleneck SKU')}
             </PhoneActionRow>
           ) : null}
-          <PhoneActionRow icon={<EntityCustomerIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`, serviceContext)}>
+          <PhoneCaptureActionRow action="service-price" context={serviceContext} icon={<EntityTagsIcon data-icon="inline-start" />} targetId={service.serviceId} targetType="service">
+            {translateUiLiteral(language, 'Updated price')}
+          </PhoneCaptureActionRow>
+          <PhoneCaptureActionRow action="customer-order" context={serviceContext} icon={<EntityCustomerIcon data-icon="inline-start" />} targetId={service.serviceId} targetType="service">
             {translateUiLiteral(language, 'Customer Order')}
-          </PhoneActionRow>
-          <PhoneActionRow icon={<EntityRevenueIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_CUSTOMER_COMPLETED_PATH}?ticketMode=new`, serviceContext)}>
+          </PhoneCaptureActionRow>
+          <PhoneCaptureActionRow action="immediate-sale" context={serviceContext} icon={<EntityRevenueIcon data-icon="inline-start" />} targetId={service.serviceId} targetType="service">
             {translateUiLiteral(language, 'Immediate Sale')}
-          </PhoneActionRow>
-          {bottleneckContext ? (
-            <PhoneActionRow icon={<ActionReceiveInventoryIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_STOCK_COUNT_PATH, bottleneckContext)}>
-              {translateUiLiteral(language, 'Record linked stock')}
-            </PhoneActionRow>
-          ) : null}
-          <PhoneActionRow icon={<EntityTagsIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_HUB_PATH, serviceContext)}>
-            {translateUiLiteral(language, 'Update price')}
-          </PhoneActionRow>
+          </PhoneCaptureActionRow>
         </div>
       </PhoneSection>
+      {bottleneckSku && bottleneckSkuHref ? (
+        <ConfirmActionDialog
+          cancelLabel={translateUiLiteral(language, 'Cancel')}
+          confirmIcon={<ActionOpenExternalIcon />}
+          confirmLabel={translateUiLiteral(language, 'Open bottleneck SKU')}
+          confirmVariant="default"
+          description={translateUiLiteral(language, 'This will leave the service detail page and open the linked bottleneck SKU.')}
+          open={confirmingBottleneckSku}
+          title={translateUiLiteral(language, 'Open bottleneck SKU?')}
+          onCancel={() => setConfirmingBottleneckSku(false)}
+          onConfirm={() => {
+            setConfirmingBottleneckSku(false);
+            navigate(bottleneckSkuHref);
+          }}
+        />
+      ) : null}
     </PhonePage>
   );
 }
@@ -4423,11 +4723,11 @@ function PhoneSafetyRoute({
   const [preferencesStatus, setPreferencesStatus] = useState<string | null>(null);
   const ready = storage.status === 'ready';
   const resetLabel = mode === 'demo' ? 'Reset demo' : 'Reset workspace';
-  const exchangeRateValue = Number(exchangeRateDraft);
+  const exchangeRateValue = parsePhoneExchangeRateDraft(exchangeRateDraft);
   const exchangeRateError =
     exchangeRateDraft.trim().length === 0
       ? translateUiLiteral(language, 'Exchange rate is required.')
-      : !Number.isFinite(exchangeRateValue) || exchangeRateValue <= 0
+      : exchangeRateValue == null
         ? translateUiLiteral(language, 'Enter a number greater than zero.')
         : null;
 
@@ -4470,7 +4770,7 @@ function PhoneSafetyRoute({
     <PhonePage slot="phone-more-page">
       {confirmingReset ? (
         <div className="fixed inset-0 z-50 grid place-items-end bg-foreground/30 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]" data-slot="phone-reset-confirmation">
-          <PhoneSurface className="w-full max-w-md justify-self-center border-destructive/30 bg-background shadow-[0_18px_70px_rgba(27,15,7,0.24)]">
+          <PhoneSurface className="w-full max-w-md justify-self-center border-destructive/30 bg-background">
             <div className="grid gap-3">
               <div className="grid gap-1">
                 <p className="text-sm font-semibold text-destructive">
@@ -4620,7 +4920,7 @@ function PhoneSafetyRoute({
                   inputMode="decimal"
                   min="0"
                   step="1"
-                  type="number"
+                  type="text"
                   value={exchangeRateDraft}
                   onChange={(event) => {
                     setPreferencesStatus(null);
@@ -4635,7 +4935,7 @@ function PhoneSafetyRoute({
                 disabled={Boolean(exchangeRateError)}
                 type="button"
                 onClick={() => {
-                  if (!exchangeRateError) {
+                  if (!exchangeRateError && exchangeRateValue != null) {
                     void applyPhonePreferences({ usdToKhrExchangeRate: exchangeRateValue });
                   }
                 }}
@@ -4714,7 +5014,7 @@ function PhoneInsightsRoute() {
   const activeServices = catalog?.services.filter((service) => !service.archived) ?? [];
   const hasCatalogItems = activeSkus.length + activeServices.length > 0;
   const recentObservationCount = inventory.observations?.length ?? inventory.latestRun?.observationCount ?? 0;
-  const latestObservationAt = inventory.observations?.[0]?.input.observedAt ?? null;
+  const latestObservationAt = latestObservationAtForRecords(inventory.observations ?? []);
   const lens = location.pathname.startsWith('/insights/money')
     ? 'money'
     : location.pathname.startsWith('/insights/explain')
@@ -5310,7 +5610,7 @@ function PhoneInsightsRoute() {
                           targetId: selectedInventoryRow.sku.skuId,
                           targetType: 'sku',
                         })}>
-                          {translateUiLiteral(language, 'Stock Count')}
+                          {translateUiLiteral(language, 'Products Update')}
                         </PhoneActionRow>
                         <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`, {
                           breadcrumb: `Opened from Inventory · ${selectedInventoryRow.label}`,
@@ -5336,6 +5636,15 @@ function PhoneInsightsRoute() {
                             {translateUiLiteral(language, 'Open bottleneck SKU')}
                           </PhoneActionRow>
                         ) : null}
+                        <PhoneActionRow icon={<EntityTagsIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_STOCK_COUNT_PATH}?targetAction=service-price`, {
+                          breadcrumb: `Opened from Inventory · ${selectedInventoryRow.label}`,
+                          returnTo: insightReturnTo,
+                          source: 'inventory',
+                          targetId: selectedInventoryRow.service.serviceId,
+                          targetType: 'service',
+                        })}>
+                          {translateUiLiteral(language, 'Updated Price')}
+                        </PhoneActionRow>
                         <PhoneActionRow icon={<EntityCustomerIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`, {
                           breadcrumb: `Opened from Inventory · ${selectedInventoryRow.label}`,
                           returnTo: insightReturnTo,
@@ -5831,7 +6140,7 @@ function PhoneHistoryRoute() {
     [catalog, inventory.observations],
   );
   const groups: PhoneHistoryGroup[] = [
-    'Stock Count',
+    'Products Update',
     'Customer Orders Pending',
     'Customer Orders Completed',
     'Supplier Orders Pending',
@@ -5870,7 +6179,7 @@ function PhoneHistoryRoute() {
     <PhonePage slot="phone-history-page">
       {selectedEntry ? (
         <div className="fixed inset-0 z-50 grid place-items-end bg-foreground/30 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]" data-slot="phone-history-detail-sheet">
-          <PhoneSurface className="w-full max-w-md justify-self-center bg-background shadow-[0_18px_70px_rgba(27,15,7,0.24)]">
+          <PhoneSurface className="w-full max-w-md justify-self-center bg-background">
             <div className="grid gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -6033,9 +6342,9 @@ function PhoneChrome({
   const ready = storage.status === 'ready';
   const resetLabel = mode === 'demo' ? 'Reset demo' : 'Reset workspace';
   const isDeepCaptureRoute = location.pathname.startsWith('/work/capture/');
+  const isOnboardingRoute = location.pathname.startsWith('/onboarding');
   const isSettingsRoute = location.pathname.startsWith('/settings');
-  const captureReturnTo = new URLSearchParams(location.search).get('returnTo') ?? RECORD_UPDATE_HUB_PATH;
-  const captureBackHref = isInternalPhoneHref(captureReturnTo) ? captureReturnTo : RECORD_UPDATE_HUB_PATH;
+  const captureBackHref = sanitizePhoneReturnTo(new URLSearchParams(location.search).get('returnTo'), RECORD_UPDATE_HUB_PATH);
   const shellHeader = phoneShellHeaderCopy(location.pathname, language, activeSenaCatalog(inventory.catalog) ?? inventory.catalog);
 
   useEffect(() => {
@@ -6065,7 +6374,7 @@ function PhoneChrome({
     >
       {utilityOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-end bg-foreground/30 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]" data-slot="phone-utility-safety-sheet">
-          <PhoneSurface className="w-full max-w-md justify-self-center bg-background shadow-[0_18px_70px_rgba(27,15,7,0.24)]">
+          <PhoneSurface className="w-full max-w-md justify-self-center bg-background">
             <div className="grid gap-3">
               <div className="flex items-start gap-3">
                 <span className="grid size-10 shrink-0 place-items-center rounded-[0.8rem] bg-secondary text-secondary-foreground">
@@ -6125,7 +6434,7 @@ function PhoneChrome({
       ) : null}
       {confirmingReset ? (
         <div className="fixed inset-0 z-[60] grid place-items-end bg-foreground/30 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]" data-slot="phone-reset-confirmation">
-          <PhoneSurface className="w-full max-w-md justify-self-center border-destructive/30 bg-background shadow-[0_18px_70px_rgba(27,15,7,0.24)]">
+          <PhoneSurface className="w-full max-w-md justify-self-center border-destructive/30 bg-background">
             <div className="grid gap-3">
               <div className="grid gap-1">
                 <p className="text-sm font-semibold text-destructive">
@@ -6171,43 +6480,58 @@ function PhoneChrome({
         {translateUiLiteral(language, 'Skip to content')}
       </a>
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/92 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur" data-slot="embedded-phone-header">
-        <div className={cn(isDeepCaptureRoute ? 'grid grid-cols-1 items-start gap-y-2' : 'flex items-start justify-between gap-3')}>
-          <div className="min-w-0">
+        <div className={cn(isDeepCaptureRoute ? 'flex flex-wrap items-start gap-x-3 gap-y-2' : 'flex items-start justify-between gap-3')}>
+          <div className={cn('min-w-0', isDeepCaptureRoute && 'flex-[999_0_max-content] max-w-full')}>
             {!isDeepCaptureRoute ? (
               <p className="khmer-safe-eyebrow text-xs font-semibold uppercase tracking-[0.14em] text-primary" data-slot="embedded-phone-header-eyebrow">
                 {shellHeader.eyebrow}
               </p>
             ) : null}
-            <p className="khmer-safe-display flex min-w-0 items-center gap-2 text-[1.7rem] font-semibold leading-[1.12] tracking-normal text-foreground" data-slot="embedded-phone-header-title">
-              {isDeepCaptureRoute ? (
+            {isDeepCaptureRoute ? (
+              <h1 className="khmer-safe-display flex min-w-0 items-center gap-2 text-[1.7rem] font-semibold leading-[1.12] tracking-normal text-foreground" data-slot="embedded-phone-header-title">
                 <Button asChild aria-label={translateUiLiteral(language, 'Back')} className="size-9 shrink-0 rounded-full p-0" size="icon" variant="ghost">
                   <Link to={captureBackHref}>
                     <NavigationBackIcon aria-hidden="true" className="size-4" />
                   </Link>
                 </Button>
-              ) : null}
-              <span className={cn('min-w-0', isDeepCaptureRoute ? 'whitespace-normal break-words' : 'truncate')}>{shellHeader.title}</span>
-            </p>
+                <span className="min-w-fit max-w-full whitespace-nowrap">
+                  {shellHeader.title}
+                  <span
+                    className="ml-2 align-baseline text-sm font-medium leading-5 text-muted-foreground"
+                    data-slot="embedded-phone-capture-header-title-meta"
+                  />
+                </span>
+              </h1>
+            ) : (
+              <p className="khmer-safe-display flex min-w-0 items-center gap-2 text-[1.7rem] font-semibold leading-[1.12] tracking-normal text-foreground" data-slot="embedded-phone-header-title">
+                <span className="min-w-0 truncate">{shellHeader.title}</span>
+              </p>
+            )}
           </div>
           {isDeepCaptureRoute ? (
             <>
-              <div className="flex w-full shrink-0 flex-wrap items-start justify-end gap-2 [&_[data-slot=workspace-action-row]]:gap-2 [&_[data-slot=workspace-action-row]]:[&>span]:inline-flex [&_button]:min-h-10 [&_button]:rounded-full [&_button]:px-3 [&_button]:text-sm" data-slot="embedded-phone-capture-header-actions" />
+              <div className="flex min-w-[min(100%,26rem)] flex-[1_1_26rem] shrink-0 flex-wrap items-start justify-end gap-2 [&_[data-slot=workspace-action-row]]:gap-2 [&_[data-slot=workspace-action-row]]:[&>span]:inline-flex [&_button]:min-h-10 [&_button]:rounded-full [&_button]:px-3 [&_button]:text-sm" data-slot="embedded-phone-capture-header-actions" />
               <div className="min-w-0 text-sm leading-5 text-muted-foreground [&_p]:max-w-none" data-slot="embedded-phone-capture-header-meta" />
             </>
           ) : isSettingsRoute ? null : (
-            <Button asChild aria-label={translateUiLiteral(language, 'Workspace safety')} className="size-11 rounded-[0.8rem] border-border/70 bg-card" size="icon" variant="outline">
-              <Link to="/settings">
-                <NavigationSettingsIcon aria-hidden="true" className="size-4" />
-              </Link>
+            <Button
+              aria-label={translateUiLiteral(language, 'Workspace safety')}
+              className="size-11 rounded-[0.8rem] border-border/70 bg-card"
+              size="icon"
+              type="button"
+              variant="outline"
+              onClick={() => setUtilityOpen(true)}
+            >
+              <NavigationSettingsIcon aria-hidden="true" className="size-4" />
             </Button>
           )}
         </div>
       </header>
       <main
         id="main-content"
-        className={cn('min-w-0 max-w-full overflow-x-clip px-4 pt-4', isDeepCaptureRoute ? 'row-start-2' : 'row-start-3')}
+        className={cn('min-w-0 max-w-full overflow-x-clip px-4', isOnboardingRoute ? 'grid items-center pt-0' : 'pt-4', isDeepCaptureRoute ? 'row-start-2' : 'row-start-3')}
         data-slot="embedded-phone-main"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+        style={{ paddingBottom: isOnboardingRoute ? 0 : 'calc(env(safe-area-inset-bottom) + 1rem)' }}
       >
         <PhoneWorkspaceErrorBanner />
         {children}
@@ -6239,10 +6563,10 @@ function PhoneRoutes(props: EmbeddedPhoneAppProps) {
         <Route element={<Navigate replace to="/work/queue" />} path="/work" />
         <Route element={<PhoneQueueRoute />} path="/work/queue" />
         <Route element={<PhoneCaptureRoute />} path="/work/capture" />
-        <Route element={<PhoneCaptureRoute />} path="/work/capture/stock-count/*" />
-        <Route element={<PhoneCaptureRoute />} path="/work/capture/supplier-order/*" />
-        <Route element={<PhoneCaptureRoute />} path="/work/capture/immediate-sale/*" />
-        <Route element={<PhoneCaptureRoute />} path="/work/capture/customer-order/*" />
+        {PHONE_CAPTURE_ROUTE_PATHS.map((path) => (
+          <Route key={path} element={<PhoneCaptureRoute />} path={path} />
+        ))}
+        <Route element={<Navigate replace to="/work/capture/stock-count" />} path="/work/capture/custom/*" />
         <Route element={<PhoneWideOnlyRoute />} path="/work/*" />
         <Route element={<PhoneSkuDetailRoute />} path="/catalog/skus/:skuId" />
         <Route element={<PhoneServiceDetailRoute />} path="/catalog/services/:serviceId" />

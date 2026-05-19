@@ -399,7 +399,7 @@ describe('SENA routes', () => {
     });
 
     expect(screen.queryByRole('button', { name: 'Record' })).not.toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Products Update' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Supplier Order' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Customer Order' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Immediate Sale' })).toBeInTheDocument();
@@ -630,14 +630,14 @@ describe('SENA routes', () => {
     await waitFor(() => {
       const serviceCustomerOrderButton = screen.getByText('Customer Order').closest<HTMLElement>('button,[role="button"]');
       expect(serviceCustomerOrderButton).not.toHaveAttribute('aria-disabled', 'true');
-      expect(screen.queryByText('Stock Count')).not.toBeInTheDocument();
+      expect(screen.queryByText('Products Update')).not.toBeInTheDocument();
     });
 
     await waitFor(() => {
       expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
     });
 
-    expect(screen.queryByText('Stock Count')).not.toBeInTheDocument();
+    expect(screen.queryByText('Products Update')).not.toBeInTheDocument();
   });
 
   test('loads service detail actions lazily when the catalog menu opens', async () => {
@@ -732,7 +732,7 @@ describe('SENA routes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     expect(screen.getByText('Customer Order')).toBeInTheDocument();
     expect(screen.getByText('Immediate Sale')).toBeInTheDocument();
-    expect(screen.queryByText('Stock Count')).not.toBeInTheDocument();
+    expect(screen.queryByText('Products Update')).not.toBeInTheDocument();
     expect(screen.getByText('Updated Price')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('href', '/catalog/services/service-1/edit');
   });
@@ -854,6 +854,6 @@ describe('SENA routes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     expect(screen.getByRole('menuitem', { name: 'Customer Order' })).not.toHaveAttribute('aria-disabled', 'true');
-    expect(screen.queryByRole('menuitem', { name: 'Stock Count' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Products Update' })).not.toBeInTheDocument();
   });
 });

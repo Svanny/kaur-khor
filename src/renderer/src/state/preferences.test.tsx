@@ -190,6 +190,12 @@ function PreferencesProbe() {
       <button type="button" onClick={() => void savePreferences()}>
         save
       </button>
+      <button type="button" onClick={() => void savePreferences({ language: 'km' })}>
+        save-km
+      </button>
+      <button type="button" onClick={() => void savePreferences({ language: 'en' })}>
+        save-en
+      </button>
       <button
         type="button"
         onClick={() => void Promise.all([
@@ -198,6 +204,9 @@ function PreferencesProbe() {
         ])}
       >
         mark-two-unlocked-items
+      </button>
+      <button type="button" onClick={() => void markUnlockedNavItemSeen('catalog').catch(() => undefined)}>
+        mark-catalog-unlocked-item
       </button>
       <button type="button" onClick={resetPreferences}>
         reset
@@ -474,6 +483,296 @@ describe('preferences state', () => {
     expect(screen.getByTestId('pending').textContent).toBe('false');
   });
 
+  it('ignores failed preference hydration after unmount', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let rejectHydration!: (error: Error) => void;
+    getPreferences.mockReturnValueOnce(new Promise((_, reject) => {
+      rejectHydration = reject;
+    }));
+
+    const { unmount } = render(
+      <PreferencesProvider>
+        <PreferencesProbe />
+      </PreferencesProvider>,
+    );
+
+    unmount();
+    rejectHydration(new Error('preferences read failed'));
+    await Promise.resolve();
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it('shows hydrated fallback state when preference hydration fails while mounted', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    getPreferences.mockRejectedValueOnce(new Error('preferences read failed'));
+
+    render(
+      <PreferencesProvider>
+        <PreferencesProbe />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('language').textContent).toBe('en');
+    });
+    expect(errorSpy).toHaveBeenCalledWith('failed to load desktop preferences', expect.any(Error));
+    errorSpy.mockRestore();
+  });
+
+  it('ignores stale preference save responses after a newer save finishes', async () => {
+    let resolveFirstSave!: (value: Awaited<ReturnType<typeof savePreferences>>) => void;
+    savePreferences
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveFirstSave = resolve;
+      }))
+      .mockResolvedValueOnce({
+        language: 'en',
+        currency: 'USD',
+        usdToKhrExchangeRate: 4000,
+        displayViewMode: 'custom',
+        itemImageMode: 'small',
+        dimChartsWhileLoading: false,
+        showExplanatoryTooltips: true,
+        showFloatingTitleActions: true,
+        showRightRailCards: true,
+        showOverviewTaskTabs: true,
+        showAutomationsPage: true,
+        showAnalysisPage: true,
+        showPerformanceCompareToggle: true,
+        showPerformanceTimelineCard: true,
+        showLogsViewToggle: true,
+        showHeartbeatRibbons: true,
+        taskBatchUpdatePreferences: {
+          logOrder: 'ask',
+          updateEta: 'ask',
+          followUp: 'ask',
+          receive: 'ask',
+          review: 'ask',
+        },
+        customShowExplanatoryTooltips: true,
+        customShowFloatingTitleActions: true,
+        customShowRightRailCards: true,
+        customShowOverviewTaskTabs: true,
+        customShowAutomationsPage: true,
+        customShowAnalysisPage: true,
+        customShowPerformanceCompareToggle: true,
+        customShowPerformanceTimelineCard: true,
+        customShowLogsViewToggle: true,
+        customShowHeartbeatRibbons: true,
+        senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+        overviewStaleUpdateReminderSnoozeUntil: null,
+        onboardingCompletedAt: null,
+        seenUnlockedNavItems: {
+          catalog: false,
+          insights: false,
+          work: false,
+        },
+        workbenchTileOrderByLane: {
+          'supplier-order-pending': ['supplier-order:sku-2'],
+        },
+      });
+
+    render(
+      <PreferencesProvider>
+        <PreferencesProbe />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('language').textContent).toBe('en');
+    });
+
+    fireEvent.click(screen.getByText('save-km'));
+    fireEvent.click(screen.getByText('save-en'));
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByTestId('persisted-language').textContent).toBe('en');
+
+    resolveFirstSave({
+      language: 'km',
+      currency: 'KHR',
+      usdToKhrExchangeRate: 4100,
+      displayViewMode: 'custom',
+      itemImageMode: 'off',
+      dimChartsWhileLoading: true,
+      showExplanatoryTooltips: false,
+      showFloatingTitleActions: false,
+      showRightRailCards: false,
+      showOverviewTaskTabs: false,
+      showAutomationsPage: false,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: false,
+      showPerformanceTimelineCard: false,
+      showLogsViewToggle: false,
+      showHeartbeatRibbons: false,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
+      customShowExplanatoryTooltips: false,
+      customShowFloatingTitleActions: false,
+      customShowRightRailCards: false,
+      customShowOverviewTaskTabs: false,
+      customShowAutomationsPage: false,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: false,
+      customShowPerformanceTimelineCard: false,
+      customShowLogsViewToggle: false,
+      customShowHeartbeatRibbons: false,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        insights: false,
+        work: false,
+      },
+      workbenchTileOrderByLane: {
+        'supplier-order-pending': ['supplier-order:sku-2'],
+      },
+    });
+    await Promise.resolve();
+
+    expect(screen.getByTestId('language').textContent).toBe('en');
+    expect(screen.getByTestId('persisted-language').textContent).toBe('en');
+    expect(screen.getByTestId('currency').textContent).toBe('USD');
+    expect(screen.getByTestId('persisted-currency').textContent).toBe('USD');
+  });
+
+  it('keeps older general preference saves stale after unlocked navigation acknowledgements', async () => {
+    let resolveFirstSave!: (value: Awaited<ReturnType<typeof savePreferences>>) => void;
+    savePreferences
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveFirstSave = resolve;
+      }))
+      .mockResolvedValueOnce({
+        language: 'en',
+        currency: 'USD',
+        usdToKhrExchangeRate: 4000,
+        displayViewMode: 'custom',
+        itemImageMode: 'small',
+        dimChartsWhileLoading: false,
+        showExplanatoryTooltips: true,
+        showFloatingTitleActions: true,
+        showRightRailCards: true,
+        showOverviewTaskTabs: true,
+        showAutomationsPage: true,
+        showAnalysisPage: true,
+        showPerformanceCompareToggle: true,
+        showPerformanceTimelineCard: true,
+        showLogsViewToggle: true,
+        showHeartbeatRibbons: true,
+        taskBatchUpdatePreferences: {
+          logOrder: 'ask',
+          updateEta: 'ask',
+          followUp: 'ask',
+          receive: 'ask',
+          review: 'ask',
+        },
+        customShowExplanatoryTooltips: true,
+        customShowFloatingTitleActions: true,
+        customShowRightRailCards: true,
+        customShowOverviewTaskTabs: true,
+        customShowAutomationsPage: true,
+        customShowAnalysisPage: true,
+        customShowPerformanceCompareToggle: true,
+        customShowPerformanceTimelineCard: true,
+        customShowLogsViewToggle: true,
+        customShowHeartbeatRibbons: true,
+        senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+        overviewStaleUpdateReminderSnoozeUntil: null,
+        onboardingCompletedAt: null,
+        seenUnlockedNavItems: {
+          catalog: true,
+          insights: false,
+          work: false,
+        },
+        workbenchTileOrderByLane: {
+          'supplier-order-pending': ['supplier-order:sku-2'],
+        },
+      });
+
+    render(
+      <PreferencesProvider>
+        <PreferencesProbe />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('language').textContent).toBe('en');
+    });
+
+    fireEvent.click(screen.getByText('save-km'));
+    fireEvent.click(screen.getByText('mark-catalog-unlocked-item'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+        JSON.stringify({ catalog: true, insights: false, work: false }),
+      );
+    });
+
+    resolveFirstSave({
+      language: 'km',
+      currency: 'KHR',
+      usdToKhrExchangeRate: 4100,
+      displayViewMode: 'custom',
+      itemImageMode: 'off',
+      dimChartsWhileLoading: true,
+      showExplanatoryTooltips: false,
+      showFloatingTitleActions: false,
+      showRightRailCards: false,
+      showOverviewTaskTabs: false,
+      showAutomationsPage: false,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: false,
+      showPerformanceTimelineCard: false,
+      showLogsViewToggle: false,
+      showHeartbeatRibbons: false,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
+      customShowExplanatoryTooltips: false,
+      customShowFloatingTitleActions: false,
+      customShowRightRailCards: false,
+      customShowOverviewTaskTabs: false,
+      customShowAutomationsPage: false,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: false,
+      customShowPerformanceTimelineCard: false,
+      customShowLogsViewToggle: false,
+      customShowHeartbeatRibbons: false,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        insights: false,
+        work: false,
+      },
+      workbenchTileOrderByLane: {
+        'supplier-order-pending': ['supplier-order:sku-2'],
+      },
+    });
+    await Promise.resolve();
+
+    expect(screen.getByTestId('language').textContent).toBe('en');
+    expect(screen.getByTestId('currency').textContent).toBe('USD');
+    expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+      JSON.stringify({ catalog: true, insights: false, work: false }),
+    );
+  });
+
   it('preserves concurrent unlocked navigation acknowledgements', async () => {
     let saveCount = 0;
     savePreferences.mockImplementation(async (payload) => {
@@ -551,6 +850,110 @@ describe('preferences state', () => {
     await waitFor(() => {
       expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
         JSON.stringify({ catalog: true, insights: false, work: true }),
+      );
+    });
+  });
+
+  it('tracks pending changes while an unlocked navigation acknowledgement is saving', async () => {
+    let resolveSave!: (value: Awaited<ReturnType<typeof savePreferences>>) => void;
+    savePreferences.mockReturnValueOnce(new Promise((resolve) => {
+      resolveSave = resolve;
+    }));
+
+    render(
+      <PreferencesProvider>
+        <PreferencesProbe />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+        JSON.stringify({ catalog: false, insights: false, work: false }),
+      );
+    });
+
+    fireEvent.click(screen.getByText('mark-catalog-unlocked-item'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+        JSON.stringify({ catalog: true, insights: false, work: false }),
+      );
+    });
+    expect(screen.getByTestId('pending').textContent).toBe('true');
+
+    resolveSave({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
+      itemImageMode: 'small',
+      dimChartsWhileLoading: false,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: { catalog: true, insights: false, work: false },
+      workbenchTileOrderByLane: {
+        'supplier-order-pending': ['supplier-order:sku-2'],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('pending').textContent).toBe('false');
+    });
+  });
+
+  it('rolls back optimistic unlocked navigation acknowledgements when persistence fails', async () => {
+    savePreferences.mockRejectedValueOnce(new Error('preferences write failed'));
+
+    render(
+      <PreferencesProvider>
+        <PreferencesProbe />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+        JSON.stringify({ catalog: false, insights: false, work: false }),
+      );
+    });
+
+    fireEvent.click(screen.getByText('mark-catalog-unlocked-item'));
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        seenUnlockedNavItems: { catalog: true, insights: false, work: false },
+      }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+        JSON.stringify({ catalog: false, insights: false, work: false }),
       );
     });
   });

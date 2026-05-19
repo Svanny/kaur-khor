@@ -50,6 +50,17 @@ function writeStorageRecord<T>(storage: Storage | null, key: string, value: Reco
   } catch {}
 }
 
+function normalizeStoredChartSettings<T>(value: unknown, normalize: (value: T) => T) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  try {
+    return normalize(value as T);
+  } catch {
+    return null;
+  }
+}
+
 export function readEntityChartSettings<T>(
   subtype: ChartSettingsSubtype,
   subjectId: string,
@@ -59,7 +70,7 @@ export function readEntityChartSettings<T>(
     'catalog',
     'chartSettings',
     null,
-    (value) => value == null ? null : normalize(value as T),
+    (value) => normalizeStoredChartSettings(value, normalize),
     { scope: subjectStorageKey(subtype, subjectId) },
   );
 }
@@ -85,7 +96,7 @@ export function readSubtypeDefaultChartSettings<T>(
 ): T | null {
   const record = readStorageRecord<T>(getLocalStorage(), SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY);
   const persisted = record[subtype];
-  return persisted ? normalize(persisted) : null;
+  return normalizeStoredChartSettings(persisted, normalize);
 }
 
 export function writeSubtypeDefaultChartSettings<T>(
@@ -95,6 +106,10 @@ export function writeSubtypeDefaultChartSettings<T>(
 ) {
   const storage = getLocalStorage();
   const record = readStorageRecord<T>(storage, SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY);
-  record[subtype] = normalize(settings);
+  const normalized = normalizeStoredChartSettings(settings, normalize);
+  if (normalized == null) {
+    return;
+  }
+  record[subtype] = normalized;
   writeStorageRecord(storage, SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY, record);
 }

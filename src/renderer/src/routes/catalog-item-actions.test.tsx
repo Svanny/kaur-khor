@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
 import type { SenaSkuDetailViewModel } from './sku-detail/view-model';
 import {
   buildLeadTimeHintFromInputs,
@@ -10,6 +11,8 @@ import {
   ServiceMutationActions,
   SkuMutationActions,
 } from './catalog-item-actions';
+import { ServiceDetailActions } from './service-detail/actions';
+import { SkuPageHero } from './sku-page-hero';
 
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
@@ -126,6 +129,17 @@ describe('catalog item action sheets', () => {
       highDays: 4,
       variabilityClass: 'very_wide',
     });
+  });
+
+  test('drops invalid ETA hint numbers before building order hints', () => {
+    expect(
+      buildLeadTimeHintFromInputs({
+        skuId: 'sku-1',
+        stdDays: 'Infinity',
+        typicalLeadTimeDays: '-2',
+        variabilityClass: '',
+      }),
+    ).toBeNull();
   });
 
   test('round-trips observed timestamps through datetime-local values', () => {
@@ -326,6 +340,38 @@ describe('catalog item action sheets', () => {
     expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 
+  test('saves comma-formatted SKU price updates as numeric prices', async () => {
+    const ingestSenaObservation = vi.fn(async () => {});
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      isSaving: false,
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <SkuMutationActions
+          actionContext={skuActionContext}
+          mode="price"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+          skuId="sku-1"
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Product price' }), { target: { value: '1,234.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        retailPrices: [{ skuId: 'sku-1', price: 1234.5 }],
+      }),
+    );
+  });
+
   test('opens the controlled service sheet and clears mode on close', async () => {
     const handleModeChange = vi.fn();
 
@@ -400,6 +446,127 @@ describe('catalog item action sheets', () => {
     expect(screen.getByRole('dialog')).not.toHaveTextContent('Record Customer order');
   });
 
+  test('saves comma-formatted service price updates as numeric prices', async () => {
+    const ingestSenaObservation = vi.fn(async () => {});
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      isSaving: false,
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <ServiceMutationActions
+          actions={{
+            bottleneckSku: {
+              costPerUnit: 4,
+              name: 'SKU 1',
+              productPrice: 9,
+              skuId: 'sku-1',
+              soldAsProduct: true,
+              unitsInStock: 12,
+            },
+            editServiceHref: '/catalog/services/service-1/edit',
+            latestObservedAt: '2026-04-02T00:00:00Z',
+            noBottleneckHint: 'No bottleneck',
+            primarySkuHref: '/catalog/skus/sku-1',
+            servicePrice: {
+              currentPrice: 18,
+              serviceId: 'service-1',
+              serviceName: 'Service 1',
+            },
+          }}
+          mode="price"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Service price' }), { target: { value: '1,234.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servicePrices: [{ serviceId: 'service-1', price: 1234.5 }],
+      }),
+    );
+  });
+
+  test('keeps service detail action buttons on the same height as SKU detail actions', () => {
+    function findActionSurface(anchor: HTMLElement | null) {
+      let actions = anchor;
+      while (actions && !actions.className.includes(headerActionSurfaceClassName)) {
+        actions = actions.parentElement;
+      }
+      return actions;
+    }
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <SkuPageHero
+          actions={(
+            <SkuMutationActions
+              actionContext={skuActionContext}
+              onComplete={vi.fn(async () => {})}
+              skuId="sku-1"
+            />
+          )}
+          title="SKU 1"
+        />
+      </MemoryRouter>,
+    );
+
+    const skuActions = findActionSurface(screen.getByRole('button', { name: 'Record' }).parentElement);
+
+    rerender(
+      <MemoryRouter>
+        <SkuPageHero
+          actions={(
+            <ServiceDetailActions
+              actions={{
+                bottleneckSku: {
+                  costPerUnit: 4,
+                  name: 'SKU 1',
+                  productPrice: 9,
+                  skuId: 'sku-1',
+                  soldAsProduct: true,
+                  unitsInStock: 12,
+                },
+                editServiceHref: '/catalog/services/service-1/edit',
+                latestObservedAt: '2026-04-02T00:00:00Z',
+                noBottleneckHint: 'No bottleneck',
+                primarySkuHref: '/catalog/skus/sku-1',
+                servicePrice: {
+                  currentPrice: 18,
+                  serviceId: 'service-1',
+                  serviceName: 'Service 1',
+                },
+              }}
+              onComplete={vi.fn(async () => {})}
+            />
+          )}
+          title="Service 1"
+        />
+      </MemoryRouter>,
+    );
+
+    const serviceActions = findActionSurface(screen.getByRole('link', { name: 'Open bottleneck SKU' }).parentElement);
+
+    expect(serviceActions?.className).toBe(skuActions?.className);
+    expect(serviceActions?.className).toContain('[&_[data-slot=button]]:!h-9');
+    expect(serviceActions?.className).toContain('[&_[data-slot=button]]:!min-h-9');
+    expect(serviceActions?.className).toContain('[&_[data-slot=button]]:!rounded-full');
+    expect(screen.getByRole('link', { name: 'Open bottleneck SKU' }).className).toContain('!h-9');
+    expect(screen.getByRole('button', { name: 'Record' }).className).toContain('!h-9');
+    expect(screen.getByRole('link', { name: 'Edit service' }).className).toContain('!h-9');
+    expect(screen.getByRole('link', { name: 'Open bottleneck SKU' })).toHaveAttribute('data-slot', 'button');
+    expect(screen.getByRole('button', { name: 'Record' })).toHaveAttribute('data-slot', 'button');
+    expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('data-slot', 'button');
+  });
+
   function LocationProbe() {
     const location = useLocation();
     return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
@@ -431,7 +598,7 @@ describe('catalog item action sheets', () => {
     expect(screen.queryByRole('button', { name: 'Log receipt' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
-    expect(screen.getByRole('menuitem', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Products Update' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Supplier Order' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Customer Order' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Immediate Sale' })).toBeInTheDocument();

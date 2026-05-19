@@ -140,6 +140,15 @@ function recordUpdateContextWithSupplierTickets(tickets: SenaTicketSummary[]): S
   };
 }
 
+function localDateKey(value: string) {
+  const date = new Date(value);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 describe('buildOverviewModel stale update reminder', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -340,6 +349,100 @@ describe('buildOverviewModel stale update reminder', () => {
     expect(model.todayCounts.readyToReceive).toBe(0);
   });
 
+  it('sanitizes dirty numeric SKU summaries before building overview tasks', () => {
+    const dirtySummary = {
+      ...taskWorkspaceSummary.skuSummaries[0]!,
+      latestPosteriorUnits: Number.NaN,
+      credibleIntervalLow: Number.NaN,
+      credibleIntervalHigh: Number.POSITIVE_INFINITY,
+      stockoutRisk: Number.POSITIVE_INFINITY,
+      daysOfCover: Number.NaN,
+      safetyStock: Number.NaN,
+      reorderPoint: Number.POSITIVE_INFINITY,
+      reorderTriggerProbability: Number.POSITIVE_INFINITY,
+      reorderQuantity: {
+        ...taskWorkspaceSummary.skuSummaries[0]!.reorderQuantity!,
+        recommendedUnits: Number.POSITIVE_INFINITY,
+        ungatedRecommendedUnits: Number.POSITIVE_INFINITY,
+        needProbability: Number.POSITIVE_INFINITY,
+        needProbabilityGate: 0.5,
+      },
+      leadTimeMeanDays: Number.POSITIVE_INFINITY,
+      leadTimeStdDays: Number.NaN,
+    };
+    const orderObservation = makeObservation('2026-04-10T10:00:00.000Z');
+    const model = buildOverviewModel({
+      catalog: {
+        ...taskCatalog,
+        skus: [{
+          ...taskCatalog.skus[0]!,
+          costPerUnit: Number.POSITIVE_INFINITY,
+          productPrice: Number.NaN,
+        }],
+      },
+      detailBySkuId: {
+        'sku-1': {
+          summary: dirtySummary,
+          inventoryPosterior: [],
+          demandPosterior: [],
+          pipelinePosterior: [{
+            intervalIndex: 0,
+            inTransitMean: Number.POSITIVE_INFINITY,
+            orderProbability: Number.POSITIVE_INFINITY,
+            orderQuantityMean: Number.POSITIVE_INFINITY,
+            receiptQuantityMean: Number.NaN,
+            ageDaysMean: Number.NaN,
+          }],
+          leadTimePosterior: [{
+            intervalIndex: 0,
+            logMeanDays: 0,
+            logStdDays: 0,
+            meanDays: Number.POSITIVE_INFINITY,
+            stdDays: Number.NaN,
+            observedVariabilityClass: null,
+            observedRelativeWidth: null,
+          }],
+        },
+      },
+      language: 'en',
+      observations: [{
+        ...orderObservation,
+        input: {
+          ...orderObservation.input,
+          orderSignals: [{
+            skuId: 'sku-1',
+            orderPlaced: true,
+            receiptArrived: false,
+            approximateOrderQuantity: Number.POSITIVE_INFINITY,
+            approximateReceiptQuantity: null,
+          }],
+        },
+      }],
+      workspaceSummary: {
+        ...taskWorkspaceSummary,
+        skuSummaries: [dirtySummary],
+      },
+    });
+
+    expect(model.tasks).toHaveLength(1);
+    const task = model.tasks[0];
+    expect(task?.kind).toBe('sku');
+    if (!task || task.kind !== 'sku') {
+      throw new Error('Expected SKU overview task.');
+    }
+    expect(task.state).toBe('awaiting_receipt');
+    expect(task.currentStock).toBe(0);
+    expect(task.costPerUnit).toBe(0);
+    expect(task.productPrice).toBeNull();
+    expect(task.stockoutRisk).toBe(0);
+    expect(task.reorderTriggerProbability).toBe(0);
+    expect(task.daysOfCover).toBeNull();
+    expect(task.leadTimeMeanDays).toBeNull();
+    expect(task.leadTimeStdDays).toBeNull();
+    expect(task.suggestedOrderQuantity).toBe(0);
+    expect(task.heartbeat.join(' ')).not.toMatch(/NaN|Infinity|∞/);
+  });
+
   it('sorts supplier queue tasks by oldest relevant activity first', () => {
     const model = buildOverviewModel({
       catalog: {
@@ -393,6 +496,61 @@ describe('buildOverviewModel stale update reminder', () => {
     });
 
     expect(model.tasks.map((task) => task.id)).toEqual(['sku-older', 'sku-newer']);
+  });
+
+  it('keeps supplier orders visible when a later receipt observation has a malformed timestamp', () => {
+    const orderObservation = makeObservation('2026-04-10T10:00:00.000Z');
+    const dirtyReceiptObservation = makeObservation('not-a-date');
+    const model = buildOverviewModel({
+      catalog: taskCatalog,
+      detailBySkuId: {},
+      language: 'en',
+      observations: [
+        {
+          ...orderObservation,
+          input: {
+            ...orderObservation.input,
+            orderSignals: [{
+              skuId: 'sku-1',
+              orderPlaced: true,
+              receiptArrived: false,
+              approximateOrderQuantity: 8,
+              approximateReceiptQuantity: null,
+            }],
+          },
+        },
+        {
+          ...dirtyReceiptObservation,
+          input: {
+            ...dirtyReceiptObservation.input,
+            orderSignals: [{
+              skuId: 'sku-1',
+              orderPlaced: false,
+              receiptArrived: true,
+              approximateOrderQuantity: null,
+              approximateReceiptQuantity: 8,
+            }],
+          },
+        },
+      ],
+      workspaceSummary: {
+        ...taskWorkspaceSummary,
+        skuSummaries: [
+          {
+            ...taskWorkspaceSummary.skuSummaries[0]!,
+            reorderQuantity: undefined,
+            reorderTriggerProbability: 0.05,
+            stockoutRisk: 0.1,
+            daysOfCover: 10,
+          },
+        ],
+      },
+    });
+
+    expect(model.tasks[0]).toMatchObject({
+      id: 'sku-1',
+      state: 'awaiting_receipt',
+    });
   });
 
   it('groups multiple SKU reorder tasks that share a supplier ticket', () => {
@@ -751,6 +909,96 @@ describe('buildOverviewModel stale update reminder', () => {
       ['internal-ticket-earlier', '2026-04-09-#1'],
       ['internal-ticket-later', '2026-04-09-#2'],
     ]);
+  });
+
+  it('assigns supplier ticket display ids after valid timestamps before dirty dates', () => {
+    const tickets: SenaTicketSummary[] = [
+      {
+        ticketId: 'internal-ticket-dirty',
+        ticketFamily: 'supplier',
+        lifecycle: 'open',
+        stage: 'ordered_waiting',
+        revision: 1,
+        eventType: 'created',
+        occurredAt: 'not-a-date',
+        party: { role: 'supplier', supplierName: 'Mekong Looms' },
+        lines: [{ entityType: 'sku', entityId: 'sku-b', orderedQuantity: 8, receivedQuantity: null }],
+        note: null,
+      },
+      {
+        ticketId: 'internal-ticket-valid',
+        ticketFamily: 'supplier',
+        lifecycle: 'open',
+        stage: 'ordered_waiting',
+        revision: 1,
+        eventType: 'created',
+        occurredAt: '2026-04-09T09:00:00.000Z',
+        party: { role: 'supplier', supplierName: 'Mekong Looms' },
+        lines: [{ entityType: 'sku', entityId: 'sku-a', orderedQuantity: 5, receivedQuantity: null }],
+        note: null,
+      },
+    ];
+    const model = buildOverviewModel({
+      catalog: {
+        ...taskCatalog,
+        skus: [
+          { ...taskCatalog.skus[0]!, skuId: 'sku-a', name: 'Ticket A', supplierName: 'Mekong Looms' },
+          { ...taskCatalog.skus[0]!, skuId: 'sku-b', name: 'Ticket B', supplierName: 'Mekong Looms' },
+        ],
+      },
+      detailBySkuId: {},
+      language: 'en',
+      observations: [],
+      orderBatches: [],
+      recordUpdateContext: recordUpdateContextWithSupplierTickets(tickets),
+      workspaceSummary: {
+        ...taskWorkspaceSummary,
+        skuSummaries: [
+          { ...taskWorkspaceSummary.skuSummaries[0]!, skuId: 'sku-a' },
+          { ...taskWorkspaceSummary.skuSummaries[0]!, skuId: 'sku-b' },
+        ],
+      },
+    });
+
+    const ticketTasks = model.tasks.filter(isOverviewSupplierTicketTask);
+    expect(ticketTasks.map((task) => [task.ticketId, task.displayTicketId])).toEqual([
+      ['internal-ticket-valid', '2026-04-09-#1'],
+      ['internal-ticket-dirty', 'not-a-date-#1'],
+    ]);
+  });
+
+  it('assigns supplier ticket display ids by local calendar date', () => {
+    const occurredAt = '2026-04-21T17:30:00.000Z';
+    const tickets: SenaTicketSummary[] = [{
+      ticketId: 'internal-ticket-local-date',
+      ticketFamily: 'supplier',
+      lifecycle: 'open',
+      stage: 'ordered_waiting',
+      revision: 1,
+      eventType: 'created',
+      occurredAt,
+      party: { role: 'supplier', supplierName: 'Mekong Looms' },
+      lines: [{ entityType: 'sku', entityId: 'sku-a', orderedQuantity: 5, receivedQuantity: null }],
+      note: null,
+    }];
+    const model = buildOverviewModel({
+      catalog: {
+        ...taskCatalog,
+        skus: [{ ...taskCatalog.skus[0]!, skuId: 'sku-a', name: 'Ticket A', supplierName: 'Mekong Looms' }],
+      },
+      detailBySkuId: {},
+      language: 'en',
+      observations: [],
+      orderBatches: [],
+      recordUpdateContext: recordUpdateContextWithSupplierTickets(tickets),
+      workspaceSummary: {
+        ...taskWorkspaceSummary,
+        skuSummaries: [{ ...taskWorkspaceSummary.skuSummaries[0]!, skuId: 'sku-a' }],
+      },
+    });
+
+    const ticketTasks = model.tasks.filter(isOverviewSupplierTicketTask);
+    expect(ticketTasks[0]?.displayTicketId).toBe(`${localDateKey(occurredAt)}-#1`);
   });
 
   it('shows daily sequential supplier ticket ids for observation-backed tickets', () => {

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type Ref } from 'react';
+import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Dialog as DialogPrimitive } from 'radix-ui';
@@ -89,6 +89,7 @@ import type {
   SenaTicketEvent,
   SenaTicketEventType,
   SenaTicketLifecycle,
+  SenaTicketLine,
   SenaTicketPartyMetadata,
   SenaTicketStage,
   SenaTicketSummary,
@@ -165,20 +166,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { buildCommercialEntitySnapshots } from '@/lib/commercial-flow';
-import { displayMoneyFromUsd, formatCompactQuantityPill, formatCurrency, formatDurationAuto, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { displayMoneyFromUsd, formatCompactQuantityPill, formatCurrency, formatDurationAuto, parseEditableNumberWithCommas, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import {
   calendarDaysBetweenObservedAndDateInput,
   clampDateInputToObservedDate,
   dateInputToIsoOnOrAfterObserved,
+  formatLocalDateInputValue,
   formatLocalDateTimeInputValue,
   observedLocalDateInputValue,
   parseLocalDateTimeInputIso,
 } from '@/lib/date-input-utils';
-import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
+import {
+  readRecordUpdateEditSession,
+  recordUpdateEditSessionFlashTargetKeysForInput,
+  recordUpdateEditSessionPathForInput,
+} from '@/lib/observation-edit-session';
 import {
   getRecordUpdateLane,
   isBaseRecordUpdateLaneId,
   parseCustomRecordUpdateLaneIds,
+  parseRouteIdList,
   readCaptureSessionFlashTargetKeys,
   readCaptureSessionTarget,
   RECORD_UPDATE_HUB_PATH,
@@ -308,13 +315,17 @@ type WorkbenchReorderLaneId = DesktopWorkbenchTileOrderLaneId;
 
 const WORKBENCH_REORDERABLE_LANE_IDS: WorkbenchReorderLaneId[] = [...DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS];
 const WORKBENCH_REORDER_HOLD_DELAY_MS = 320;
+const PHONE_WORKBENCH_REORDER_HOLD_DELAY_MS = 1000;
+const PHONE_WORKBENCH_REORDER_HOLD_TOLERANCE_PX = 10;
 const CAPTURE_TARGET_FLASH_MS = 3000;
 const WORK_QUEUE_BATCH_DEBUG_STORAGE_KEY = 'KAUR_KHOR_DEBUG_WORK_QUEUE_BATCH';
 const WORKBENCH_JIGGLE_DEBUG_STORAGE_KEY = 'KAUR_KHOR_DEBUG_WORKBENCH_JIGGLE';
 const WORKBENCH_JIGGLE_PERIOD_MS = 240;
-const captureTargetFlashClassName = 'ring-2 ring-primary/40 motion-safe:animate-[kaur-khor-attention-flash_3000ms_ease-in-out_infinite] motion-reduce:ring-primary/60';
-const captureTargetFlashTextClassName = 'motion-safe:animate-[kaur-khor-attention-flash-text_3000ms_ease-in-out_infinite]';
-const captureTargetFlashBadgeClassName = 'motion-safe:animate-[kaur-khor-attention-flash-badge_3000ms_ease-in-out_infinite]';
+const captureTargetFlashClassName = 'kaur-khor-capture-target-flash ring-2 ring-primary/40 motion-reduce:ring-primary/60';
+const captureTargetFlashTextClassName = 'kaur-khor-capture-target-flash-text';
+const captureTargetFlashBadgeClassName = 'kaur-khor-capture-target-flash-badge';
+const captureTargetFlashMediaClassName = 'kaur-khor-capture-target-flash-media';
+const CAPTURE_TARGET_CONTENT_FADE_ENABLED = false;
 const SaveErrorFlashKeyContext = createContext(0);
 
 function isCaptureBatchDebugEnabled() {
@@ -384,7 +395,7 @@ interface PosWorkbenchTile {
   title: string;
   imagePath: string | null;
   itemType: 'sku' | 'service';
-  kind: 'stock' | 'retail' | 'service' | 'supplier-order' | 'supplier-receipt';
+  kind: 'stock' | 'service-price' | 'retail' | 'service' | 'supplier-order' | 'supplier-receipt';
   stepId: StockUpdateStepId;
   typeLabel: string;
   metaLabel: string;
@@ -433,7 +444,7 @@ interface StockCountPosChangeField {
 
 interface StockCountPosChangeRow {
   key: string;
-  skuId: string;
+  entityId: string;
   title: string;
   imagePath: string | null;
   changedFields: StockCountPosChangeField[];
@@ -462,7 +473,7 @@ function posDialogQuantityValue(quantity: number) {
 }
 
 function parsePosQuantityInput(value: string, minimum = 0) {
-  const parsed = Number(value);
+  const parsed = parseEditableNumberWithCommas(value);
   if (!Number.isFinite(parsed)) {
     return minimum;
   }
@@ -473,11 +484,13 @@ function StockCountPosChangeTable({
   changedRows,
   emptyState,
   language,
+  mobileLayout = false,
   onOpenRow,
 }: {
   changedRows: StockCountPosChangeRow[];
   emptyState: string;
   language: AppLanguage;
+  mobileLayout?: boolean;
   onOpenRow?: (row: StockCountPosChangeRow) => void;
 }) {
   if (changedRows.length === 0) {
@@ -489,73 +502,134 @@ function StockCountPosChangeTable({
   }
 
   return (
-    <div style={stockCountPosSummaryTableLayout.style}>
-      <HeaderedTable className={stockCountPosSummaryTableLayout.containerClassName} overflowX={stockCountPosSummaryTableLayout.overflowX} variant="overview">
-        <HeaderedTableHeader className={stockCountPosSummaryTableLayout.headerClassName}>
-          <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell align="center" data-helper-exempt>{translateUiLiteral(language, 'Changed')}</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Details')}</HeaderedTableHeaderCell>
-        </HeaderedTableHeader>
-        <HeaderedTableBody className={stockCountPosSummaryTableLayout.bodyClassName}>
+    <div className="grid gap-3" style={stockCountPosSummaryTableLayout.style}>
+      {mobileLayout ? (
+        <div className="grid gap-3">
           {changedRows.map((row) => {
             const interactive = Boolean(onOpenRow);
-            return (
-              <HeaderedTableRow
-                aria-label={interactive ? translateUiLiteral(language, 'Edit {name} changed item', { name: row.title }) : undefined}
-                key={row.key}
-                className={cn(
-                  stockCountPosSummaryTableLayout.rowClassName,
-                  'items-center',
-                  interactive &&
-                    'cursor-pointer transition-colors hover:bg-emerald-50/80 focus-visible:bg-emerald-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/35',
-                )}
-                role={interactive ? 'button' : undefined}
-                tabIndex={interactive ? 0 : undefined}
-                onClick={interactive ? () => onOpenRow?.(row) : undefined}
-                onKeyDown={
-                  interactive
-                    ? (event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          onOpenRow?.(row);
-                        }
-                      }
-                    : undefined
-                }
-              >
-                <HeaderedTableCellStack
-                  primary={row.title}
-                  primaryClassName="font-semibold tracking-[-0.02em]"
-                />
-                <div className="min-w-0">
-                  <HeaderedTableMobileLabel className={stockCountPosSummaryTableLayout.mobileLabelClassName}>
-                    {translateUiLiteral(language, 'Changed')}
-                  </HeaderedTableMobileLabel>
-                  <p className="text-center font-medium text-foreground tabular-nums">
-                    {translateUiLiteral(language, '{count} field{suffix}', {
-                      count: row.changedFields.length,
-                      suffix: row.changedFields.length === 1 ? '' : 's',
-                    })}
+            const content = (
+              <>
+                <div className="grid min-w-0 gap-2">
+                  <p className="khmer-safe-label min-w-0 text-base font-semibold leading-tight text-foreground">
+                    {row.title}
                   </p>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      {translateUiLiteral(language, 'Changed')}
+                    </span>
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-medium text-foreground tabular-nums">
+                      {translateUiLiteral(language, '{count} field{suffix}', {
+                        count: row.changedFields.length,
+                        suffix: row.changedFields.length === 1 ? '' : 's',
+                      })}
+                    </span>
+                  </div>
                 </div>
-                <div className="grid gap-1 text-sm">
-                  <HeaderedTableMobileLabel className={stockCountPosSummaryTableLayout.mobileLabelClassName}>
+                <div className="grid gap-2 border-t border-border/60 pt-3">
+                  <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     {translateUiLiteral(language, 'Details')}
-                  </HeaderedTableMobileLabel>
-                  {row.changedFields.map((field) => (
-                    <p key={field.key} className="flex min-w-0 items-baseline justify-between gap-3">
-                      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                        {field.label}
-                      </span>
-                      <span className="min-w-0 text-right font-medium text-foreground tabular-nums">{field.value}</span>
-                    </p>
-                  ))}
+                  </span>
+                  <div className="grid gap-2">
+                    {row.changedFields.map((field) => (
+                      <p key={field.key} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+                        <span className="min-w-0 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          {field.label}
+                        </span>
+                        <span className="min-w-0 text-right text-sm font-medium text-foreground tabular-nums">{field.value}</span>
+                      </p>
+                    ))}
+                  </div>
                 </div>
-              </HeaderedTableRow>
+              </>
+            );
+            return interactive ? (
+              <button
+                aria-label={translateUiLiteral(language, 'Edit {name} changed item', { name: row.title })}
+                key={row.key}
+                className="grid min-w-0 gap-4 rounded-[1.2rem] border border-border/70 bg-white px-4 py-4 text-left shadow-[0_10px_26px_rgba(48,31,20,0.06)] transition-colors hover:bg-emerald-50/80 focus-visible:bg-emerald-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/35"
+                type="button"
+                onClick={() => onOpenRow?.(row)}
+              >
+                {content}
+              </button>
+            ) : (
+              <div
+                key={row.key}
+                className="grid min-w-0 gap-4 rounded-[1.2rem] border border-border/70 bg-white px-4 py-4 text-left shadow-[0_10px_26px_rgba(48,31,20,0.06)]"
+              >
+                {content}
+              </div>
             );
           })}
-        </HeaderedTableBody>
-      </HeaderedTable>
+        </div>
+      ) : (
+        <HeaderedTable className={stockCountPosSummaryTableLayout.containerClassName} overflowX={stockCountPosSummaryTableLayout.overflowX} variant="overview">
+          <HeaderedTableHeader className={stockCountPosSummaryTableLayout.headerClassName}>
+            <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
+            <HeaderedTableHeaderCell align="center" data-helper-exempt>{translateUiLiteral(language, 'Changed')}</HeaderedTableHeaderCell>
+            <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Details')}</HeaderedTableHeaderCell>
+          </HeaderedTableHeader>
+          <HeaderedTableBody className={stockCountPosSummaryTableLayout.bodyClassName}>
+            {changedRows.map((row) => {
+              const interactive = Boolean(onOpenRow);
+              return (
+                <HeaderedTableRow
+                  aria-label={interactive ? translateUiLiteral(language, 'Edit {name} changed item', { name: row.title }) : undefined}
+                  key={row.key}
+                  className={cn(
+                    stockCountPosSummaryTableLayout.rowClassName,
+                    'items-center',
+                    interactive &&
+                      'cursor-pointer transition-colors hover:bg-emerald-50/80 focus-visible:bg-emerald-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/35',
+                  )}
+                  role={interactive ? 'button' : undefined}
+                  tabIndex={interactive ? 0 : undefined}
+                  onClick={interactive ? () => onOpenRow?.(row) : undefined}
+                  onKeyDown={
+                    interactive
+                      ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            onOpenRow?.(row);
+                          }
+                        }
+                      : undefined
+                  }
+                >
+                  <HeaderedTableCellStack
+                    primary={row.title}
+                    primaryClassName="font-semibold tracking-[-0.02em]"
+                  />
+                  <div className="min-w-0">
+                    <HeaderedTableMobileLabel className={stockCountPosSummaryTableLayout.mobileLabelClassName}>
+                      {translateUiLiteral(language, 'Changed')}
+                    </HeaderedTableMobileLabel>
+                    <p className="text-center font-medium text-foreground tabular-nums">
+                      {translateUiLiteral(language, '{count} field{suffix}', {
+                        count: row.changedFields.length,
+                        suffix: row.changedFields.length === 1 ? '' : 's',
+                      })}
+                    </p>
+                  </div>
+                  <div className="grid gap-1 text-sm">
+                    <HeaderedTableMobileLabel className={stockCountPosSummaryTableLayout.mobileLabelClassName}>
+                      {translateUiLiteral(language, 'Details')}
+                    </HeaderedTableMobileLabel>
+                    {row.changedFields.map((field) => (
+                      <p key={field.key} className="flex min-w-0 items-baseline justify-between gap-3">
+                        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          {field.label}
+                        </span>
+                        <span className="min-w-0 text-right font-medium text-foreground tabular-nums">{field.value}</span>
+                      </p>
+                    ))}
+                  </div>
+                </HeaderedTableRow>
+              );
+            })}
+          </HeaderedTableBody>
+        </HeaderedTable>
+      )}
     </div>
   );
 }
@@ -597,7 +671,10 @@ function WorkbenchTileCard({
     <>
       <div className="flex min-h-0 w-full flex-1 items-center justify-center">
         <ItemAvatar
-          className="size-full rounded-[1.8rem] border-border/60 bg-white text-muted-foreground shadow-sm"
+          className={cn(
+            'size-full rounded-[1.8rem] border-border/60 bg-white text-muted-foreground shadow-sm',
+            CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashMediaClassName,
+          )}
           imagePath={tile.imagePath}
           name={tile.title}
           size="hero"
@@ -609,7 +686,7 @@ function WorkbenchTileCard({
           className={cn(
             'mx-auto max-w-[12rem] text-balance text-center text-lg font-semibold tracking-[-0.03em]',
             tile.touched ? 'text-background' : 'text-foreground',
-            tile.flash && captureTargetFlashTextClassName,
+            CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashTextClassName,
           )}
         >
           {tile.itemType === 'service' ? (
@@ -624,7 +701,7 @@ function WorkbenchTileCard({
             className={cn(
               'max-w-full justify-center truncate rounded-full px-2.5',
               tile.touched && 'border-background/35 bg-background/15 text-background',
-              tile.flash && captureTargetFlashBadgeClassName,
+              CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashBadgeClassName,
             )}
             showEmpty
             supplierName={tile.supplierName}
@@ -673,6 +750,13 @@ function workbenchTileButtonClassName({
     'relative block w-full aspect-square min-h-0 h-auto overflow-visible',
     reorderMode && 'cursor-grab touch-none select-none',
     isDragging && 'z-20 cursor-grabbing',
+  );
+}
+
+function workbenchTileRowButtonClassName({ reorderMode = false }: { reorderMode?: boolean } = {}) {
+  return cn(
+    'relative block h-auto w-full min-w-0 overflow-visible text-left',
+    reorderMode && 'cursor-grab touch-none select-none',
   );
 }
 
@@ -748,7 +832,11 @@ function WorkbenchTileVisual({
         style={jiggleStyle}
       >
         <ItemAvatar
-          className={cn('size-12 rounded-[0.8rem] border-border/60 bg-white text-muted-foreground shadow-sm', tile.touched && 'bg-background/10 text-background')}
+          className={cn(
+            'size-12 rounded-[0.8rem] border-border/60 bg-white text-muted-foreground shadow-sm',
+            tile.touched && 'bg-background/10 text-background',
+            CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashMediaClassName,
+          )}
           imagePath={tile.imagePath}
           name={tile.title}
           size="default"
@@ -758,7 +846,7 @@ function WorkbenchTileVisual({
           <p
             className={cn(
               'khmer-safe-label flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight',
-              tile.flash && captureTargetFlashTextClassName,
+              CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashTextClassName,
             )}
           >
             <Icon aria-hidden="true" className="size-4 shrink-0" data-icon="inline-start" />
@@ -770,18 +858,32 @@ function WorkbenchTileVisual({
                 className={cn(
                   'max-w-full justify-center truncate rounded-full px-2.5',
                   tile.touched && 'border-background/35 bg-background/15 text-background',
-                  tile.flash && captureTargetFlashBadgeClassName,
+                  CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashBadgeClassName,
                 )}
                 showEmpty
                 supplierName={tile.supplierName}
               />
             ) : (
-              <span className={cn('truncate text-muted-foreground', tile.touched && 'text-background/75')}>{tile.metaLabel}</span>
+              <span
+                className={cn(
+                  'truncate text-muted-foreground',
+                  tile.touched && 'text-background/75',
+                  CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashTextClassName,
+                )}
+              >
+                {tile.metaLabel}
+              </span>
             )}
           </div>
         </div>
         {quantityLabel ? (
-          <span className={cn('shrink-0 rounded-full border px-2.5 py-1 text-sm font-semibold tabular-nums', tile.touched ? 'border-background/35 bg-background/15 text-background' : 'border-border/70 bg-background text-foreground')}>
+          <span
+            className={cn(
+              'shrink-0 rounded-full border px-2.5 py-1 text-sm font-semibold tabular-nums',
+              tile.touched ? 'border-background/35 bg-background/15 text-background' : 'border-border/70 bg-background text-foreground',
+              CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashBadgeClassName,
+            )}
+          >
             {quantityLabel}
           </span>
         ) : null}
@@ -811,6 +913,7 @@ function SortableWorkbenchTile({
   jiggleStyleOverride,
   layout = 'grid',
   onHoldStart,
+  onHoldMove,
   onHoldEnd,
   tile,
   reorderMode,
@@ -819,7 +922,8 @@ function SortableWorkbenchTile({
   jigglePhaseMs?: number;
   jiggleStyleOverride?: CSSProperties;
   layout?: 'grid' | 'row';
-  onHoldStart: (tileKey: string) => void;
+  onHoldStart: (tileKey: string, event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onHoldMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onHoldEnd: () => void;
   tile: PosWorkbenchTile;
   reorderMode: boolean;
@@ -846,7 +950,7 @@ function SortableWorkbenchTile({
       {...attributes}
       {...listeners}
       className={cn(
-        layout === 'row' ? 'relative block h-auto w-full min-w-0 overflow-visible text-left' : workbenchTileButtonClassName({ isDragging, reorderMode }),
+        layout === 'row' ? workbenchTileRowButtonClassName({ reorderMode }) : workbenchTileButtonClassName({ isDragging, reorderMode }),
         isDragging && 'opacity-0',
       )}
       data-workbench-tile-key={tile.key}
@@ -863,8 +967,9 @@ function SortableWorkbenchTile({
         onActivate(tile);
       }}
       onPointerCancelCapture={onHoldEnd}
-      onPointerDownCapture={() => onHoldStart(tile.key)}
+      onPointerDownCapture={(event) => onHoldStart(tile.key, event)}
       onPointerLeave={onHoldEnd}
+      onPointerMoveCapture={onHoldMove}
       onPointerUpCapture={onHoldEnd}
     >
       <WorkbenchTileVisual
@@ -1133,6 +1238,7 @@ interface StockUpdateSessionDraft {
 
 interface StockUpdateDraftState {
   catalog: SenaCatalog | null;
+  currency: 'USD' | 'KHR';
   savedObservationRetryId?: string | null;
   customSelectedLaneIds: BaseRecordUpdateLaneId[];
   touchedPosMetadataPopupIds: PosMetadataPopupId[];
@@ -1185,9 +1291,10 @@ interface StockUpdateDraftState {
   supplierTicketUpdateAction: SupplierTicketUpdateAction;
   customerIdentity: CustomerIdentityDraft;
   refundStockReturnDrafts: Record<string, RefundStockReturnChoice>;
+  usdToKhrExchangeRate: number;
 }
 
-type HydratedStockUpdateState = Omit<StockUpdateDraftState, 'catalog' | 'initialObservedAt' | 'stockBySku'>;
+type HydratedStockUpdateState = Omit<StockUpdateDraftState, 'catalog' | 'currency' | 'initialObservedAt' | 'stockBySku' | 'usdToKhrExchangeRate'>;
 
 interface EditSessionState {
   observationId: string;
@@ -1404,19 +1511,7 @@ function dateTimeInputToIso(value: string) {
 }
 
 export function dateInputValue(value: string | null) {
-  if (!value) {
-    return '';
-  }
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? new Date(`${value}T00:00:00`)
-    : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return formatLocalDateInputValue(value);
 }
 
 export function dateInputToIso(value: string, observedAt?: string | null) {
@@ -1438,6 +1533,47 @@ function addDaysToDateInput(observedAtIso: string | null, days: number | null) {
 
 function leadTimeMeanDaysFromExpectedArrival(observedAtIso: string | null, expectedArrivalDate: string) {
   return calendarDaysBetweenObservedAndDateInput(observedAtIso, expectedArrivalDate);
+}
+
+export function parseOptionalNonNegativeFiniteNumberDraft(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = parseEditableNumberWithCommas(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function finiteTicketLineQuantity(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export function customerTicketLineDraftQuantity(line: SenaTicketLine) {
+  return finiteTicketLineQuantity(line.quantityDelta)
+    ?? finiteTicketLineQuantity(line.orderedQuantity)
+    ?? finiteTicketLineQuantity(line.receivedQuantity);
+}
+
+export function supplierTicketOrderedDraftQuantity(line: SenaTicketLine) {
+  return finiteTicketLineQuantity(line.orderedQuantity) ?? finiteTicketLineQuantity(line.quantityDelta);
+}
+
+export function supplierTicketReceiptDraftQuantity(line: SenaTicketLine) {
+  return finiteTicketLineQuantity(line.receivedQuantity)
+    ?? finiteTicketLineQuantity(line.orderedQuantity)
+    ?? finiteTicketLineQuantity(line.quantityDelta);
+}
+
+export function parseStockUnitsDraft(value: string, fallback: number) {
+  if (value.trim() === '') {
+    return fallback;
+  }
+  return parseOptionalNonNegativeFiniteNumberDraft(value);
+}
+
+function parsePositiveFiniteNumberDraft(value: string) {
+  const parsed = parseOptionalNonNegativeFiniteNumberDraft(value);
+  return parsed != null && parsed > 0 ? parsed : null;
 }
 
 function expectedArrivalDaysFromLeadTime(
@@ -1462,6 +1598,22 @@ function createEmptySkuSignalDraft(): SkuSignalDraft {
     blockedEnabled: false,
     blockedState: 'blocked',
   };
+}
+
+function hasSupplierTicketLineDraft(draft: SkuSignalDraft | undefined) {
+  return Boolean(
+    draft &&
+    (draft.orderedQuantity.trim() ||
+      draft.receiptQuantity.trim()),
+  );
+}
+
+function hasSupplierOrderLineDraft(draft: SkuSignalDraft | undefined) {
+  return Boolean(draft?.orderedQuantity.trim());
+}
+
+function hasSupplierReceiptLineDraft(draft: SkuSignalDraft | undefined) {
+  return Boolean(draft?.receiptQuantity.trim());
 }
 
 function createEmptyServiceSignalDraft(): ServiceSignalDraft {
@@ -1542,11 +1694,15 @@ function skuDraftHasEmptyRequiredValue(draft: SkuSignalDraft | undefined) {
   return (draft.orderEnabled && draft.orderedQuantity.trim() === '') || (draft.receiptEnabled && draft.receiptQuantity.trim() === '');
 }
 
-function serviceDraftHasEmptyRequiredValue(draft: ServiceSignalDraft | undefined) {
+function serviceDraftHasInvalidRequiredValue(
+  draft: ServiceSignalDraft | undefined,
+  currency: 'USD' | 'KHR',
+  usdToKhrExchangeRate: number,
+) {
   if (!draft) {
     return false;
   }
-  return draft.priceEnabled && draft.price.trim() === '';
+  return draft.priceEnabled && parseNonNegativeMoneyDisplayDraft(draft.price, currency, usdToKhrExchangeRate) == null;
 }
 
 function anySkuFlags(drafts: Record<string, SkuSignalDraft>) {
@@ -1557,12 +1713,28 @@ function anyServiceFlags(drafts: Record<string, ServiceSignalDraft>) {
   return Object.values(drafts).some((draft) => hasServiceFlags(draft));
 }
 
+function hasMeaningfulServiceSignalChanges(
+  catalog: SenaCatalog | null,
+  drafts: Record<string, ServiceSignalDraft>,
+  currency: 'USD' | 'KHR',
+  usdToKhrExchangeRate: number,
+) {
+  return Object.entries(drafts).some(([serviceId, draft]) =>
+    serviceDisplayPriceChanged(catalog, serviceId, draft, currency, usdToKhrExchangeRate) ||
+    (draft.blockedEnabled && Boolean(draft.blockedState))
+  );
+}
+
 function skuFlagsHaveEmptyRequiredValues(drafts: Record<string, SkuSignalDraft>) {
   return Object.values(drafts).some((draft) => skuDraftHasEmptyRequiredValue(draft));
 }
 
-function serviceFlagsHaveEmptyRequiredValues(drafts: Record<string, ServiceSignalDraft>) {
-  return Object.values(drafts).some((draft) => serviceDraftHasEmptyRequiredValue(draft));
+function serviceFlagsHaveInvalidRequiredValues(
+  drafts: Record<string, ServiceSignalDraft>,
+  currency: 'USD' | 'KHR',
+  usdToKhrExchangeRate: number,
+) {
+  return Object.values(drafts).some((draft) => serviceDraftHasInvalidRequiredValue(draft, currency, usdToKhrExchangeRate));
 }
 
 function serviceDisplayPriceChanged(
@@ -1576,8 +1748,70 @@ function serviceDisplayPriceChanged(
     return false;
   }
   const baseline = catalog?.services.find((service) => service.serviceId === serviceId)?.price ?? null;
-  const price = usdMoneyFromDisplay(Number(draft.price), currency, usdToKhrExchangeRate);
+  const price = serviceDraftPriceUsd(draft, currency, usdToKhrExchangeRate);
+  if (price == null) {
+    return false;
+  }
   return baseline == null || price !== baseline;
+}
+
+function servicePricePayloadEntries(
+  catalog: SenaCatalog | null,
+  serviceSignalDrafts: Record<string, ServiceSignalDraft>,
+  currency: 'USD' | 'KHR',
+  usdToKhrExchangeRate: number,
+) {
+  return Object.entries(serviceSignalDrafts).flatMap(([serviceId, draft]) => {
+    if (!serviceDisplayPriceChanged(catalog, serviceId, draft, currency, usdToKhrExchangeRate)) {
+      return [];
+    }
+    const price = serviceDraftPriceUsd(draft, currency, usdToKhrExchangeRate);
+    return price == null ? [] : [{ serviceId, price }];
+  });
+}
+
+export function parseServicePriceDraft(
+  value: string,
+  currency: 'USD' | 'KHR',
+  usdToKhrExchangeRate: number,
+) {
+  return parseNonNegativeMoneyDisplayDraft(value, currency, usdToKhrExchangeRate);
+}
+
+function serviceDraftPriceUsd(
+  draft: ServiceSignalDraft,
+  currency: 'USD' | 'KHR',
+  usdToKhrExchangeRate: number,
+) {
+  return parseServicePriceDraft(draft.price, currency, usdToKhrExchangeRate);
+}
+
+function parseNonNegativeMoneyDisplayDraft(
+  value: string,
+  currency: 'USD' | 'KHR',
+  usdToKhrExchangeRate: number,
+) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = parseEditableNumberWithCommas(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return usdMoneyFromDisplay(parsed, currency, usdToKhrExchangeRate);
+}
+
+export function parseStockMoneyDraft(
+  value: string,
+  fallback: number | null,
+  currency: 'USD' | 'KHR',
+  usdToKhrExchangeRate: number,
+) {
+  if (value.trim() === '') {
+    return fallback;
+  }
+  return parseNonNegativeMoneyDisplayDraft(value, currency, usdToKhrExchangeRate);
 }
 
 function getBrowserStorage() {
@@ -2303,6 +2537,7 @@ function hydrateStockUpdateDraft({
 
 function hasMeaningfulStockUpdateChanges({
   catalog,
+  currency,
   initialObservedAt,
   notes,
   observedAt,
@@ -2344,6 +2579,7 @@ function hasMeaningfulStockUpdateChanges({
   customerIdentity,
   refundStockReturnDrafts,
   touchedPosMetadataPopupIds,
+  usdToKhrExchangeRate,
 }: StockUpdateDraftState) {
   return (
     rows.some((row) => stockRowChanged(catalog, stockBySku, row)) ||
@@ -2366,7 +2602,7 @@ function hasMeaningfulStockUpdateChanges({
     retailSalesChoice !== 'unset' ||
     serviceSalesChoice !== 'unset' ||
     anySkuFlags(skuSignalDrafts) ||
-    anyServiceFlags(serviceSignalDrafts) ||
+    hasMeaningfulServiceSignalChanges(catalog, serviceSignalDrafts, currency, usdToKhrExchangeRate) ||
     Object.values(stockStepChoices).some((choice) => choice !== 'unset') ||
     regimeHint !== '' ||
     serviceRankings.length > 0 ||
@@ -2500,31 +2736,28 @@ function buildFullObservationPayload({
   payload.orderSignals = Object.entries(skuSignalDrafts).flatMap(([skuId, draft]) => {
     const nextSignals = [];
     if (draft.orderEnabled) {
+      const orderedQuantity = parseOptionalNonNegativeFiniteNumberDraft(draft.orderedQuantity);
       nextSignals.push({
         skuId,
         orderPlaced: true,
         receiptArrived: false,
-        approximateOrderQuantity: draft.orderedQuantity.trim() === '' ? null : Number(draft.orderedQuantity),
+        approximateOrderQuantity: orderedQuantity,
         approximateReceiptQuantity: null,
       });
     }
     if (draft.receiptEnabled) {
+      const receiptQuantity = parseOptionalNonNegativeFiniteNumberDraft(draft.receiptQuantity);
       nextSignals.push({
         skuId,
         orderPlaced: false,
         receiptArrived: true,
         approximateOrderQuantity: null,
-        approximateReceiptQuantity: draft.receiptQuantity.trim() === '' ? null : Number(draft.receiptQuantity),
+        approximateReceiptQuantity: receiptQuantity,
       });
     }
     return nextSignals;
   });
-  payload.servicePrices = Object.entries(serviceSignalDrafts)
-    .filter(([, draft]) => draft.priceEnabled)
-    .map(([serviceId, draft]) => ({
-      serviceId,
-      price: usdMoneyFromDisplay(Number(draft.price), currency, usdToKhrExchangeRate),
-    }));
+  payload.servicePrices = servicePricePayloadEntries(catalog, serviceSignalDrafts, currency, usdToKhrExchangeRate);
   payload.retailPrices = [];
   payload.retailStockouts = Object.entries(skuSignalDrafts)
     .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(catalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
@@ -2783,6 +3016,7 @@ function buildDraftsFromObservationInput({
   catalog,
   currency,
   input,
+  laneId,
   stepOrder,
   usdToKhrExchangeRate,
 }: {
@@ -2790,6 +3024,7 @@ function buildDraftsFromObservationInput({
   catalog: SenaCatalog;
   currency: 'USD' | 'KHR';
   input: ReturnType<typeof createEmptyObservationInput>;
+  laneId: ReturnType<typeof getRecordUpdateLane>['id'];
   stepOrder: StockUpdateStepId[];
   usdToKhrExchangeRate: number;
 }): HydratedStockUpdateState {
@@ -2908,6 +3143,43 @@ function buildDraftsFromObservationInput({
   const serviceSalesDrafts = Object.fromEntries(
     (input.serviceSalesSnapshot ?? []).map((snapshot) => [snapshot.serviceId, String(snapshot.unitsSold)]),
   ) as SalesCountDrafts;
+  const customerTicketEvent = input.ticketEvents?.find((event) => event.ticketFamily === 'customer') ?? null;
+  const supplierTicketEvent = input.ticketEvents?.find((event) => event.ticketFamily === 'supplier') ?? null;
+  for (const event of input.ticketEvents ?? []) {
+    if (event.ticketFamily === 'customer') {
+      for (const line of event.lines) {
+        const quantity = customerTicketLineDraftQuantity(line);
+        if (quantity == null) {
+          continue;
+        }
+        if (line.entityType === 'sku') {
+          retailSalesDrafts[line.entityId] = String(quantity);
+        } else if (line.entityType === 'service') {
+          serviceSalesDrafts[line.entityId] = String(quantity);
+        }
+      }
+    } else {
+      for (const line of event.lines) {
+        if (line.entityType !== 'sku') {
+          continue;
+        }
+        const existing = skuSignalDrafts[line.entityId] ?? createEmptySkuSignalDraft();
+        const orderedQuantity = supplierTicketOrderedDraftQuantity(line);
+        const receiptQuantity =
+          laneId === 'supplier-receipt'
+            ? supplierTicketReceiptDraftQuantity(line)
+            : finiteTicketLineQuantity(line.receivedQuantity);
+        skuSignalDrafts[line.entityId] = {
+          ...existing,
+          orderEnabled: orderedQuantity != null || existing.orderEnabled,
+          orderedQuantity: orderedQuantity != null ? String(orderedQuantity) : existing.orderedQuantity,
+          expectedArrivalDate: existing.expectedArrivalDate || dateInputValue(line.expectedArrivalAt ?? event.nextTouchAt ?? null),
+          receiptEnabled: receiptQuantity != null || existing.receiptEnabled,
+          receiptQuantity: receiptQuantity != null ? String(receiptQuantity) : existing.receiptQuantity,
+        };
+      }
+    }
+  }
   const baselineRowIds = new Set(baselineRows.map((row) => row.skuId));
   const appendedRows = input.stockSnapshot
     .filter((snapshot) => !baselineRowIds.has(snapshot.skuId))
@@ -2987,14 +3259,14 @@ function buildDraftsFromObservationInput({
       catalog.services.some((service) => service.serviceId === serviceId),
     ),
     retailRankings: input.retailRankings.filter((skuId) => retailSkuIds.has(skuId)),
-    customerPendingMode: 'new_pending' as const,
+    customerPendingMode: customerTicketEvent ? 'modify_pending' as const : 'new_pending' as const,
     customerCompletedMode: 'immediate_sale' as const,
-    supplierPendingMode: 'new_supplier_order' as const,
+    supplierPendingMode: supplierTicketEvent ? 'update_pending_supplier_order' as const : 'new_supplier_order' as const,
     supplierReceiptMode: 'against_pending_supplier_order' as const,
-    customerTicketMode: null,
-    supplierTicketMode: null,
-    selectedCustomerTicketId: null,
-    selectedSupplierTicketId: null,
+    customerTicketMode: customerTicketEvent ? 'edit' as const : null,
+    supplierTicketMode: supplierTicketEvent ? 'edit' as const : null,
+    selectedCustomerTicketId: customerTicketEvent?.ticketId ?? null,
+    selectedSupplierTicketId: supplierTicketEvent?.ticketId ?? null,
     supplierTicketUpdateAction: 'revise_order' as const,
     customerIdentity: DEFAULT_CUSTOMER_IDENTITY,
     refundStockReturnDrafts: {},
@@ -3450,9 +3722,9 @@ function RecordOrderTimingFields({
   const expectedArrivalId = 'record-order-expected-arrival';
   const leadTimeMeanId = 'record-order-lead-time-mean';
   const effectiveMeanDays = leadTimeMeanValue.trim()
-    ? Number(leadTimeMeanValue)
+    ? parseOptionalNonNegativeFiniteNumberDraft(leadTimeMeanValue)
     : leadTimeMeanPlaceholder.trim()
-      ? Number(leadTimeMeanPlaceholder)
+      ? parseOptionalNonNegativeFiniteNumberDraft(leadTimeMeanPlaceholder)
       : null;
   const effectiveVariability = variabilityValue || variabilityPlaceholder;
 
@@ -4286,11 +4558,12 @@ function StockCountStep({
                           step="1"
                           variant="side-buttons"
                           value={unitsChanged ? String(row.unitsInStock) : ''}
-                          onChange={(event) =>
-                            updateRow(row.skuId, {
-                              unitsInStock: event.target.value === '' ? latestUnits : Number(event.target.value),
-                            })
-                          }
+                          onChange={(event) => {
+                            const nextUnits = parseStockUnitsDraft(event.target.value, latestUnits);
+                            if (nextUnits != null) {
+                              updateRow(row.skuId, { unitsInStock: nextUnits });
+                            }
+                          }}
                         />
                       </div>
                     </>,
@@ -4387,11 +4660,12 @@ function StockCostStep(props: {
                             placeholder={latestCostPlaceholder}
                             variant="side-buttons"
                             value={costChanged && row.costPerUnit != null ? displayMoneyFromUsd(row.costPerUnit, currency, usdToKhrExchangeRate) : ''}
-                            onChange={(event) =>
-                              updateRow(row.skuId, {
-                                costPerUnit: event.target.value ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate) : latestCost,
-                              })
-                            }
+                            onChange={(event) => {
+                              const nextCost = parseStockMoneyDraft(event.target.value, latestCost, currency, usdToKhrExchangeRate);
+                              if (nextCost != null || event.target.value.trim() === '') {
+                                updateRow(row.skuId, { costPerUnit: nextCost });
+                              }
+                            }}
                           />
                         </div>
                       </>,
@@ -4485,11 +4759,12 @@ function StockRetailPriceStep(props: {
                             placeholder={latestRetailPricePlaceholder}
                             variant="side-buttons"
                             value={retailPriceChanged && row.productPrice != null ? displayMoneyFromUsd(row.productPrice, currency, usdToKhrExchangeRate) : ''}
-                            onChange={(event) =>
-                              updateRow(row.skuId, {
-                                productPrice: event.target.value ? usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate) : latestRetailPrice,
-                              })
-                            }
+                            onChange={(event) => {
+                              const nextPrice = parseStockMoneyDraft(event.target.value, latestRetailPrice, currency, usdToKhrExchangeRate);
+                              if (nextPrice != null || event.target.value.trim() === '') {
+                                updateRow(row.skuId, { productPrice: nextPrice });
+                              }
+                            }}
                           />
                         </div>
                       </>,
@@ -4670,7 +4945,7 @@ function customerPendingResultQuantity({
   previousOpen: number;
   value: string;
 }) {
-  const quantity = value.trim() === '' ? null : Number(value);
+  const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
   if (quantity == null || !Number.isFinite(quantity) || quantity < 0) {
     return previousOpen;
   }
@@ -5070,7 +5345,7 @@ function SalesRetailStep({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="later">{translateUiLiteral(language, 'Handle later in Stock Count')}</SelectItem>
+                                <SelectItem value="later">{translateUiLiteral(language, 'Handle later in Products Update')}</SelectItem>
                                 <SelectItem value="now">{translateUiLiteral(language, 'Add returned stock now')}</SelectItem>
                               </SelectContent>
                             </Select>
@@ -5316,7 +5591,7 @@ function RecordOrderStep({
   const leadTimeVariabilityPlaceholder = rows.map((row) => leadTimeVariabilityDefaults.get(row.skuId)).find((value) => value != null) ?? '';
   const effectiveLeadTimeMean =
     recordOrderLeadTimeMeanDays.trim() !== ''
-      ? Number(recordOrderLeadTimeMeanDays)
+      ? parseOptionalNonNegativeFiniteNumberDraft(recordOrderLeadTimeMeanDays)
       : leadTimeMeanPlaceholder;
   const effectiveLeadTimeVariability = recordOrderLeadTimeVariability || leadTimeVariabilityPlaceholder || null;
   const expectedArrivalEstimate = addDaysToDateInput(
@@ -5335,7 +5610,7 @@ function RecordOrderStep({
     }
     const nextVariabilityClass = deriveLeadTimeFromStdDays(
       effectiveLeadTimeMean,
-      recordOrderLeadTimeStdDays.trim() ? Number(recordOrderLeadTimeStdDays) : null,
+      parseOptionalNonNegativeFiniteNumberDraft(recordOrderLeadTimeStdDays),
     ).variabilityClass;
     setRecordOrderLeadTimeVariability(nextVariabilityClass ?? '');
   }, [
@@ -5895,6 +6170,7 @@ function ServiceSignalsStep({
   flashServiceId,
   guidance,
   language,
+  mobileLayout = false,
   serviceSignalDrafts,
   usdToKhrExchangeRate,
   updateServiceSignalDraft,
@@ -5906,15 +6182,28 @@ function ServiceSignalsStep({
   flashServiceId?: string | null;
   guidance?: string | null;
   language: 'en' | 'km';
+  mobileLayout?: boolean;
   serviceSignalDrafts: Record<string, ServiceSignalDraft>;
   usdToKhrExchangeRate: number;
   updateServiceSignalDraft: (serviceId: string, updater: (draft: ServiceSignalDraft) => ServiceSignalDraft) => void;
   onToggleDebugCellBoundaries: () => void;
 }) {
   const { t } = usePreferences();
+  const services = catalog?.services ?? [];
   const showFlagColumn = anyServiceFlags(serviceSignalDrafts);
   const debugTrackClassName = debugCellBoundaries ? tableDebugTrackClassName : '';
   const debugFlushClassName = debugCellBoundaries ? tableDebugFlushClassName : '';
+  const sortedServices = mobileLayout && flashServiceId
+    ? [...services].sort((left, right) => {
+        if (left.serviceId === flashServiceId) {
+          return -1;
+        }
+        if (right.serviceId === flashServiceId) {
+          return 1;
+        }
+        return 0;
+      })
+    : services;
 
   return (
     <WorkspacePanel
@@ -5946,8 +6235,154 @@ function ServiceSignalsStep({
     >
       <div className="grid gap-3">
         {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
-        {(catalog?.services ?? []).length === 0 ? (
+        {services.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('stockUpdateNoServicesHelper')}</p>
+        ) : mobileLayout ? (
+          <div className="grid gap-3" data-slot="mobile-service-signal-list">
+            {sortedServices.map((service) => {
+              const draft = serviceSignalDrafts[service.serviceId] ?? createEmptyServiceSignalDraft();
+              const flagIds = activeServiceFlagIds(draft);
+              const linkedSkuCount = (catalog?.sharingMask ?? []).filter(
+                (entry) => entry.enabled && entry.serviceId === service.serviceId,
+              ).length;
+              const highlighted = flashServiceId === service.serviceId;
+
+              return (
+                <section
+                  key={service.serviceId}
+                  className={cn(
+                    'grid gap-4 rounded-[1.1rem] border border-border/70 bg-background px-4 py-4 shadow-xs',
+                    highlighted && 'ring-2 ring-primary/30',
+                  )}
+                  data-slot="mobile-service-signal-card"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <ItemAvatar imagePath={service.imagePath} name={service.name} size="default" type="service" />
+                    <div className="min-w-0 flex-1">
+                      <p className="khmer-safe-label text-base font-semibold leading-6 text-foreground">{service.name}</p>
+                      <p className="text-sm leading-5 text-muted-foreground">
+                        {t('stockUpdateLinkedSkuCount', { count: linkedSkuCount, suffix: linkedSkuCount === 1 ? '' : 's' })}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="khmer-safe-eyebrow text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        {t('stockUpdateLatestPrice')}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {draft.priceEnabled ? (
+                    <div className="grid gap-2">
+                      <RecordUpdateFieldLabel className="text-xs tracking-[0.2em]">
+                        {t('stockUpdatePriceIfChanged')}
+                      </RecordUpdateFieldLabel>
+                      <CurrencyNumberInput
+                        aria-label={t('stockUpdatePriceChangedAria', { name: service.name })}
+                        className={cn(
+                          recordUpdateInputClassName,
+                          '!h-12 rounded-[1rem] px-4 text-base md:text-base',
+                          highlighted && captureTargetFlashClassName,
+                        )}
+                        currency={currency}
+                        min="0"
+                        placeholder={t('stockUpdateNewPrice')}
+                        variant="side-buttons"
+                        value={draft.price}
+                        onChange={(event) =>
+                          updateServiceSignalDraft(service.serviceId, (current) => ({
+                            ...current,
+                            priceEnabled: true,
+                            price: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  ) : null}
+
+                  {draft.blockedEnabled ? (
+                    <div className="grid gap-2">
+                      <RecordUpdateFieldLabel className="text-xs tracking-[0.2em]">
+                        {t('stockUpdateEventFlag')}
+                      </RecordUpdateFieldLabel>
+                      <Select
+                        value={draft.blockedState}
+                        onValueChange={(value) =>
+                          updateServiceSignalDraft(service.serviceId, (current) => ({
+                            ...current,
+                            blockedEnabled: true,
+                            blockedState: value as StockoutFlagValue,
+                          }))
+                        }
+                      >
+                        <SelectTrigger
+                          aria-label={t('stockUpdateBlockedStateAria', { name: service.name })}
+                          className={cn(recordUpdateSelectTriggerClassName, 'h-12 rounded-[1rem] justify-between')}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem className="py-2.5 pr-9" value="blocked">
+                            <StockEventOptionContent
+                              description={t('stockUpdateBlockedEventDescription')}
+                              icon={<StatusWarningIcon aria-hidden="true" className="size-4" />}
+                              label={t('stockUpdateBlocked')}
+                            />
+                          </SelectItem>
+                          <SelectItem className="py-2.5 pr-9" value="stockout">
+                            <StockEventOptionContent
+                              description={t('stockUpdateStockoutEventDescription')}
+                              icon={<EntityFlagIcon aria-hidden="true" className="size-4" />}
+                              label={t('stockUpdateStockout')}
+                            />
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
+
+                  {flagIds.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">{t('stockUpdateNoRowFlags')}</p>
+                  ) : null}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      className="min-h-11 rounded-[0.9rem]"
+                      type="button"
+                      variant={draft?.priceEnabled ? 'secondary' : 'outline'}
+                      onClick={() =>
+                        updateServiceSignalDraft(service.serviceId, (current) => ({
+                          ...current,
+                          priceEnabled: !current.priceEnabled,
+                          price: current.priceEnabled ? '' : current.price,
+                        }))
+                      }
+                    >
+                      <ActionCreatePackageIcon data-icon="inline-start" />
+                      {draft?.priceEnabled ? t('stockUpdateRemovePriceChange') : t('stockUpdateAddPriceChange')}
+                    </Button>
+                    <Button
+                      className="min-h-11 rounded-[0.9rem]"
+                      type="button"
+                      variant={draft?.blockedEnabled ? 'secondary' : 'outline'}
+                      onClick={() =>
+                        updateServiceSignalDraft(service.serviceId, (current) => ({
+                          ...current,
+                          blockedEnabled: !current.blockedEnabled,
+                          blockedState: current.blockedEnabled ? 'blocked' : current.blockedState,
+                        }))
+                      }
+                    >
+                      <StatusUnavailableIcon data-icon="inline-start" />
+                      {draft?.blockedEnabled ? t('stockUpdateRemoveEvent') : t('stockUpdateAddEvent')}
+                    </Button>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
         ) : (
           <RecordUpdateTable
             columns={[
@@ -6331,17 +6766,19 @@ export function StockUpdateSessionRoute() {
   const navigate = useNavigate();
   const { canGoBack, goBack, previousLocation } = useNavigationHistory();
   const embeddedPhonePortrait = useEmbeddedPhonePortraitViewport();
+  const incomingEditSession = useMemo(() => readRecordUpdateEditSession(location.state), [location.state]);
   const lane = useMemo(() => getRecordUpdateLane(location.pathname), [location.pathname]);
   const routeCaptureTarget = useMemo(() => readCaptureSessionTarget(location.search), [location.search]);
-  const routeCaptureFlashTargetKeys = useMemo(() => readCaptureSessionFlashTargetKeys(location.search), [location.search]);
+  const routeCaptureFlashTargetKeys = useMemo(() => {
+    const searchKeys = readCaptureSessionFlashTargetKeys(location.search);
+    if (searchKeys.length > 0 || !incomingEditSession) {
+      return searchKeys;
+    }
+    return recordUpdateEditSessionFlashTargetKeysForInput(incomingEditSession.input);
+  }, [incomingEditSession, location.search]);
   const workbenchReorderLaneId = isWorkbenchReorderLaneId(lane.id) ? lane.id : null;
-  const posViewAvailable = lane.id !== 'custom';
   const [sessionViewMode, setSessionViewMode] = useState<SessionViewMode>(() =>
-    posViewAvailable && (routeCaptureFlashTargetKeys.length > 0 || routeCaptureTarget?.action !== 'service-price')
-      ? 'pos'
-      : posViewAvailable
-        ? readRecordUpdateSessionViewMode()
-        : 'form',
+    readRecordUpdateSessionViewMode(),
   );
   const routeCustomSelectedLaneIds = useMemo(() => {
     if (lane.id !== 'custom') {
@@ -6364,8 +6801,8 @@ export function StockUpdateSessionRoute() {
   const initialSkuIds = useMemo(() => {
     const search = location.search;
     const urlParams = new URLSearchParams(search);
-    const skusParam = urlParams.get('skus');
-    return skusParam ? new Set(skusParam.split(',').filter(Boolean)) : null;
+    const skuIds = parseRouteIdList(urlParams.get('skus'));
+    return skuIds.length > 0 ? new Set(skuIds) : null;
   }, [location.search]);
   const routeBatchOrderId = useMemo(() => new URLSearchParams(location.search).get('batchOrderId'), [location.search]);
   const routeChildOrderId = useMemo(() => new URLSearchParams(location.search).get('childOrderId'), [location.search]);
@@ -6375,27 +6812,26 @@ export function StockUpdateSessionRoute() {
   const serviceSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:service-sales`), [lane.id]);
   const [customSelectedLaneIds, setCustomSelectedLaneIds] = useState<BaseRecordUpdateLaneId[]>(() => routeCustomSelectedLaneIds);
   const activeStepOrder = useMemo<StockUpdateStepId[]>(() => {
-    const order = stepOrderForLane(lane.id, customSelectedLaneIds);
-    if (routeCaptureTarget?.action !== 'service-price' || order.includes('service')) {
-      return order;
-    }
-    const reviewIndex = order.indexOf('review');
-    if (reviewIndex < 0) {
-      return [...order, 'service'];
-    }
-    return [...order.slice(0, reviewIndex), 'service', ...order.slice(reviewIndex)];
-  }, [customSelectedLaneIds, lane.id, routeCaptureTarget?.action]);
+    return stepOrderForLane(lane.id, customSelectedLaneIds);
+  }, [customSelectedLaneIds, lane.id]);
   const selectedBaseLaneIds = useMemo(
     () => (lane.id === 'custom' ? customSelectedLaneIds : isBaseRecordUpdateLaneId(lane.id) ? [lane.id] : []),
     [customSelectedLaneIds, lane.id],
   );
   const latestAt = latestObservationAt(observations);
-  const incomingEditSession = useMemo(() => readRecordUpdateEditSession(location.state), [location.state]);
+  const incomingEditSessionPath = incomingEditSession
+    ? recordUpdateEditSessionPathForInput(incomingEditSession.input)
+    : null;
+  const editSessionPathMismatch =
+    lane.id === 'stock-count' &&
+    incomingEditSessionPath != null &&
+    incomingEditSessionPath !== location.pathname;
   const initialObservedAtRef = useRef(localDateTimeInputValue(null));
   const requestedWorkSupportDataRef = useRef(false);
   const draftHydrationCheckedRef = useRef(false);
   const latestDraftStateRef = useRef<StockUpdateDraftState | null>(null);
   const skipNextDraftPersistRef = useRef(false);
+  const replayingNavigationAnchorClickRef = useRef(false);
   const savedObservationRetryIdRef = useRef<string | null>(null);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
   const posDeliveryFeeInputRef = useRef<HTMLInputElement | null>(null);
@@ -6458,13 +6894,13 @@ export function StockUpdateSessionRoute() {
     () => (lane.id === 'customer-order-pending' ? routeTicketMode : null),
   );
   const [supplierTicketMode, setSupplierTicketMode] = useState<TicketAuthoringMode | null>(
-    () => (lane.id === 'supplier-order-pending' ? routeTicketMode : null),
+    () => (lane.id === 'supplier-order-pending' || lane.id === 'supplier-receipt' ? routeTicketMode : null),
   );
   const [selectedCustomerTicketId, setSelectedCustomerTicketId] = useState<string | null>(
     lane.id === 'customer-order-pending' ? routeTicketId : null,
   );
   const [selectedSupplierTicketId, setSelectedSupplierTicketId] = useState<string | null>(
-    routeBatchOrderId ?? routeChildOrderId ?? (lane.id === 'supplier-order-pending' ? routeTicketId : null),
+    routeBatchOrderId ?? routeChildOrderId ?? (lane.id === 'supplier-order-pending' || lane.id === 'supplier-receipt' ? routeTicketId : null),
   );
   const [supplierTicketUpdateAction, setSupplierTicketUpdateAction] = useState<SupplierTicketUpdateAction>('revise_order');
   const [customerIdentity, setCustomerIdentity] = useState<CustomerIdentityDraft>(DEFAULT_CUSTOMER_IDENTITY);
@@ -6523,7 +6959,9 @@ export function StockUpdateSessionRoute() {
   const [draftWasRestored, setDraftWasRestored] = useState(false);
   const [leaveDraftDialogOpen, setLeaveDraftDialogOpen] = useState(false);
   const workbenchHoldTimerRef = useRef<number | null>(null);
+  const workbenchHoldOriginRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const pendingWorkbenchInteractionRef = useRef<null | (() => void)>(null);
+  const posWorkbenchSectionRef = useRef<HTMLElement | null>(null);
   const handledCaptureTargetRef = useRef<string | null>(null);
   const handledBatchActivationRef = useRef<string | null>(null);
   const hydratedSupplierTicketIdRef = useRef<string | null>(null);
@@ -6695,7 +7133,7 @@ export function StockUpdateSessionRoute() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [workbenchReorderMode]);
   useEffect(() => {
-    if (routeCaptureFlashTargetKeys.length > 0 || (routeCaptureTarget && routeCaptureTarget.action !== 'service-price')) {
+    if (routeCaptureFlashTargetKeys.length > 0 || routeCaptureTarget) {
       logCaptureBatchDebug('pos-view-forced', {
         flashTargetKeys: routeCaptureFlashTargetKeys,
         laneId: lane.id,
@@ -6705,13 +7143,13 @@ export function StockUpdateSessionRoute() {
       setSessionViewMode('pos');
       return;
     }
-    setSessionViewMode(posViewAvailable ? readRecordUpdateSessionViewMode() : 'form');
-  }, [lane.id, posViewAvailable, routeCaptureFlashTargetKeys, routeCaptureTarget]);
+    setSessionViewMode(readRecordUpdateSessionViewMode());
+  }, [lane.id, routeCaptureFlashTargetKeys, routeCaptureTarget]);
   useEffect(() => {
     if (!routeCaptureTarget && routeCaptureFlashTargetKeys.length === 0) {
       return;
     }
-    if (posViewAvailable && (routeCaptureFlashTargetKeys.length > 0 || routeCaptureTarget?.action !== 'service-price')) {
+    if (routeCaptureFlashTargetKeys.length > 0 || routeCaptureTarget != null) {
       logCaptureBatchDebug('pos-view-available-for-route-target', {
         flashTargetKeys: routeCaptureFlashTargetKeys,
         laneId: lane.id,
@@ -6719,13 +7157,13 @@ export function StockUpdateSessionRoute() {
       });
       setSessionViewMode('pos');
     }
-  }, [lane.id, posViewAvailable, routeCaptureFlashTargetKeys, routeCaptureTarget]);
+  }, [lane.id, routeCaptureFlashTargetKeys, routeCaptureTarget]);
   useEffect(() => {
     setPosWorkbenchSearch('');
     setPosWorkbenchFilter('all');
     setPosTouchedLineKeys([]);
     setActivePosMetadataPopup(null);
-    if ((!routeCaptureTarget || routeCaptureTarget.action === 'service-price') && routeCaptureFlashTargetKeys.length === 0) {
+    if (!routeCaptureTarget && routeCaptureFlashTargetKeys.length === 0) {
       setActivePosTileKey(null);
     }
     setPosTileDialogQuantity('1');
@@ -6741,7 +7179,7 @@ export function StockUpdateSessionRoute() {
     });
   }, [lane.id, routeCaptureFlashTargetKeys, routeCaptureTarget]);
   useEffect(() => {
-    if (selectedOrderChildren.length === 0 || draftWasRestored || editSession) {
+    if (selectedOrderChildren.length === 0 || editSession) {
       return;
     }
     const draftMap = Object.fromEntries(
@@ -6752,14 +7190,42 @@ export function StockUpdateSessionRoute() {
           orderEnabled: Boolean(child.effective.orderedQuantity && selectedBaseLaneIds.includes('supplier-order-pending')),
           orderedQuantity: child.effective.orderedQuantity?.toString() ?? '',
           expectedArrivalDate: dateInputValue(child.effective.expectedArrivalAt ?? selectedOrderBatch?.shared.expectedArrivalAt ?? null),
-          receiptEnabled: Boolean(child.effective.receivedQuantity && selectedBaseLaneIds.includes('supplier-receipt')),
-          receiptQuantity: child.effective.receivedQuantity?.toString() ?? '',
+          receiptEnabled: Boolean(
+            selectedBaseLaneIds.includes('supplier-receipt') &&
+            (child.effective.receivedQuantity || child.effective.orderedQuantity),
+          ),
+          receiptQuantity: (child.effective.receivedQuantity ?? child.effective.orderedQuantity)?.toString() ?? '',
           leadTimeMeanDays: child.effective.leadTimeDaysHint?.toString() ?? '',
           leadTimeVariability: child.effective.leadTimeVariability ?? '',
         } satisfies SkuSignalDraft,
       ]),
     );
-    setSkuSignalDrafts((current) => ({ ...draftMap, ...current }));
+    setSkuSignalDrafts((current) => {
+      const next = { ...current };
+      for (const [skuId, hydrated] of Object.entries(draftMap)) {
+        const existing = next[skuId] ?? createEmptySkuSignalDraft();
+        next[skuId] = {
+          ...hydrated,
+          ...existing,
+          ...(selectedBaseLaneIds.includes('supplier-order-pending') && !hasSupplierOrderLineDraft(existing)
+            ? {
+                orderEnabled: hydrated.orderEnabled,
+                orderedQuantity: hydrated.orderedQuantity,
+              }
+            : {}),
+          ...(selectedBaseLaneIds.includes('supplier-receipt') && !hasSupplierReceiptLineDraft(existing)
+            ? {
+                receiptEnabled: hydrated.receiptEnabled,
+                receiptQuantity: hydrated.receiptQuantity,
+              }
+            : {}),
+          expectedArrivalDate: existing.expectedArrivalDate.trim() ? existing.expectedArrivalDate : hydrated.expectedArrivalDate,
+          leadTimeMeanDays: existing.leadTimeMeanDays.trim() ? existing.leadTimeMeanDays : hydrated.leadTimeMeanDays,
+          leadTimeVariability: existing.leadTimeVariability.trim() ? existing.leadTimeVariability : hydrated.leadTimeVariability,
+        };
+      }
+      return next;
+    });
     setNotes((current) => current || selectedOrderBatch?.shared.supplierNote || '');
     setRecordOrderExpectedArrivalDate(
       dateInputValue(selectedOrderBatch?.shared.expectedArrivalAt ?? selectedOrderChildren[0]?.effective.expectedArrivalAt ?? null),
@@ -6817,12 +7283,66 @@ export function StockUpdateSessionRoute() {
     () => (lane.id === 'stock-count' ? skuEventOnlyDrafts(skuSignalDrafts) : skuSignalDrafts),
     [lane.id, skuSignalDrafts],
   );
+  const activeSupplierTargetSkuIds = useMemo(() => {
+    const skuIds = new Set<string>();
+    const addSupplierTicketLines = (ticket: { lines: Array<{ entityId: string; entityType: string }> } | null | undefined) => {
+      for (const line of ticket?.lines ?? []) {
+        if (line.entityType === 'sku') {
+          skuIds.add(line.entityId);
+        }
+      }
+    };
+
+    for (const key of routeCaptureFlashTargetKeys) {
+      if (key.startsWith('supplier-order:')) {
+        skuIds.add(key.slice('supplier-order:'.length));
+      } else if (key.startsWith('supplier-receipt:')) {
+        skuIds.add(key.slice('supplier-receipt:'.length));
+      }
+    }
+    if (
+      routeCaptureTarget?.targetType === 'sku' &&
+      (routeCaptureTarget.action === 'supplier-order' || routeCaptureTarget.action === 'supplier-receipt')
+    ) {
+      skuIds.add(routeCaptureTarget.targetId);
+    }
+    addSupplierTicketLines(selectedSupplierTicket);
+    for (const child of selectedOrderChildren) {
+      skuIds.add(child.skuId);
+    }
+    for (const ticketEvent of editSession?.input.ticketEvents ?? []) {
+      if (ticketEvent.ticketFamily === 'supplier') {
+        addSupplierTicketLines(ticketEvent);
+      }
+    }
+    if (selectedBaseLaneIds.includes('supplier-order-pending') || selectedBaseLaneIds.includes('supplier-receipt')) {
+      for (const [skuId, draft] of Object.entries(skuSignalDrafts)) {
+        if (
+          draft.orderedQuantity.trim() !== '' ||
+          draft.receiptQuantity.trim() !== '' ||
+          draft.orderEnabled ||
+          draft.receiptEnabled
+        ) {
+          skuIds.add(skuId);
+        }
+      }
+    }
+    return skuIds;
+  }, [
+    editSession,
+    routeCaptureFlashTargetKeys,
+    routeCaptureTarget,
+    selectedOrderChildren,
+    selectedBaseLaneIds,
+    selectedSupplierTicket,
+    skuSignalDrafts,
+  ]);
   const supplierFilteredRows = useMemo(
     () => rows.filter((row) => {
       const sku = workingCatalog?.skus.find((entry) => entry.skuId === row.skuId);
-      return sku ? matchesSkuSupplier(sku, supplierFilter) : true;
+      return activeSupplierTargetSkuIds.has(row.skuId) || (sku ? matchesSkuSupplier(sku, supplierFilter) : true);
     }),
-    [rows, supplierFilter, workingCatalog?.skus],
+    [activeSupplierTargetSkuIds, rows, supplierFilter, workingCatalog?.skus],
   );
   const supplierFilterControl = (
     <div className="flex justify-start">
@@ -6854,6 +7374,22 @@ export function StockUpdateSessionRoute() {
       ).map((row) => row.skuId),
     [persistedServiceSalesRowOrder, supplierFilter, workingCatalog],
   );
+  const productsUpdateServiceIds = useMemo(() => {
+    if (routeCaptureTarget?.action === 'service-price' && routeCaptureTarget.targetType === 'service') {
+      return serviceIds.includes(routeCaptureTarget.targetId) ? [routeCaptureTarget.targetId] : [];
+    }
+    if (routeScopedSkuIds) {
+      return [];
+    }
+    if (editSession) {
+      const activeServiceIds = new Set([
+        ...editSession.input.servicePrices.map((entry) => entry.serviceId),
+        ...editSession.input.serviceStockouts,
+      ]);
+      return serviceIds.filter((serviceId) => activeServiceIds.has(serviceId));
+    }
+    return serviceIds;
+  }, [editSession, routeCaptureTarget, routeScopedSkuIds, serviceIds]);
   const highRiskIds = new Set(workspaceSummary?.highRiskSkuIds ?? []);
   const serviceLinkedSkuIds = useMemo(
     () => new Set((workingCatalog?.sharingMask ?? []).filter((entry) => entry.enabled).map((entry) => entry.skuId)),
@@ -6927,7 +7463,7 @@ export function StockUpdateSessionRoute() {
   const serviceSalesStepIndex = activeStepOrder.indexOf('service-sales');
   const stockStepSatisfied = !isFirstObservation || countedSkuCount > 0;
   const skuFlagsValid = !skuFlagsHaveEmptyRequiredValues(visibleSkuSignalDrafts);
-  const serviceFlagsValid = !serviceFlagsHaveEmptyRequiredValues(serviceSignalDrafts);
+  const serviceFlagsValid = !serviceFlagsHaveInvalidRequiredValues(serviceSignalDrafts, currency, usdToKhrExchangeRate);
   const isCustomLane = lane.id === 'custom';
   const hasStockCountLane = selectedBaseLaneIds.includes('stock-count');
   const stockCountPosMode = sessionViewMode === 'pos' && lane.id === 'stock-count';
@@ -7048,26 +7584,10 @@ export function StockUpdateSessionRoute() {
   const skuById = useMemo(() => new Map((workingCatalog?.skus ?? []).map((sku) => [sku.skuId, sku] as const)), [workingCatalog?.skus]);
   const serviceById = useMemo(() => new Map((workingCatalog?.services ?? []).map((service) => [service.serviceId, service] as const)), [workingCatalog?.services]);
   const deliveryFeeUsd = useMemo(() => {
-    const trimmed = deliveryFeeAmount.trim();
-    if (!trimmed) {
-      return null;
-    }
-    const parsed = Number(trimmed);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return null;
-    }
-    return usdMoneyFromDisplay(parsed, currency, usdToKhrExchangeRate);
+    return parseNonNegativeMoneyDisplayDraft(deliveryFeeAmount, currency, usdToKhrExchangeRate);
   }, [currency, deliveryFeeAmount, usdToKhrExchangeRate]);
   const discountAmountUsd = useMemo(() => {
-    const trimmed = discountAmount.trim();
-    if (!trimmed) {
-      return null;
-    }
-    const parsed = Number(trimmed);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return null;
-    }
-    return usdMoneyFromDisplay(parsed, currency, usdToKhrExchangeRate);
+    return parseNonNegativeMoneyDisplayDraft(discountAmount, currency, usdToKhrExchangeRate);
   }, [currency, discountAmount, usdToKhrExchangeRate]);
   const discountPercentValue = useMemo(() => {
     const trimmed = discountPercent.trim();
@@ -7084,11 +7604,8 @@ export function StockUpdateSessionRoute() {
     if (isSupplierPendingLane || isSupplierReceiptLane) {
       return Object.entries(skuSignalDrafts).reduce((sum, [skuId, draft]) => {
         const quantityText = isSupplierPendingLane ? draft.orderedQuantity.trim() : draft.receiptQuantity.trim();
-        if (!quantityText) {
-          return sum;
-        }
-        const quantity = Number(quantityText);
-        if (!Number.isFinite(quantity) || quantity <= 0) {
+        const quantity = parsePositiveFiniteNumberDraft(quantityText);
+        if (quantity == null) {
           return sum;
         }
         const row = rows.find((entry) => entry.skuId === skuId);
@@ -7099,14 +7616,14 @@ export function StockUpdateSessionRoute() {
     if (isCustomerPendingLane || isCustomerCompletedLane) {
       return [
         ...Object.entries(retailSalesDrafts).map(([skuId, value]) => {
-          const quantity = Number(value.trim());
+          const quantity = parsePositiveFiniteNumberDraft(value);
           const unitAmount = skuById.get(skuId)?.productPrice ?? null;
-          return Number.isFinite(quantity) && quantity > 0 && unitAmount != null ? quantity * unitAmount : 0;
+          return quantity != null && unitAmount != null ? quantity * unitAmount : 0;
         }),
         ...Object.entries(serviceSalesDrafts).map(([serviceId, value]) => {
-          const quantity = Number(value.trim());
+          const quantity = parsePositiveFiniteNumberDraft(value);
           const unitAmount = serviceById.get(serviceId)?.price ?? null;
-          return Number.isFinite(quantity) && quantity > 0 && unitAmount != null ? quantity * unitAmount : 0;
+          return quantity != null && unitAmount != null ? quantity * unitAmount : 0;
         }),
       ].reduce((sum, value) => sum + value, 0);
     }
@@ -7267,6 +7784,7 @@ export function StockUpdateSessionRoute() {
   const draftState = useMemo<StockUpdateDraftState>(
     () => ({
       catalog: workingCatalog,
+      currency,
       savedObservationRetryId: savedObservationRetryIdRef.current,
       customSelectedLaneIds,
       touchedPosMetadataPopupIds: [...touchedPosMetadataPopupIds],
@@ -7319,9 +7837,11 @@ export function StockUpdateSessionRoute() {
       stockBySku,
       stockView,
       unlockedStepCount,
+      usdToKhrExchangeRate,
     }),
     [
       workingCatalog,
+      currency,
       customSelectedLaneIds,
       touchedPosMetadataPopupIds,
       currentStepId,
@@ -7372,6 +7892,7 @@ export function StockUpdateSessionRoute() {
       stockBySku,
       stockView,
       unlockedStepCount,
+      usdToKhrExchangeRate,
     ],
   );
   const hasMeaningfulChanges = useMemo(() => hasMeaningfulStockUpdateChanges(draftState), [draftState]);
@@ -7479,6 +8000,7 @@ export function StockUpdateSessionRoute() {
       catalog: editCatalog,
       currency,
       input: nextEditSession.input,
+      laneId: lane.id,
       stepOrder: activeStepOrder,
       usdToKhrExchangeRate,
     });
@@ -7492,6 +8014,22 @@ export function StockUpdateSessionRoute() {
     setReplaceDraftDialogOpen(false);
     navigate(location.pathname, { replace: true, state: null });
   }
+
+  useEffect(() => {
+    if (!incomingEditSessionPath || incomingEditSessionPath === location.pathname) {
+      return;
+    }
+    navigate(
+      {
+        pathname: incomingEditSessionPath,
+        search: location.search,
+      },
+      {
+        replace: true,
+        state: location.state,
+      },
+    );
+  }, [incomingEditSessionPath, location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
     setPersistedStockRowOrder(readStockRowOrder(stockRowOrderStorageKey));
@@ -7525,7 +8063,7 @@ export function StockUpdateSessionRoute() {
       }
       return;
     }
-    if (lane.id === 'supplier-order-pending' && routeTicketMode) {
+    if ((lane.id === 'supplier-order-pending' || lane.id === 'supplier-receipt') && routeTicketMode) {
       setSupplierTicketMode(routeTicketMode);
       if (routeTicketMode === 'new') {
         setSelectedSupplierTicketId(routeBatchOrderId ?? routeChildOrderId);
@@ -7536,6 +8074,9 @@ export function StockUpdateSessionRoute() {
   }, [lane.id, routeBatchOrderId, routeChildOrderId, routeTicketId, routeTicketMode]);
 
   useEffect(() => {
+    if (editSessionPathMismatch) {
+      return;
+    }
     if (!workingCatalog) {
       setRows(buildOrderedInitialRows(workingCatalog));
       return;
@@ -7639,10 +8180,10 @@ export function StockUpdateSessionRoute() {
     if (!hasAnyLiveDraft && !editSession) {
       setRows(routeScopedSkuIds ? baselineRows.filter((row) => routeScopedSkuIds.has(row.skuId)) : baselineRows);
     }
-  }, [activeStepOrder, buildOrderedInitialRows, currency, draftStorageKey, editSession, hasAnyLiveDraft, incomingEditSession, lane.id, location.pathname, navigate, observations, routeCustomSelectedLaneIds, routeScopedSkuIds, usdToKhrExchangeRate, workingCatalog]);
+  }, [activeStepOrder, buildOrderedInitialRows, currency, draftStorageKey, editSession, editSessionPathMismatch, hasAnyLiveDraft, incomingEditSession, lane.id, location.pathname, navigate, observations, routeCustomSelectedLaneIds, routeScopedSkuIds, usdToKhrExchangeRate, workingCatalog]);
 
   useEffect(() => {
-    if (!(catalog ?? visibleCatalog) || !draftHydrationCheckedRef.current || !incomingEditSession) {
+    if (editSessionPathMismatch || !(catalog ?? visibleCatalog) || !draftHydrationCheckedRef.current || !incomingEditSession) {
       return;
     }
 
@@ -7668,6 +8209,7 @@ export function StockUpdateSessionRoute() {
     buildOrderedInitialRows,
     catalog,
     editSession?.observationId,
+    editSessionPathMismatch,
     hasAnyLiveDraft,
     incomingEditSession,
     location.pathname,
@@ -7678,13 +8220,13 @@ export function StockUpdateSessionRoute() {
   ]);
 
   useEffect(() => {
-    if (!isCustomerPendingLane || customerTicketMode !== 'edit' || !selectedCustomerTicket || draftWasRestored || editSession) {
+    if (!isCustomerPendingLane || customerTicketMode !== 'edit' || !selectedCustomerTicket || editSession) {
       if (!selectedCustomerTicket) {
         hydratedCustomerTicketIdRef.current = null;
       }
       return;
     }
-    if (hydratedCustomerTicketIdRef.current === selectedCustomerTicket.ticketId) {
+    if (!draftWasRestored && hydratedCustomerTicketIdRef.current === selectedCustomerTicket.ticketId) {
       return;
     }
 
@@ -7700,10 +8242,13 @@ export function StockUpdateSessionRoute() {
         if (line.entityType !== 'sku') {
           continue;
         }
-        const quantity = line.quantityDelta ?? line.orderedQuantity ?? 0;
-        if (quantity > 0) {
+        const quantity = customerTicketLineDraftQuantity(line);
+        if (quantity != null) {
+          if (draftWasRestored && next[line.entityId]?.trim()) {
+            continue;
+          }
           next[line.entityId] = String(quantity);
-        } else {
+        } else if (!draftWasRestored) {
           delete next[line.entityId];
         }
       }
@@ -7715,10 +8260,13 @@ export function StockUpdateSessionRoute() {
         if (line.entityType !== 'service') {
           continue;
         }
-        const quantity = line.quantityDelta ?? line.orderedQuantity ?? 0;
-        if (quantity > 0) {
+        const quantity = customerTicketLineDraftQuantity(line);
+        if (quantity != null) {
+          if (draftWasRestored && next[line.entityId]?.trim()) {
+            continue;
+          }
           next[line.entityId] = String(quantity);
-        } else {
+        } else if (!draftWasRestored) {
           delete next[line.entityId];
         }
       }
@@ -7751,13 +8299,13 @@ export function StockUpdateSessionRoute() {
   ]);
 
   useEffect(() => {
-    if (!isSupplierPendingLane || supplierTicketMode !== 'edit' || !selectedSupplierTicket || draftWasRestored || editSession) {
+    if (!isSupplierPendingLane || supplierTicketMode !== 'edit' || !selectedSupplierTicket || editSession) {
       if (!selectedSupplierTicket) {
         hydratedSupplierTicketIdRef.current = null;
       }
       return;
     }
-    if (hydratedSupplierTicketIdRef.current === selectedSupplierTicket.ticketId) {
+    if (!draftWasRestored && hydratedSupplierTicketIdRef.current === selectedSupplierTicket.ticketId) {
       return;
     }
 
@@ -7773,28 +8321,34 @@ export function StockUpdateSessionRoute() {
 
     setSkuSignalDrafts((current) => {
       const next = { ...current };
-      for (const row of rows) {
-        const existing = next[row.skuId] ?? createEmptySkuSignalDraft();
-        next[row.skuId] = {
-          ...existing,
-          orderEnabled: false,
-          orderedQuantity: '',
-          expectedArrivalDate: '',
-          leadTimeMeanDays: '',
-          leadTimeVariability: '',
-        };
+      if (!draftWasRestored) {
+        for (const row of rows) {
+          const existing = next[row.skuId] ?? createEmptySkuSignalDraft();
+          next[row.skuId] = {
+            ...existing,
+            orderEnabled: false,
+            orderedQuantity: '',
+            expectedArrivalDate: '',
+            leadTimeMeanDays: '',
+            leadTimeVariability: '',
+          };
+        }
       }
       for (const line of skuLines) {
-        const orderedQuantity = line.orderedQuantity ?? 0;
-        const receivedQuantity = line.receivedQuantity ?? 0;
+        const existing = next[line.entityId] ?? createEmptySkuSignalDraft();
+        if (draftWasRestored && hasSupplierTicketLineDraft(existing)) {
+          continue;
+        }
+        const orderedQuantity = supplierTicketOrderedDraftQuantity(line);
+        const receivedQuantity = finiteTicketLineQuantity(line.receivedQuantity);
         const expectedArrivalDate = dateInputValue(line.expectedArrivalAt ?? selectedSupplierTicket.nextTouchAt ?? null);
         next[line.entityId] = {
-          ...(next[line.entityId] ?? createEmptySkuSignalDraft()),
-          orderEnabled: orderedQuantity > 0,
-          orderedQuantity: orderedQuantity > 0 ? String(orderedQuantity) : '',
+          ...existing,
+          orderEnabled: orderedQuantity != null,
+          orderedQuantity: orderedQuantity != null ? String(orderedQuantity) : '',
           expectedArrivalDate,
-          receiptEnabled: receivedQuantity > 0,
-          receiptQuantity: receivedQuantity > 0 ? String(receivedQuantity) : '',
+          receiptEnabled: receivedQuantity != null,
+          receiptQuantity: receivedQuantity != null ? String(receivedQuantity) : '',
           leadTimeMeanDays: firstLeadTimeMeanDays == null ? '' : String(firstLeadTimeMeanDays),
         };
       }
@@ -7850,6 +8404,56 @@ export function StockUpdateSessionRoute() {
     selectedSupplierTicket,
     supplierTicketMode,
     usdToKhrExchangeRate,
+  ]);
+
+  useEffect(() => {
+    if (!isSupplierReceiptLane || supplierTicketMode !== 'edit' || !selectedSupplierTicket || editSession) {
+      if (!selectedSupplierTicket) {
+        hydratedSupplierTicketIdRef.current = null;
+      }
+      return;
+    }
+    if (!draftWasRestored && hydratedSupplierTicketIdRef.current === selectedSupplierTicket.ticketId) {
+      return;
+    }
+
+    const skuLines = selectedSupplierTicket.lines.filter((line) => line.entityType === 'sku');
+    setSkuSignalDrafts((current) => {
+      const next = { ...current };
+      if (!draftWasRestored) {
+        for (const row of rows) {
+          const existing = next[row.skuId] ?? createEmptySkuSignalDraft();
+          next[row.skuId] = {
+            ...existing,
+            receiptEnabled: false,
+            receiptQuantity: '',
+          };
+        }
+      }
+      for (const line of skuLines) {
+        const existing = next[line.entityId] ?? createEmptySkuSignalDraft();
+        if (draftWasRestored && existing.receiptQuantity.trim()) {
+          continue;
+        }
+        const receiptQuantity = supplierTicketReceiptDraftQuantity(line);
+        next[line.entityId] = {
+          ...existing,
+          receiptEnabled: receiptQuantity != null,
+          receiptQuantity: receiptQuantity != null ? String(receiptQuantity) : '',
+        };
+      }
+      return next;
+    });
+    setRecordReceiptReceivedDate(dateInputValue(selectedSupplierTicket.nextTouchAt ?? selectedSupplierTicket.occurredAt));
+    setNotes((current) => current || selectedSupplierTicket.note || '');
+    hydratedSupplierTicketIdRef.current = selectedSupplierTicket.ticketId;
+  }, [
+    draftWasRestored,
+    editSession,
+    isSupplierReceiptLane,
+    rows,
+    selectedSupplierTicket,
+    supplierTicketMode,
   ]);
 
   useEffect(() => {
@@ -8340,8 +8944,8 @@ export function StockUpdateSessionRoute() {
             if (!value) {
               return [];
             }
-            const quantity = Number(value);
-            if (!Number.isFinite(quantity) || quantity < 0) {
+            const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
+            if (quantity == null) {
               return [];
             }
             const previousOpen = latestCustomerPendingBySku.get(skuId) ?? 0;
@@ -8370,8 +8974,8 @@ export function StockUpdateSessionRoute() {
             if (!value) {
               return [];
             }
-            const quantity = Number(value);
-            if (!Number.isFinite(quantity) || quantity < 0) {
+            const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
+            if (quantity == null) {
               return [];
             }
             const previousOpen = latestCustomerPendingByService.get(serviceId) ?? 0;
@@ -8404,14 +9008,16 @@ export function StockUpdateSessionRoute() {
           if (!value) {
             return [];
           }
-          return [{ skuId, unitsSold: Number(value) }];
+          const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
+          return quantity == null ? [] : [{ skuId, unitsSold: quantity }];
         }).filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold >= 0);
         const serviceSalesSnapshot = serviceIds.flatMap((serviceId) => {
           const value = serviceSalesDrafts[serviceId]?.trim();
           if (!value) {
             return [];
           }
-          return [{ serviceId, unitsSold: Number(value) }];
+          const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
+          return quantity == null ? [] : [{ serviceId, unitsSold: quantity }];
         }).filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold >= 0);
         const derivedRetailRankings = [...retailSalesSnapshot]
           .sort((left, right) => right.unitsSold - left.unitsSold || left.skuId.localeCompare(right.skuId))
@@ -8434,8 +9040,8 @@ export function StockUpdateSessionRoute() {
             if (!value) {
               return [];
             }
-            const quantity = Number(value);
-            if (!Number.isFinite(quantity) || quantity <= 0) {
+            const quantity = parsePositiveFiniteNumberDraft(value);
+            if (quantity == null) {
               return [];
             }
             return [{
@@ -8451,8 +9057,8 @@ export function StockUpdateSessionRoute() {
             if (!value) {
               return [];
             }
-            const quantity = Number(value);
-            if (!Number.isFinite(quantity) || quantity <= 0) {
+            const quantity = parsePositiveFiniteNumberDraft(value);
+            if (quantity == null) {
               return [];
             }
             const pendingBefore = latestCustomerPendingBySku.get(skuId) ?? 0;
@@ -8492,8 +9098,8 @@ export function StockUpdateSessionRoute() {
             if (!value) {
               return [];
             }
-            const quantity = Number(value);
-            if (!Number.isFinite(quantity) || quantity <= 0) {
+            const quantity = parsePositiveFiniteNumberDraft(value);
+            if (quantity == null) {
               return [];
             }
             const pendingBefore = latestCustomerPendingByService.get(serviceId) ?? 0;
@@ -8535,37 +9141,36 @@ export function StockUpdateSessionRoute() {
         const tableMeanDays =
           recordOrderLeadTimeMeanDays.trim() === ''
             ? leadTimeMeanDaysFromExpectedArrival(observedAtIso, recordOrderExpectedArrivalDate)
-            : Number(recordOrderLeadTimeMeanDays);
+            : parseOptionalNonNegativeFiniteNumberDraft(recordOrderLeadTimeMeanDays);
         const orderedEntries = Object.entries(visibleSkuSignalDrafts).filter(([, draft]) => {
-          const quantity = draft.orderedQuantity.trim();
-          return quantity !== '' && Number(quantity) > 0;
+          return parsePositiveFiniteNumberDraft(draft.orderedQuantity) != null;
         });
         payload.orderSignals.push(
           ...(supplierPendingMode === 'cancel_supplier_order'
             ? []
             : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
                 const signals = [];
-                const quantity = draft.orderedQuantity.trim();
-                if (quantity !== '' && Number(quantity) > 0) {
+                const quantity = parsePositiveFiniteNumberDraft(draft.orderedQuantity);
+                if (quantity != null) {
                   signals.push({
                     skuId,
                     orderPlaced: true,
                     receiptArrived: false,
-                    approximateOrderQuantity: Number(quantity),
+                    approximateOrderQuantity: quantity,
                     approximateReceiptQuantity: null,
                     placementTimestamp: observedAtIso ?? new Date().toISOString(),
                     receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso),
                     leadTimeDaysHint: tableMeanDays,
                   });
                 }
-                const receivedQuantity = draft.receiptQuantity.trim();
-                if (receivedQuantity !== '' && Number(receivedQuantity) > 0) {
+                const receivedQuantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+                if (receivedQuantity != null) {
                   signals.push({
                     skuId,
                     orderPlaced: false,
                     receiptArrived: true,
                     approximateOrderQuantity: null,
-                    approximateReceiptQuantity: Number(receivedQuantity),
+                    approximateReceiptQuantity: receivedQuantity,
                     receiptTimestamp: dateInputToIso(recordReceiptReceivedDate) ?? observedAtIso,
                   });
                 }
@@ -8581,7 +9186,7 @@ export function StockUpdateSessionRoute() {
                   (tableMeanDays != null ? leadTimeVariabilityDefaults.get(skuId) : null) ||
                   null;
                 const customStdDays = recordOrderLeadTimeDraftMode === 'std' && recordOrderLeadTimeStdDays.trim()
-                  ? Number(recordOrderLeadTimeStdDays)
+                  ? parseOptionalNonNegativeFiniteNumberDraft(recordOrderLeadTimeStdDays)
                   : null;
                 if ((tableMeanDays == null || !Number.isFinite(tableMeanDays) || tableMeanDays < 0) && variabilityClass == null && customStdDays == null) {
                   return [];
@@ -8603,23 +9208,23 @@ export function StockUpdateSessionRoute() {
         );
         (payload.commercialEvents ??= []).push(
           ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-            const quantity = draft.orderedQuantity.trim();
-            const receiptQuantity = draft.receiptQuantity.trim();
+            const quantity = parsePositiveFiniteNumberDraft(draft.orderedQuantity);
+            const receiptQuantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
             const events = [];
-            if (quantity !== '' && Number(quantity) > 0) {
+            if (quantity != null) {
               events.push({
                 party: 'supplier' as const,
                 entityType: 'sku' as const,
                 entityId: skuId,
                 stage: 'pending' as const,
-                quantityDelta: supplierPendingMode === 'cancel_supplier_order' ? -Number(quantity) : Number(quantity),
+                quantityDelta: supplierPendingMode === 'cancel_supplier_order' ? -quantity : quantity,
                 flow: 'scheduled' as const,
                 reason: supplierPendingMode,
                 note: notes.trim() || null,
               });
             }
-            if (receiptQuantity !== '' && Number(receiptQuantity) > 0) {
-              const numericReceipt = Number(receiptQuantity);
+            if (receiptQuantity != null) {
+              const numericReceipt = receiptQuantity;
               events.push(
                 {
                   party: 'supplier' as const,
@@ -8653,8 +9258,8 @@ export function StockUpdateSessionRoute() {
           ...(supplierReceiptMode === 'return_receipt_reversal'
             ? []
             : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-                const quantity = draft.receiptQuantity.trim();
-                if (quantity === '' || Number(quantity) <= 0) {
+                const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+                if (quantity == null) {
                   return [];
                 }
                 return [{
@@ -8662,18 +9267,18 @@ export function StockUpdateSessionRoute() {
                   orderPlaced: false,
                   receiptArrived: true,
                   approximateOrderQuantity: null,
-                  approximateReceiptQuantity: Number(quantity),
+                  approximateReceiptQuantity: quantity,
                   receiptTimestamp: dateInputToIso(recordReceiptReceivedDate),
                 }];
               })),
         );
         (payload.commercialEvents ??= []).push(
           ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-            const quantity = draft.receiptQuantity.trim();
-            if (quantity === '' || Number(quantity) <= 0) {
+            const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+            if (quantity == null) {
               return [];
             }
-            const numericQuantity = Number(quantity);
+            const numericQuantity = quantity;
             return [
               ...(supplierReceiptMode === 'against_pending_supplier_order'
                 ? [{
@@ -8717,36 +9322,31 @@ export function StockUpdateSessionRoute() {
           payload.orderSignals.push(
             ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
               const nextSignals = [];
-              if (draft.orderEnabled && Number(draft.orderedQuantity) > 0) {
+              const orderedQuantity = parsePositiveFiniteNumberDraft(draft.orderedQuantity);
+              if (draft.orderEnabled && orderedQuantity != null) {
                 nextSignals.push({
                   skuId,
                   orderPlaced: true,
                   receiptArrived: false,
-                  approximateOrderQuantity: Number(draft.orderedQuantity),
+                  approximateOrderQuantity: orderedQuantity,
                   approximateReceiptQuantity: null,
                 });
               }
-              if (draft.receiptEnabled && Number(draft.receiptQuantity) > 0) {
+              const receiptQuantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+              if (draft.receiptEnabled && receiptQuantity != null) {
                 nextSignals.push({
                   skuId,
                   orderPlaced: false,
                   receiptArrived: true,
                   approximateOrderQuantity: null,
-                  approximateReceiptQuantity: Number(draft.receiptQuantity),
+                  approximateReceiptQuantity: receiptQuantity,
                 });
               }
               return nextSignals;
             }),
           );
         }
-        payload.servicePrices = Object.entries(serviceSignalDrafts)
-          .filter(([serviceId, draft]) =>
-            serviceDisplayPriceChanged(catalog, serviceId, draft, currency, usdToKhrExchangeRate),
-          )
-          .map(([serviceId, draft]) => ({
-            serviceId,
-            price: usdMoneyFromDisplay(Number(draft.price), currency, usdToKhrExchangeRate),
-          }));
+        payload.servicePrices = servicePricePayloadEntries(catalog, serviceSignalDrafts, currency, usdToKhrExchangeRate);
         payload.serviceStockouts = Object.entries(serviceSignalDrafts)
           .filter(([, draft]) => draft.blockedEnabled && Boolean(draft.blockedState))
           .map(([serviceId]) => serviceId);
@@ -8775,8 +9375,8 @@ export function StockUpdateSessionRoute() {
           if (!value) {
             return [];
           }
-          const quantity = Number(value);
-          if (!Number.isFinite(quantity) || quantity < 0) {
+          const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
+          if (quantity == null) {
             return [];
           }
           const previousOpen = latestCustomerPendingBySku.get(skuId) ?? 0;
@@ -8805,8 +9405,8 @@ export function StockUpdateSessionRoute() {
           if (!value) {
             return [];
           }
-          const quantity = Number(value);
-          if (!Number.isFinite(quantity) || quantity < 0) {
+          const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
+          if (quantity == null) {
             return [];
           }
           const previousOpen = latestCustomerPendingByService.get(serviceId) ?? 0;
@@ -8844,14 +9444,16 @@ export function StockUpdateSessionRoute() {
         if (!value) {
           return [];
         }
-        return [{ skuId, unitsSold: Number(value) }];
+        const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
+        return quantity == null ? [] : [{ skuId, unitsSold: quantity }];
       }).filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold >= 0);
       const serviceSalesSnapshot = serviceIds.flatMap((serviceId) => {
         const value = serviceSalesDrafts[serviceId]?.trim();
         if (!value) {
           return [];
         }
-        return [{ serviceId, unitsSold: Number(value) }];
+        const quantity = parseOptionalNonNegativeFiniteNumberDraft(value);
+        return quantity == null ? [] : [{ serviceId, unitsSold: quantity }];
       }).filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold >= 0);
       const derivedRetailRankings = [...retailSalesSnapshot]
         .sort((left, right) => right.unitsSold - left.unitsSold || left.skuId.localeCompare(right.skuId))
@@ -8877,8 +9479,8 @@ export function StockUpdateSessionRoute() {
         if (!value) {
           return [];
         }
-        const quantity = Number(value);
-        if (!Number.isFinite(quantity) || quantity <= 0) {
+        const quantity = parsePositiveFiniteNumberDraft(value);
+        if (quantity == null) {
           return [];
         }
         return [{
@@ -8893,8 +9495,8 @@ export function StockUpdateSessionRoute() {
           if (!value) {
             return [];
           }
-          const quantity = Number(value);
-          if (!Number.isFinite(quantity) || quantity <= 0) {
+          const quantity = parsePositiveFiniteNumberDraft(value);
+          if (quantity == null) {
             return [];
           }
           const pendingBefore = latestCustomerPendingBySku.get(skuId) ?? 0;
@@ -8934,8 +9536,8 @@ export function StockUpdateSessionRoute() {
           if (!value) {
             return [];
           }
-          const quantity = Number(value);
-          if (!Number.isFinite(quantity) || quantity <= 0) {
+          const quantity = parsePositiveFiniteNumberDraft(value);
+          if (quantity == null) {
             return [];
           }
           const pendingBefore = latestCustomerPendingByService.get(serviceId) ?? 0;
@@ -8979,37 +9581,36 @@ export function StockUpdateSessionRoute() {
         observedAt: observedAtIso ?? new Date().toISOString(),
         notes: notes.trim() || null,
       });
-      const tableMeanDays =
-        recordOrderLeadTimeMeanDays.trim() === ''
-          ? leadTimeMeanDaysFromExpectedArrival(observedAtIso, recordOrderExpectedArrivalDate)
-          : Number(recordOrderLeadTimeMeanDays);
+        const tableMeanDays =
+          recordOrderLeadTimeMeanDays.trim() === ''
+            ? leadTimeMeanDaysFromExpectedArrival(observedAtIso, recordOrderExpectedArrivalDate)
+            : parseOptionalNonNegativeFiniteNumberDraft(recordOrderLeadTimeMeanDays);
       const orderedEntries = Object.entries(visibleSkuSignalDrafts).filter(([, draft]) => {
-        const quantity = draft.orderedQuantity.trim();
-        return quantity !== '' && Number(quantity) > 0;
+        return parsePositiveFiniteNumberDraft(draft.orderedQuantity) != null;
       });
       payload.orderSignals = supplierPendingMode === 'cancel_supplier_order' ? [] : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
         const signals = [];
-        const orderedQuantity = draft.orderedQuantity.trim();
-        if (orderedQuantity !== '' && Number(orderedQuantity) > 0) {
+        const orderedQuantity = parsePositiveFiniteNumberDraft(draft.orderedQuantity);
+        if (orderedQuantity != null) {
           signals.push({
             skuId,
             orderPlaced: true,
             receiptArrived: false,
-            approximateOrderQuantity: Number(orderedQuantity),
+            approximateOrderQuantity: orderedQuantity,
             approximateReceiptQuantity: null,
             placementTimestamp: observedAtIso ?? new Date().toISOString(),
             receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso),
             leadTimeDaysHint: tableMeanDays,
           });
         }
-        const receivedQuantity = draft.receiptQuantity.trim();
-        if (receivedQuantity !== '' && Number(receivedQuantity) > 0) {
+        const receivedQuantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+        if (receivedQuantity != null) {
           signals.push({
             skuId,
             orderPlaced: false,
             receiptArrived: true,
             approximateOrderQuantity: null,
-            approximateReceiptQuantity: Number(receivedQuantity),
+            approximateReceiptQuantity: receivedQuantity,
             receiptTimestamp: dateInputToIso(recordReceiptReceivedDate) ?? observedAtIso,
           });
         }
@@ -9021,7 +9622,7 @@ export function StockUpdateSessionRoute() {
           (tableMeanDays != null ? leadTimeVariabilityDefaults.get(skuId) : null) ||
           null;
         const customStdDays = recordOrderLeadTimeDraftMode === 'std' && recordOrderLeadTimeStdDays.trim()
-          ? Number(recordOrderLeadTimeStdDays)
+          ? parseOptionalNonNegativeFiniteNumberDraft(recordOrderLeadTimeStdDays)
           : null;
         if ((tableMeanDays == null || !Number.isFinite(tableMeanDays) || tableMeanDays < 0) && variabilityClass == null && customStdDays == null) {
           return [];
@@ -9041,23 +9642,23 @@ export function StockUpdateSessionRoute() {
         }];
       });
       payload.commercialEvents = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-        const quantity = draft.orderedQuantity.trim();
-        const receiptQuantity = draft.receiptQuantity.trim();
+        const quantity = parsePositiveFiniteNumberDraft(draft.orderedQuantity);
+        const receiptQuantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
         const events = [];
-        if (quantity !== '' && Number(quantity) > 0) {
+        if (quantity != null) {
           events.push({
           party: 'supplier' as const,
           entityType: 'sku' as const,
           entityId: skuId,
           stage: 'pending' as const,
-          quantityDelta: supplierPendingMode === 'cancel_supplier_order' ? -Number(quantity) : Number(quantity),
+          quantityDelta: supplierPendingMode === 'cancel_supplier_order' ? -quantity : quantity,
           flow: 'scheduled' as const,
           reason: supplierPendingMode,
           note: notes.trim() || null,
           });
         }
-        if (receiptQuantity !== '' && Number(receiptQuantity) > 0) {
-          const numericReceipt = Number(receiptQuantity);
+        if (receiptQuantity != null) {
+          const numericReceipt = receiptQuantity;
           events.push(
             {
               party: 'supplier' as const,
@@ -9095,8 +9696,8 @@ export function StockUpdateSessionRoute() {
         notes: notes.trim() || null,
       });
       payload.orderSignals = supplierReceiptMode === 'return_receipt_reversal' ? [] : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-        const quantity = draft.receiptQuantity.trim();
-        if (quantity === '' || Number(quantity) <= 0) {
+        const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+        if (quantity == null) {
           return [];
         }
         return [{
@@ -9104,16 +9705,16 @@ export function StockUpdateSessionRoute() {
           orderPlaced: false,
           receiptArrived: true,
           approximateOrderQuantity: null,
-          approximateReceiptQuantity: Number(quantity),
+          approximateReceiptQuantity: quantity,
           receiptTimestamp: dateInputToIso(recordReceiptReceivedDate),
         }];
       });
       payload.commercialEvents = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-        const quantity = draft.receiptQuantity.trim();
-        if (quantity === '' || Number(quantity) <= 0) {
+        const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+        if (quantity == null) {
           return [];
         }
-        const numericQuantity = Number(quantity);
+        const numericQuantity = quantity;
         return [
           ...(supplierReceiptMode === 'against_pending_supplier_order'
             ? [{
@@ -9181,35 +9782,30 @@ export function StockUpdateSessionRoute() {
     payload.retailRankings = retailRankings;
     payload.orderSignals = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
       const nextSignals = [];
-      if (draft.orderEnabled && Number(draft.orderedQuantity) > 0) {
+      const orderedQuantity = parsePositiveFiniteNumberDraft(draft.orderedQuantity);
+      if (draft.orderEnabled && orderedQuantity != null) {
         nextSignals.push({
           skuId,
           orderPlaced: true,
           receiptArrived: false,
-          approximateOrderQuantity: Number(draft.orderedQuantity),
+          approximateOrderQuantity: orderedQuantity,
           approximateReceiptQuantity: null,
         });
       }
-      if (draft.receiptEnabled && Number(draft.receiptQuantity) > 0) {
+      const receiptQuantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+      if (draft.receiptEnabled && receiptQuantity != null) {
         nextSignals.push({
           skuId,
           orderPlaced: false,
           receiptArrived: true,
           approximateOrderQuantity: null,
-          approximateReceiptQuantity: Number(draft.receiptQuantity),
+          approximateReceiptQuantity: receiptQuantity,
         });
       }
       return nextSignals;
     });
     payload.retailPrices = [];
-    payload.servicePrices = Object.entries(serviceSignalDrafts)
-      .filter(([serviceId, draft]) =>
-        serviceDisplayPriceChanged(catalog, serviceId, draft, currency, usdToKhrExchangeRate),
-      )
-      .map(([serviceId, draft]) => ({
-        serviceId,
-        price: usdMoneyFromDisplay(Number(draft.price), currency, usdToKhrExchangeRate),
-      }));
+    payload.servicePrices = servicePricePayloadEntries(workingCatalog, serviceSignalDrafts, currency, usdToKhrExchangeRate);
     payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
       .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(draft.blockedState) && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
       .map(([skuId]) => skuId);
@@ -9553,10 +10149,10 @@ export function StockUpdateSessionRoute() {
     setSupplierPendingMode('new_supplier_order');
     setSupplierReceiptMode('against_pending_supplier_order');
     setCustomerTicketMode(lane.id === 'customer-order-pending' ? routeTicketMode : null);
-    setSupplierTicketMode(lane.id === 'supplier-order-pending' ? routeTicketMode : null);
+    setSupplierTicketMode(lane.id === 'supplier-order-pending' || lane.id === 'supplier-receipt' ? routeTicketMode : null);
     setSelectedCustomerTicketId(lane.id === 'customer-order-pending' ? routeTicketId : null);
     setSelectedSupplierTicketId(
-      lane.id === 'supplier-order-pending' ? routeBatchOrderId ?? routeChildOrderId ?? routeTicketId : null,
+      lane.id === 'supplier-order-pending' || lane.id === 'supplier-receipt' ? routeBatchOrderId ?? routeChildOrderId ?? routeTicketId : null,
     );
     setSupplierTicketUpdateAction('revise_order');
     setCustomerIdentity(DEFAULT_CUSTOMER_IDENTITY);
@@ -9627,14 +10223,12 @@ export function StockUpdateSessionRoute() {
       return t('stockUpdateGuidanceFirstUpdateNeedsCount');
     }
     if (deliveryFeeAmount.trim() !== '') {
-      const parsed = Number(deliveryFeeAmount);
-      if (!Number.isFinite(parsed) || parsed < 0) {
+      if (parseNonNegativeMoneyDisplayDraft(deliveryFeeAmount, currency, usdToKhrExchangeRate) == null) {
         return translateUiLiteral(language, 'Delivery fee must be a non-negative amount.');
       }
     }
     if (discountAmount.trim() !== '') {
-      const parsed = Number(discountAmount);
-      if (!Number.isFinite(parsed) || parsed < 0) {
+      if (parseNonNegativeMoneyDisplayDraft(discountAmount, currency, usdToKhrExchangeRate) == null) {
         return translateUiLiteral(language, 'Discount must be a non-negative amount.');
       }
     }
@@ -9649,10 +10243,7 @@ export function StockUpdateSessionRoute() {
 
   async function persistLegacySupplierOrderUpdates() {
     if (lane.id === 'supplier-order-pending' && supplierPendingMode !== 'cancel_supplier_order') {
-      const tableMeanDays =
-        recordOrderLeadTimeMeanDays.trim() === ''
-          ? null
-          : Number(recordOrderLeadTimeMeanDays);
+      const tableMeanDays = parseOptionalNonNegativeFiniteNumberDraft(recordOrderLeadTimeMeanDays);
       const sharedFields = {
         supplierNote: notes.trim() || null,
         expectedArrivalAt: dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso),
@@ -9674,7 +10265,7 @@ export function StockUpdateSessionRoute() {
           await updateSenaOrderChild({
             childOrderId: selectedLegacySupplierOrderTarget.childOrderId,
             overrides: {
-              orderedQuantity: draft?.orderedQuantity ? Number(draft.orderedQuantity) : null,
+              orderedQuantity: draft?.orderedQuantity ? parseOptionalNonNegativeFiniteNumberDraft(draft.orderedQuantity) : null,
             },
           });
         } else {
@@ -9691,14 +10282,14 @@ export function StockUpdateSessionRoute() {
             await updateSenaOrderChild({
               childOrderId: child.childOrderId,
               overrides: {
-                orderedQuantity: draft.orderedQuantity ? Number(draft.orderedQuantity) : null,
+                orderedQuantity: draft.orderedQuantity ? parseOptionalNonNegativeFiniteNumberDraft(draft.orderedQuantity) : null,
               },
             });
           }
         }
       } else {
         const orderedEntries = Object.entries(visibleSkuSignalDrafts)
-          .filter(([, draft]) => draft.orderedQuantity.trim() !== '' && Number(draft.orderedQuantity) > 0)
+          .filter(([, draft]) => parsePositiveFiniteNumberDraft(draft.orderedQuantity) != null)
           .map(([skuId, draft]) => ({ skuId, draft }));
         const entriesBySupplier = orderedEntries.reduce<Map<string, typeof orderedEntries>>((map, entry) => {
           const supplierName = workingCatalog?.skus.find((sku) => sku.skuId === entry.skuId)?.supplierName?.trim() || '';
@@ -9719,7 +10310,7 @@ export function StockUpdateSessionRoute() {
               return {
                 skuId,
                 overrides: {
-                  orderedQuantity: Number(draft.orderedQuantity),
+                  orderedQuantity: parsePositiveFiniteNumberDraft(draft.orderedQuantity),
                   costPerUnit: row?.costPerUnit ?? null,
                 },
               };
@@ -9740,7 +10331,7 @@ export function StockUpdateSessionRoute() {
       });
       for (const child of targetChildren) {
         const draft = visibleSkuSignalDrafts[child.skuId];
-        const quantity = draft?.receiptQuantity?.trim() ? Number(draft.receiptQuantity) : null;
+        const quantity = draft?.receiptQuantity?.trim() ? parseOptionalNonNegativeFiniteNumberDraft(draft.receiptQuantity) : null;
         await updateSenaOrderChild({
           childOrderId: child.childOrderId,
           overrides: {
@@ -9899,6 +10490,9 @@ export function StockUpdateSessionRoute() {
 
   useEffect(() => {
     function handleDocumentClick(event: MouseEvent) {
+      if (replayingNavigationAnchorClickRef.current) {
+        return;
+      }
       if (!canDiscardChanges || event.defaultPrevented || event.button !== 0) {
         return;
       }
@@ -9920,7 +10514,20 @@ export function StockUpdateSessionRoute() {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      queueNavigation(() => navigate(nextPath));
+      queueNavigation(() => {
+        if (!anchor.isConnected) {
+          navigate(nextPath);
+          return;
+        }
+        replayingNavigationAnchorClickRef.current = true;
+        try {
+          anchor.click();
+        } finally {
+          window.setTimeout(() => {
+            replayingNavigationAnchorClickRef.current = false;
+          }, 0);
+        }
+      });
     }
 
     function handleHistoryNavigation() {
@@ -10033,12 +10640,12 @@ export function StockUpdateSessionRoute() {
 
   const captureReviewActionLabel = translateUiLiteral(language, 'Done');
 
-  function renderSessionTitleActions(showDraftStatus: boolean) {
+  function renderSessionTitleActions(showDraftStatus: boolean, embeddedPhoneActions = false) {
     return (
-      <WorkspaceActionRow>
+      <WorkspaceActionRow className={embeddedPhoneActions ? 'w-full flex-wrap items-stretch gap-2' : undefined}>
         {showDraftStatus && draftStatusLabel ? <span className="px-1 text-sm text-muted-foreground">{draftStatusLabel}</span> : null}
         <Button
-          className={discardChangesButtonClassName}
+          className={cn(discardChangesButtonClassName, embeddedPhoneActions && 'min-h-10 min-w-[18rem] flex-[1_1_0] whitespace-nowrap px-3 py-2 text-center leading-tight')}
           disabled={!canDiscardChanges}
           title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
           type="button"
@@ -10048,8 +10655,9 @@ export function StockUpdateSessionRoute() {
           <ActionDeleteIcon className="size-4" />
           {t('stockUpdateDiscardChanges')}
         </Button>
-        <span className="inline-flex" onPointerDown={submitDisabled ? flashVisibleSaveErrors : undefined}>
+        <span className={cn('inline-flex', embeddedPhoneActions && 'min-w-[7rem] flex-[1_1_0]')} onPointerDown={submitDisabled ? flashVisibleSaveErrors : undefined}>
           <Button
+            className={embeddedPhoneActions ? 'h-full w-full min-w-0 px-4' : undefined}
             disabled={submitDisabled}
             form="stock-update-session-form"
             type="submit"
@@ -10215,6 +10823,14 @@ export function StockUpdateSessionRoute() {
       summary: regimeHint ? regimeHint.replaceAll('_', ' ') : t('stockUpdateOptional'),
     },
   ];
+  const fullWidthPhoneMetadataSectionIds = new Set<PosMetadataPopupId>(['context']);
+  const nonContextMetadataSections = metadataSections.filter((section) => section.id !== 'context');
+  if (nonContextMetadataSections.length % 2 === 1) {
+    const lastSection = nonContextMetadataSections.at(-1);
+    if (lastSection) {
+      fullWidthPhoneMetadataSectionIds.add(lastSection.id);
+    }
+  }
   const activatePosStep = useCallback((stepId: StockUpdateStepId) => {
     const targetIndex = activeStepOrder.indexOf(stepId);
     if (targetIndex < 0) {
@@ -10230,8 +10846,14 @@ export function StockUpdateSessionRoute() {
     if (routeCaptureTarget.action === 'stock' || routeCaptureTarget.action === 'sku-price') {
       return routeCaptureTarget.targetType === 'sku' ? `stock:${routeCaptureTarget.targetId}` : null;
     }
+    if (routeCaptureTarget.action === 'service-price') {
+      return routeCaptureTarget.targetType === 'service' ? `service-price:${routeCaptureTarget.targetId}` : null;
+    }
     if (routeCaptureTarget.action === 'supplier-order') {
       return routeCaptureTarget.targetType === 'sku' ? `supplier-order:${routeCaptureTarget.targetId}` : null;
+    }
+    if (routeCaptureTarget.action === 'supplier-receipt') {
+      return routeCaptureTarget.targetType === 'sku' ? `supplier-receipt:${routeCaptureTarget.targetId}` : null;
     }
     if (routeCaptureTarget.action === 'customer-order' || routeCaptureTarget.action === 'immediate-sale') {
       return `${routeCaptureTarget.targetType === 'service' ? 'service' : 'retail'}:${routeCaptureTarget.targetId}`;
@@ -10273,6 +10895,42 @@ export function StockUpdateSessionRoute() {
           flash: captureTargetFlashKey === key || persistentCaptureFlashKeySet.has(key),
         });
       }
+      for (const serviceId of productsUpdateServiceIds) {
+        const service = serviceById.get(serviceId);
+        if (!service) {
+          continue;
+        }
+        const key = `service-price:${serviceId}`;
+        const draft = serviceSignalDrafts[serviceId] ?? createEmptyServiceSignalDraft();
+        const priceChanged = serviceDisplayPriceChanged(workingCatalog, serviceId, draft, currency, usdToKhrExchangeRate);
+        const draftPrice = serviceDraftPriceUsd(draft, currency, usdToKhrExchangeRate);
+        const stockoutFlagged = draft.blockedEnabled && draft.blockedState === 'stockout';
+        nextTiles.push({
+          key,
+          entityId: serviceId,
+          title: service.name,
+          imagePath: service.imagePath ?? null,
+          itemType: 'service',
+          kind: 'service-price',
+          stepId: 'stock',
+          typeLabel: translateUiLiteral(language, 'Service'),
+          metaLabel: priceChanged
+            ? translateUiLiteral(language, 'Updated price {amount}', {
+                amount: formatCurrency(draftPrice ?? service.price, currency, language, usdToKhrExchangeRate),
+              })
+            : stockoutFlagged
+              ? translateUiLiteral(language, 'Stockout')
+              : translateUiLiteral(language, 'Price {amount}', {
+                  amount: formatCurrency(service.price, currency, language, usdToKhrExchangeRate),
+                }),
+          currentQuantity: 0,
+          baselineQuantity: 0,
+          unitAmount: service.price,
+          recentAt: null,
+          touched: priceChanged || stockoutFlagged || posTouchedLineKeySet.has(key),
+          flash: captureTargetFlashKey === key || persistentCaptureFlashKeySet.has(key),
+        });
+      }
     }
 
     if (isCustomerPendingLane || isCustomerCompletedLane) {
@@ -10282,7 +10940,7 @@ export function StockUpdateSessionRoute() {
           continue;
         }
         const key = `retail:${skuId}`;
-        const quantity = Number(retailSalesDrafts[skuId] ?? 0);
+        const quantity = parseOptionalNonNegativeFiniteNumberDraft(retailSalesDrafts[skuId] ?? '') ?? 0;
         const previousPending = latestCustomerPendingBySku.get(skuId) ?? 0;
         nextTiles.push({
           key,
@@ -10298,11 +10956,11 @@ export function StockUpdateSessionRoute() {
             : translateUiLiteral(language, 'Price {amount}', {
                 amount: sku.productPrice == null ? t('stockUpdateNoMoneyValue') : formatCurrency(sku.productPrice, currency, language, usdToKhrExchangeRate),
               }),
-          currentQuantity: Number.isFinite(quantity) ? quantity : 0,
+          currentQuantity: quantity,
           baselineQuantity: 0,
           unitAmount: sku.productPrice ?? null,
           recentAt: latestRetailSalesAt.get(skuId) ?? null,
-          touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`retail:${skuId}`),
+          touched: quantity > 0 || posTouchedLineKeySet.has(`retail:${skuId}`),
           flash: captureTargetFlashKey === key || persistentCaptureFlashKeySet.has(key),
         });
       }
@@ -10312,7 +10970,7 @@ export function StockUpdateSessionRoute() {
           continue;
         }
         const key = `service:${serviceId}`;
-        const quantity = Number(serviceSalesDrafts[serviceId] ?? 0);
+        const quantity = parseOptionalNonNegativeFiniteNumberDraft(serviceSalesDrafts[serviceId] ?? '') ?? 0;
         const previousPending = latestCustomerPendingByService.get(serviceId) ?? 0;
         nextTiles.push({
           key,
@@ -10328,11 +10986,11 @@ export function StockUpdateSessionRoute() {
             : translateUiLiteral(language, 'Price {amount}', {
                 amount: formatCurrency(service.price, currency, language, usdToKhrExchangeRate),
               }),
-          currentQuantity: Number.isFinite(quantity) ? quantity : 0,
+          currentQuantity: quantity,
           baselineQuantity: 0,
           unitAmount: service.price,
           recentAt: latestServiceSalesAt.get(serviceId) ?? null,
-          touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`service:${serviceId}`),
+          touched: quantity > 0 || posTouchedLineKeySet.has(`service:${serviceId}`),
           flash: captureTargetFlashKey === key || persistentCaptureFlashKeySet.has(key),
         });
       }
@@ -10345,7 +11003,7 @@ export function StockUpdateSessionRoute() {
           continue;
         }
         const key = `supplier-order:${row.skuId}`;
-        const quantity = Number(skuSignalDrafts[row.skuId]?.orderedQuantity ?? 0);
+        const quantity = parseOptionalNonNegativeFiniteNumberDraft(skuSignalDrafts[row.skuId]?.orderedQuantity ?? '') ?? 0;
         nextTiles.push({
           key,
           entityId: row.skuId,
@@ -10359,11 +11017,11 @@ export function StockUpdateSessionRoute() {
           metaLabel: latestOrderedAt.get(row.skuId)
             ? translateUiLiteral(language, 'Last order {date}', { date: formatSenaLongDate(latestOrderedAt.get(row.skuId)!, language) })
             : translateUiLiteral(language, 'No pending order'),
-          currentQuantity: Number.isFinite(quantity) ? quantity : 0,
+          currentQuantity: quantity,
           baselineQuantity: 0,
           unitAmount: row.costPerUnit,
           recentAt: latestOrderedAt.get(row.skuId) ?? null,
-          touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`supplier-order:${row.skuId}`),
+          touched: quantity > 0 || posTouchedLineKeySet.has(`supplier-order:${row.skuId}`),
           flash: captureTargetFlashKey === key || persistentCaptureFlashKeySet.has(key),
         });
       }
@@ -10376,7 +11034,7 @@ export function StockUpdateSessionRoute() {
           continue;
         }
         const key = `supplier-receipt:${row.skuId}`;
-        const quantity = Number(skuSignalDrafts[row.skuId]?.receiptQuantity ?? 0);
+        const quantity = parseOptionalNonNegativeFiniteNumberDraft(skuSignalDrafts[row.skuId]?.receiptQuantity ?? '') ?? 0;
         nextTiles.push({
           key,
           entityId: row.skuId,
@@ -10389,11 +11047,11 @@ export function StockUpdateSessionRoute() {
           metaLabel: latestReceiptAt.get(row.skuId)
             ? translateUiLiteral(language, 'Last receipt {date}', { date: formatSenaLongDate(latestReceiptAt.get(row.skuId)!, language) })
             : translateUiLiteral(language, 'Awaiting receipt'),
-          currentQuantity: Number.isFinite(quantity) ? quantity : 0,
+          currentQuantity: quantity,
           baselineQuantity: 0,
           unitAmount: row.costPerUnit,
           recentAt: latestReceiptAt.get(row.skuId) ?? null,
-          touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`supplier-receipt:${row.skuId}`),
+          touched: quantity > 0 || posTouchedLineKeySet.has(`supplier-receipt:${row.skuId}`),
           flash: captureTargetFlashKey === key || persistentCaptureFlashKeySet.has(key),
         });
       }
@@ -10417,6 +11075,7 @@ export function StockUpdateSessionRoute() {
     latestRetailSalesAt,
     latestServiceSalesAt,
     posTouchedLineKeySet,
+    productsUpdateServiceIds,
     persistentCaptureFlashKeySet,
     retailSalesDrafts,
     retailSkuIds,
@@ -10424,6 +11083,7 @@ export function StockUpdateSessionRoute() {
     serviceIds,
     serviceSalesDrafts,
     serviceById,
+    serviceSignalDrafts,
     skuById,
     skuSignalDrafts,
     stockBySku,
@@ -10439,7 +11099,7 @@ export function StockUpdateSessionRoute() {
       return;
     }
     const handleKey = `${location.pathname}${location.search}`;
-    if (handledCaptureTargetRef.current === handleKey && routeCaptureTarget.action !== 'service-price') {
+    if (handledCaptureTargetRef.current === handleKey) {
       return;
     }
 
@@ -10454,32 +11114,9 @@ export function StockUpdateSessionRoute() {
       }, CAPTURE_TARGET_FLASH_MS);
     }
 
-    if (routeCaptureTarget.action === 'service-price') {
-      const serviceDraft = serviceSignalDrafts[routeCaptureTarget.targetId];
-      if (
-        handledCaptureTargetRef.current === handleKey &&
-        currentStepId === 'service' &&
-        serviceDraft?.priceEnabled
-      ) {
-        return;
-      }
-      setSessionViewMode('form');
-      const serviceStepIndex = activeStepOrder.indexOf('service');
-      if (serviceStepIndex < 0) {
-        return;
-      }
-      setUnlockedStepCount((current) => Math.max(current, serviceStepIndex + 1));
-      setCurrentStepId('service');
-      updateServiceSignalDraft(routeCaptureTarget.targetId, (draft) => ({
-        ...draft,
-        priceEnabled: true,
-      }));
-      flash(`service-price:${routeCaptureTarget.targetId}`);
-      handledCaptureTargetRef.current = handleKey;
-      return;
-    }
-
     if (!routeCaptureTileKey) {
+      setSessionViewMode('pos');
+      handledCaptureTargetRef.current = handleKey;
       return;
     }
     const targetTile = posTiles.find((tile) => tile.key === routeCaptureTileKey);
@@ -10490,20 +11127,15 @@ export function StockUpdateSessionRoute() {
     setPosWorkbenchSearch('');
     setPosWorkbenchFilter('all');
     activatePosStep(targetTile.stepId);
-    setActivePosTileKey(targetTile.key);
-    flash(targetTile.key);
+    setPersistentCaptureFlashKeys((current) => [...new Set([...current, targetTile.key])]);
     handledCaptureTargetRef.current = handleKey;
   }, [
     activatePosStep,
-    activeStepOrder,
-    currentStepId,
     location.pathname,
     location.search,
     posTiles,
     routeCaptureTarget,
     routeCaptureTileKey,
-    serviceSignalDrafts,
-    updateServiceSignalDraft,
   ]);
   useEffect(() => {
     if (routeCaptureFlashTargetKeys.length === 0) {
@@ -10575,6 +11207,11 @@ export function StockUpdateSessionRoute() {
     activatePosStep(tile.stepId);
     setActivePosTileKey(tile.key);
     setPersistentCaptureFlashKeys((current) => current.filter((key) => key !== tile.key));
+    setCaptureTargetFlashKey((current) => (current === tile.key ? null : current));
+    if (captureTargetFlashTimeoutRef.current != null) {
+      window.clearTimeout(captureTargetFlashTimeoutRef.current);
+      captureTargetFlashTimeoutRef.current = null;
+    }
   }, [activatePosStep, persistentCaptureFlashKeys]);
   const posFilterOptions = useMemo(() => {
     const hasSkuTiles = posTiles.some((tile) => tile.itemType === 'sku');
@@ -10625,6 +11262,7 @@ export function StockUpdateSessionRoute() {
       window.clearTimeout(workbenchHoldTimerRef.current);
       workbenchHoldTimerRef.current = null;
     }
+    workbenchHoldOriginRef.current = null;
   }, []);
   const finishWorkbenchReorderMode = useCallback((resumePendingAction: boolean) => {
     clearWorkbenchHoldTimer();
@@ -10651,6 +11289,33 @@ export function StockUpdateSessionRoute() {
     requestWorkbenchReorderPrompt(pendingAction);
     return true;
   }, [requestWorkbenchReorderPrompt, workbenchReorderMode]);
+  useEffect(() => {
+    if (!workbenchReorderMode) {
+      return;
+    }
+
+    function handleOutsideWorkbenchPointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const workbenchSection = posWorkbenchSectionRef.current;
+      if (workbenchSection?.contains(target)) {
+        return;
+      }
+      if (target instanceof Element && target.closest('[role="dialog"]')) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      requestWorkbenchReorderPrompt();
+    }
+
+    document.addEventListener('pointerdown', handleOutsideWorkbenchPointerDown, { capture: true });
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideWorkbenchPointerDown, { capture: true });
+    };
+  }, [requestWorkbenchReorderPrompt, workbenchReorderMode]);
   const persistWorkbenchTileOrder = useCallback(
     (nextTileOrder: string[]) => {
       if (!workbenchReorderLaneId) {
@@ -10668,19 +11333,35 @@ export function StockUpdateSessionRoute() {
     },
     [savePreferences, workbenchReorderLaneId, workbenchTileOrderDraftByLane],
   );
-  const beginWorkbenchHold = useCallback((tileKey: string) => {
+  const beginWorkbenchHold = useCallback((tileKey: string, event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!workbenchReorderLaneId || workbenchReorderMode) {
       return;
     }
     clearWorkbenchHoldTimer();
+    workbenchHoldOriginRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+    };
     workbenchHoldTimerRef.current = window.setTimeout(() => {
       const phaseMs = syncedWorkbenchJigglePhaseMs();
       setWorkbenchJigglePhaseMs(phaseMs);
       logWorkbenchJiggleDebug('hold-start', { phaseMs, tileKey });
       setWorkbenchReorderMode(true);
       workbenchHoldTimerRef.current = null;
-    }, WORKBENCH_REORDER_HOLD_DELAY_MS);
-  }, [clearWorkbenchHoldTimer, workbenchReorderLaneId, workbenchReorderMode]);
+      workbenchHoldOriginRef.current = null;
+    }, embeddedPhonePortrait ? PHONE_WORKBENCH_REORDER_HOLD_DELAY_MS : WORKBENCH_REORDER_HOLD_DELAY_MS);
+  }, [clearWorkbenchHoldTimer, embeddedPhonePortrait, workbenchReorderLaneId, workbenchReorderMode]);
+  const moveWorkbenchHold = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    const origin = workbenchHoldOriginRef.current;
+    if (!origin || origin.pointerId !== event.pointerId) {
+      return;
+    }
+    const movement = Math.hypot(event.clientX - origin.x, event.clientY - origin.y);
+    if (movement > PHONE_WORKBENCH_REORDER_HOLD_TOLERANCE_PX) {
+      clearWorkbenchHoldTimer();
+    }
+  }, [clearWorkbenchHoldTimer]);
   const endWorkbenchHold = useCallback(() => {
     clearWorkbenchHoldTimer();
   }, [clearWorkbenchHoldTimer]);
@@ -10736,9 +11417,14 @@ export function StockUpdateSessionRoute() {
   }, [clearWorkbenchDragState, filteredPosTiles, persistWorkbenchTileOrder, posTiles, workbenchReorderLaneId]);
   const workbenchDndSensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: workbenchReorderMode ? 4 : 6,
-      },
+      activationConstraint: embeddedPhonePortrait && !workbenchReorderMode
+        ? {
+            delay: PHONE_WORKBENCH_REORDER_HOLD_DELAY_MS,
+            tolerance: PHONE_WORKBENCH_REORDER_HOLD_TOLERANCE_PX,
+          }
+        : {
+            distance: workbenchReorderMode ? 4 : 6,
+          },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -10787,8 +11473,7 @@ export function StockUpdateSessionRoute() {
       }
 
       if (tile.kind === 'retail') {
-        const currentQuantity = Number(retailSalesDrafts[tile.entityId] ?? 0);
-        const safeQuantity = Number.isFinite(currentQuantity) ? currentQuantity : 0;
+        const safeQuantity = parseOptionalNonNegativeFiniteNumberDraft(retailSalesDrafts[tile.entityId] ?? '') ?? 0;
         nextLines.set(tile.key, {
           key: tile.key,
           itemType: tile.itemType,
@@ -10829,8 +11514,7 @@ export function StockUpdateSessionRoute() {
       }
 
       if (tile.kind === 'service') {
-        const currentQuantity = Number(serviceSalesDrafts[tile.entityId] ?? 0);
-        const safeQuantity = Number.isFinite(currentQuantity) ? currentQuantity : 0;
+        const safeQuantity = parseOptionalNonNegativeFiniteNumberDraft(serviceSalesDrafts[tile.entityId] ?? '') ?? 0;
         nextLines.set(tile.key, {
           key: tile.key,
           itemType: tile.itemType,
@@ -10870,12 +11554,11 @@ export function StockUpdateSessionRoute() {
         continue;
       }
 
-      const currentQuantity = Number(
+      const safeQuantity = parseOptionalNonNegativeFiniteNumberDraft(
         tile.kind === 'supplier-order'
-          ? skuSignalDrafts[tile.entityId]?.orderedQuantity ?? 0
-          : skuSignalDrafts[tile.entityId]?.receiptQuantity ?? 0,
-      );
-      const safeQuantity = Number.isFinite(currentQuantity) ? currentQuantity : 0;
+          ? skuSignalDrafts[tile.entityId]?.orderedQuantity ?? ''
+          : skuSignalDrafts[tile.entityId]?.receiptQuantity ?? '',
+      ) ?? 0;
       const quantityField = tile.kind === 'supplier-order' ? 'orderedQuantity' : 'receiptQuantity';
       const stepId = tile.kind === 'supplier-order' ? 'reorder' : 'receipt';
       nextLines.set(tile.key, {
@@ -10956,6 +11639,20 @@ export function StockUpdateSessionRoute() {
       return;
     }
     const handleKey = `${location.pathname}${location.search}`;
+    const hasExistingCaptureSource =
+      editSession != null ||
+      selectedSupplierTicket != null ||
+      selectedCustomerTicket != null ||
+      selectedOrderChildren.length > 0;
+    if (hasExistingCaptureSource) {
+      logCaptureBatchDebug('batch-activation-skipped', {
+        flashTargetKeys: routeCaptureFlashTargetKeys,
+        handleKey,
+        reason: 'editing_existing_capture_session',
+      });
+      handledBatchActivationRef.current = handleKey;
+      return;
+    }
     if (handledBatchActivationRef.current === handleKey) {
       logCaptureBatchDebug('batch-activation-skipped', {
         flashTargetKeys: routeCaptureFlashTargetKeys,
@@ -11012,7 +11709,17 @@ export function StockUpdateSessionRoute() {
       flashTargetKeys: routeCaptureFlashTargetKeys,
       handleKey,
     });
-  }, [location.pathname, location.search, posLineControllers, recommendedOrderBySku, routeCaptureFlashTargetKeys]);
+  }, [
+    editSession,
+    location.pathname,
+    location.search,
+    posLineControllers,
+    recommendedOrderBySku,
+    routeCaptureFlashTargetKeys,
+    selectedCustomerTicket,
+    selectedOrderChildren.length,
+    selectedSupplierTicket,
+  ]);
   const posActiveLines = useMemo(
     () => [...posLineControllers.values()].filter((line) => line.quantity > 0).sort((left, right) => left.title.localeCompare(right.title)),
     [posLineControllers],
@@ -11093,7 +11800,7 @@ export function StockUpdateSessionRoute() {
       return [];
     }
 
-    return supplierFilteredRows.flatMap((row) => {
+    const skuChanges = supplierFilteredRows.flatMap((row) => {
       const sku = skuById.get(row.skuId);
       const baseline = baselineStockRow(workingCatalog, stockBySku, row.skuId);
       if (!sku || !baseline) {
@@ -11152,16 +11859,55 @@ export function StockUpdateSessionRoute() {
       return changedFields.length > 0
         ? [{
             key: `stock-change:${row.skuId}`,
-            skuId: row.skuId,
+            entityId: row.skuId,
             title: sku.name,
             imagePath: sku.imagePath ?? null,
             changedFields,
           }]
         : [];
     });
+    const serviceChanges = productsUpdateServiceIds.flatMap((serviceId) => {
+      const service = serviceById.get(serviceId);
+      const draft = serviceSignalDrafts[serviceId];
+      if (!service || !draft) {
+        return [];
+      }
+
+      const changedFields: StockCountPosChangeField[] = [];
+      if (serviceDisplayPriceChanged(workingCatalog, serviceId, draft, currency, usdToKhrExchangeRate)) {
+        const draftPrice = serviceDraftPriceUsd(draft, currency, usdToKhrExchangeRate);
+        changedFields.push({
+          key: 'price',
+          label: translateUiLiteral(language, 'Service price'),
+          value: `${formatCurrency(service.price, currency, language, usdToKhrExchangeRate)} → ${formatCurrency(draftPrice ?? service.price, currency, language, usdToKhrExchangeRate)}`,
+        });
+      }
+      if (draft.blockedEnabled && draft.blockedState === 'stockout') {
+        changedFields.push({
+          key: 'flags',
+          label: translateUiLiteral(language, 'Flags'),
+          value: translateUiLiteral(language, 'Stockout'),
+        });
+      }
+
+      return changedFields.length > 0
+        ? [{
+            key: `service-price-change:${serviceId}`,
+            entityId: serviceId,
+            title: service.name,
+            imagePath: service.imagePath ?? null,
+            changedFields,
+          }]
+        : [];
+    });
+
+    return [...skuChanges, ...serviceChanges];
   }, [
     currency,
     language,
+    serviceById,
+    productsUpdateServiceIds,
+    serviceSignalDrafts,
     skuById,
     skuSignalDrafts,
     stockBySku,
@@ -11176,11 +11922,24 @@ export function StockUpdateSessionRoute() {
   );
   const activePosServiceLinkedSkus = useMemo(
     () =>
-      activePosTile?.kind === 'service'
+      activePosTile?.kind === 'service' || activePosTile?.kind === 'service-price'
         ? linkedSkusForService(workingCatalog, activePosTile.entityId)
         : [],
     [activePosTile, workingCatalog],
   );
+  const activePosServiceUpdate = useMemo(() => {
+    if (!stockCountPosMode || activePosTile?.kind !== 'service-price') {
+      return null;
+    }
+    const service = serviceById.get(activePosTile.entityId);
+    if (!service) {
+      return null;
+    }
+    return {
+      draft: serviceSignalDrafts[service.serviceId] ?? createEmptyServiceSignalDraft(),
+      service,
+    };
+  }, [activePosTile, serviceById, serviceSignalDrafts, stockCountPosMode]);
   const activePosStockCountRow = useMemo(() => {
     if (!stockCountPosMode || activePosTile?.kind !== 'stock') {
       return null;
@@ -11224,6 +11983,13 @@ export function StockUpdateSessionRoute() {
     });
     updateSkuSignalDraft(activePosStockCountRow.sku.skuId, (draft) => skuWithoutEventDraft(skuEventOnlyDraft(draft)));
   }, [activePosStockCountRow, clearPosLineTouched, updateRow, updateSkuSignalDraft]);
+  const resetActivePosServiceUpdateChanges = useCallback(() => {
+    if (!activePosServiceUpdate) {
+      return;
+    }
+    clearPosLineTouched(`service-price:${activePosServiceUpdate.service.serviceId}`);
+    updateServiceSignalDraft(activePosServiceUpdate.service.serviceId, () => createEmptyServiceSignalDraft());
+  }, [activePosServiceUpdate, clearPosLineTouched, updateServiceSignalDraft]);
   const commitPosTileDialog = useCallback(() => {
     if (!activePosTileLine) {
       return;
@@ -11242,29 +12008,29 @@ export function StockUpdateSessionRoute() {
     if (value.trim() === '') {
       return sum;
     }
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? sum + parsed : sum;
+    const parsed = parseOptionalNonNegativeFiniteNumberDraft(value);
+    return parsed != null ? sum + parsed : sum;
   }, 0);
   const serviceUnits = Object.values(serviceSalesDrafts).reduce((sum, value) => {
     if (value.trim() === '') {
       return sum;
     }
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? sum + parsed : sum;
+    const parsed = parseOptionalNonNegativeFiniteNumberDraft(value);
+    return parsed != null ? sum + parsed : sum;
   }, 0);
   const orderUnits = Object.values(skuSignalDrafts).reduce((sum, draft) => {
     if (draft.orderedQuantity.trim() === '') {
       return sum;
     }
-    const parsed = Number(draft.orderedQuantity);
-    return Number.isFinite(parsed) ? sum + parsed : sum;
+    const parsed = parseOptionalNonNegativeFiniteNumberDraft(draft.orderedQuantity);
+    return parsed != null ? sum + parsed : sum;
   }, 0);
   const receiptUnits = Object.values(skuSignalDrafts).reduce((sum, draft) => {
     if (draft.receiptQuantity.trim() === '') {
       return sum;
     }
-    const parsed = Number(draft.receiptQuantity);
-    return Number.isFinite(parsed) ? sum + parsed : sum;
+    const parsed = parseOptionalNonNegativeFiniteNumberDraft(draft.receiptQuantity);
+    return parsed != null ? sum + parsed : sum;
   }, 0);
   const posSummaryMetrics =
     lane.id === 'stock-count'
@@ -11438,7 +12204,7 @@ export function StockUpdateSessionRoute() {
         amountValue={discountAmount}
         mode={discountMode}
         percentId="record-discount-percent"
-        percentLabel={translateUiLiteral(language, 'Dicount Percent (%)')}
+        percentLabel={translateUiLiteral(language, 'Discount Percent (%)')}
         percentValue={discountPercent}
         onAmountChange={setDiscountAmount}
         onModeChange={setDiscountMode}
@@ -11490,7 +12256,7 @@ export function StockUpdateSessionRoute() {
     .find((value) => value != null) ?? null;
   const supplierPosLeadTimeMeanDays =
     recordOrderLeadTimeMeanDays.trim() !== ''
-      ? Number(recordOrderLeadTimeMeanDays)
+      ? parseOptionalNonNegativeFiniteNumberDraft(recordOrderLeadTimeMeanDays)
       : supplierPosLeadTimeMeanPlaceholder;
   const supplierPosVariabilityPlaceholder = supplierFilteredRows
     .map((row) => leadTimeVariabilityDefaults.get(row.skuId))
@@ -11816,7 +12582,7 @@ export function StockUpdateSessionRoute() {
       amountValue={discountAmount}
       mode={discountMode}
       percentId="pos-discount-percent"
-      percentLabel={translateUiLiteral(language, 'Dicount Percent (%)')}
+      percentLabel={translateUiLiteral(language, 'Discount Percent (%)')}
       percentValue={discountPercent}
       onAmountChange={setDiscountAmount}
       onModeChange={setDiscountMode}
@@ -11894,19 +12660,25 @@ export function StockUpdateSessionRoute() {
   const phoneCaptureHeaderActionsTarget = embeddedPhonePortrait && typeof document !== 'undefined'
     ? document.querySelector('[data-slot="embedded-phone-capture-header-actions"]')
     : null;
+  const phoneCaptureHeaderTitleMetaTarget = embeddedPhonePortrait && typeof document !== 'undefined'
+    ? document.querySelector('[data-slot="embedded-phone-capture-header-title-meta"]')
+    : null;
   const phoneCaptureHeaderPortals = embeddedPhonePortrait ? (
     <>
+      {phoneCaptureHeaderTitleMetaTarget
+        ? createPortal(
+            draftStatusLabel ? <span>({draftStatusLabel})</span> : null,
+            phoneCaptureHeaderTitleMetaTarget,
+          )
+        : null}
       {phoneCaptureHeaderMetaTarget
         ? createPortal(
-            <>
-              <p>{sessionDescriptor}</p>
-              {draftStatusLabel ? <p>{draftStatusLabel}</p> : null}
-            </>,
+            <p>{sessionDescriptor}</p>,
             phoneCaptureHeaderMetaTarget,
           )
         : null}
       {phoneCaptureHeaderActionsTarget
-        ? createPortal(renderSessionTitleActions(false), phoneCaptureHeaderActionsTarget)
+        ? createPortal(renderSessionTitleActions(false, true), phoneCaptureHeaderActionsTarget)
         : null}
     </>
   ) : null;
@@ -12140,6 +12912,7 @@ export function StockUpdateSessionRoute() {
         flashServiceId={captureTargetFlashKey?.startsWith('service-price:') ? captureTargetFlashKey.slice('service-price:'.length) : null}
         guidance={currentStepId === 'service' ? stepGuidance : null}
         language={language}
+        mobileLayout={embeddedPhonePortrait}
         serviceSignalDrafts={serviceSignalDrafts}
         usdToKhrExchangeRate={usdToKhrExchangeRate}
         updateServiceSignalDraft={updateServiceSignalDraft}
@@ -12325,7 +13098,7 @@ export function StockUpdateSessionRoute() {
                     key={section.id}
                     className={cn(
                       'h-auto min-h-12 items-start justify-start rounded-[0.9rem] px-3 py-2.5 text-left whitespace-normal',
-                      section.id === 'context' && 'col-span-2',
+                      fullWidthPhoneMetadataSectionIds.has(section.id) && 'col-span-2',
                       active ? 'text-background' : 'bg-card',
                       untouched && posMetadataUntouchedGlowClassName,
                     )}
@@ -12455,17 +13228,19 @@ export function StockUpdateSessionRoute() {
                 })}
               </div>
             ) : null}
-            <div className={sessionViewMode === 'pos' ? 'sr-only' : undefined}>
-              <StepWizard
-                currentStepId={currentStepId}
-                percentComplete={(unlockedStepCount / activeStepOrder.length) * 100}
-                steps={stepStates}
-                unlockedStepCount={unlockedStepCount}
-                onStepSelect={(stepId) => selectStep(stepId as StockUpdateStepId)}
-              />
+            {sessionViewMode === 'form' ? (
+              <div>
+                <StepWizard
+                  currentStepId={currentStepId}
+                  percentComplete={(unlockedStepCount / activeStepOrder.length) * 100}
+                  steps={stepStates}
+                  unlockedStepCount={unlockedStepCount}
+                  onStepSelect={(stepId) => selectStep(stepId as StockUpdateStepId)}
+                />
 
-              {showHeartbeatRibbons ? <MetricRibbon items={summaryRibbonItems} /> : null}
-            </div>
+                {showHeartbeatRibbons ? <MetricRibbon items={summaryRibbonItems} /> : null}
+              </div>
+            ) : null}
           </div>
         </WorkspaceTitleCard>
       )}
@@ -12475,6 +13250,7 @@ export function StockUpdateSessionRoute() {
           <div className="grid gap-6">
             <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_clamp(28rem,31vw,34rem)]">
               <section
+                ref={posWorkbenchSectionRef}
                 className={cn(
                   'min-w-0 overflow-hidden rounded-[1.9rem] border border-border/70 bg-white shadow-[0_18px_60px_rgba(48,31,20,0.08)]',
                   embeddedPhonePortrait && 'rounded-[1rem] shadow-panel',
@@ -12567,7 +13343,7 @@ export function StockUpdateSessionRoute() {
                           }}
                         />
                       }
-                      secondaryFilter={isSupplierPendingLane ? supplierFilterControl : undefined}
+                      secondaryFilter={isSupplierPendingLane || isSupplierReceiptLane ? supplierFilterControl : undefined}
                     />
                   </div>
                 </div>
@@ -12602,6 +13378,7 @@ export function StockUpdateSessionRoute() {
                                 jiggleStyleOverride={phoneWorkbenchJiggleStyle}
                                 layout={embeddedPhonePortrait ? 'row' : 'grid'}
                                 onHoldEnd={endWorkbenchHold}
+                                onHoldMove={moveWorkbenchHold}
                                 onHoldStart={beginWorkbenchHold}
                                 reorderMode={workbenchReorderMode}
                                 tile={tile}
@@ -12642,7 +13419,8 @@ export function StockUpdateSessionRoute() {
                         {filteredPosTiles.map((tile) => (
                           <button
                             key={tile.key}
-                            className={embeddedPhonePortrait ? 'relative block h-auto w-full min-w-0 overflow-visible text-left' : workbenchTileButtonClassName({})}
+                            className={embeddedPhonePortrait ? workbenchTileRowButtonClassName() : workbenchTileButtonClassName({})}
+                            data-workbench-tile-key={tile.key}
                             type="button"
                             onClick={() => {
                               guardWorkbenchReorderInteraction(() => {
@@ -12679,7 +13457,8 @@ export function StockUpdateSessionRoute() {
                           changedRows={stockCountPosChangedRows}
                           emptyState={posSummaryEmptyState}
                           language={language}
-                          onOpenRow={(row) => guardWorkbenchReorderInteraction(() => setActivePosTileKey(`stock:${row.skuId}`))}
+                          mobileLayout={embeddedPhonePortrait}
+                          onOpenRow={(row) => guardWorkbenchReorderInteraction(() => setActivePosTileKey(row.key.startsWith('service-price-change:') ? `service-price:${row.entityId}` : `stock:${row.entityId}`))}
                         />
                       ) : posActiveLines.length > 0 ? (
                         <div className="grid gap-0">
@@ -12820,7 +13599,7 @@ export function StockUpdateSessionRoute() {
         />
       ) : null}
       <DialogPrimitive.Root
-        open={sessionViewMode === 'pos' && activePosTile != null && (stockCountPosMode ? activePosStockCountRow != null : activePosTileLine != null)}
+        open={sessionViewMode === 'pos' && activePosTile != null && (stockCountPosMode ? activePosStockCountRow != null || activePosServiceUpdate != null : activePosTileLine != null)}
         onOpenChange={(open) => {
           if (!open) {
             closePosTileDialog();
@@ -12859,11 +13638,15 @@ export function StockUpdateSessionRoute() {
                     onChange={(event) => {
                       markPosLineTouched(activePosTile.key);
                       activatePosStep('stock');
+                      const nextUnits = parseStockUnitsDraft(
+                        event.target.value,
+                        activePosStockCountRow.baseline.unitsInStock,
+                      );
+                      if (nextUnits == null) {
+                        return;
+                      }
                       updateRow(activePosStockCountRow.sku.skuId, {
-                        unitsInStock:
-                          event.target.value === ''
-                            ? activePosStockCountRow.baseline.unitsInStock
-                            : Math.max(0, Number(event.target.value)),
+                        unitsInStock: nextUnits,
                       });
                     }}
                   />
@@ -12888,10 +13671,17 @@ export function StockUpdateSessionRoute() {
                     onChange={(event) => {
                       markPosLineTouched(activePosTile.key);
                       activatePosStep('stock');
+                      const nextCost = parseStockMoneyDraft(
+                        event.target.value,
+                        activePosStockCountRow.baseline.costPerUnit,
+                        currency,
+                        usdToKhrExchangeRate,
+                      );
+                      if (nextCost == null && event.target.value.trim() !== '') {
+                        return;
+                      }
                       updateRow(activePosStockCountRow.sku.skuId, {
-                        costPerUnit: event.target.value === ''
-                          ? activePosStockCountRow.baseline.costPerUnit
-                          : usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate),
+                        costPerUnit: nextCost,
                       });
                     }}
                   />
@@ -12912,7 +13702,7 @@ export function StockUpdateSessionRoute() {
                       className={cn(
                         recordUpdateInputClassName,
                         '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg',
-                        routeCaptureTarget?.action === 'sku-price' && captureTargetFlashKey === activePosTile.key && captureTargetFlashClassName,
+                        routeCaptureTarget?.action === 'sku-price' && routeCaptureTileKey === activePosTile.key && captureTargetFlashClassName,
                       )}
                       currency={currency}
                       id="pos-stock-price"
@@ -12926,10 +13716,17 @@ export function StockUpdateSessionRoute() {
                       onChange={(event) => {
                         markPosLineTouched(activePosTile.key);
                         activatePosStep('stock');
+                        const nextPrice = parseStockMoneyDraft(
+                          event.target.value,
+                          activePosStockCountRow.baseline.productPrice,
+                          currency,
+                          usdToKhrExchangeRate,
+                        );
+                        if (nextPrice == null && event.target.value.trim() !== '') {
+                          return;
+                        }
                         updateRow(activePosStockCountRow.sku.skuId, {
-                          productPrice: event.target.value === ''
-                            ? activePosStockCountRow.baseline.productPrice
-                            : usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate),
+                          productPrice: nextPrice,
                         });
                       }}
                     />
@@ -13001,6 +13798,132 @@ export function StockUpdateSessionRoute() {
                     {translateUiLiteral(language, 'Done')}
                   </Button>
                 </div>
+              </div>
+            </DialogPrimitive.Content>
+          ) : activePosTile && activePosServiceUpdate ? (
+            <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[100] grid w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <ItemAvatar imagePath={activePosTile.imagePath} name={activePosTile.title} size="hero" type={activePosTile.itemType} />
+                  <div className="min-w-0">
+                    <DialogPrimitive.Title className="truncate text-3xl font-semibold tracking-[-0.04em] text-foreground">
+                      {activePosTile.title}
+                    </DialogPrimitive.Title>
+                    <DialogPrimitive.Description className="mt-1 text-base leading-7 text-muted-foreground">
+                      {translateUiLiteral(language, 'Update this service price and stockout signal. Linked SKUs are shown for context only.')}
+                    </DialogPrimitive.Description>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[1.35rem] border border-border/70 bg-background/70 px-4 py-4 text-base font-medium text-foreground">
+                  <span className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                    {translateUiLiteral(language, 'Linked SKUs')}:
+                  </span>
+                  {activePosServiceLinkedSkus.length > 0 ? (
+                    activePosServiceLinkedSkus.map((sku, index) => (
+                      <span key={sku.skuId} className="inline-flex max-w-full items-center gap-3">
+                        {index > 0 ? (
+                          <span aria-hidden="true" className="text-muted-foreground">
+                            &middot;
+                          </span>
+                        ) : null}
+                        <span className="inline-flex max-w-full items-center gap-1.5">
+                          <EntitySkuIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                          <span className="truncate">{sku.name}</span>
+                        </span>
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {translateUiLiteral(language, 'No linked SKUs')}
+                    </p>
+                  )}
+                </div>
+                <div className="grid gap-3">
+                  <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]" htmlFor="pos-service-price">{translateUiLiteral(language, 'Service price')}</RecordUpdateFieldLabel>
+                  <CurrencyNumberInput
+                    aria-label={translateUiLiteral(language, 'Service price')}
+                    className={cn(
+                      recordUpdateInputClassName,
+                      '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg',
+                      routeCaptureTarget?.action === 'service-price' && routeCaptureTileKey === activePosTile.key && captureTargetFlashClassName,
+                    )}
+                    currency={currency}
+                    id="pos-service-price"
+                    min="0"
+                    variant="side-buttons"
+                    value={
+                      activePosServiceUpdate.draft.priceEnabled
+                        ? activePosServiceUpdate.draft.price
+                        : displayMoneyFromUsd(activePosServiceUpdate.service.price, currency, usdToKhrExchangeRate)
+                    }
+                    onChange={(event) => {
+                      markPosLineTouched(activePosTile.key);
+                      activatePosStep('stock');
+                      updateServiceSignalDraft(activePosServiceUpdate.service.serviceId, (draft) => ({
+                        ...draft,
+                        priceEnabled: true,
+                        price: event.target.value,
+                      }));
+                    }}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    {translateUiLiteral(language, 'Baseline: {amount}', {
+                      amount: formatCurrency(activePosServiceUpdate.service.price, currency, language, usdToKhrExchangeRate),
+                    })}
+                  </p>
+                </div>
+                <div className="grid gap-3">
+                  <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]">{translateUiLiteral(language, 'Flags')}</RecordUpdateFieldLabel>
+                  <Select
+                    value={activePosServiceUpdate.draft.blockedEnabled ? activePosServiceUpdate.draft.blockedState : 'none'}
+                    onValueChange={(value) => {
+                      markPosLineTouched(activePosTile.key);
+                      activatePosStep('stock');
+                      updateServiceSignalDraft(activePosServiceUpdate.service.serviceId, (draft) => ({
+                        ...draft,
+                        blockedEnabled: value !== 'none',
+                        blockedState: value === 'stockout' ? 'stockout' : 'blocked',
+                      }));
+                    }}
+                  >
+                    <SelectTrigger
+                      aria-label={translateUiLiteral(language, 'Flags')}
+                      className={cn(recordUpdateSelectTriggerClassName, 'w-full justify-between !h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg [&_[data-slot=stock-event-option-description]]:hidden')}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[110] text-base">
+                      <SelectItem className="py-2.5 pl-3 pr-9 !text-base" value="none">
+                        <StockEventOptionContent
+                          description={translateUiLiteral(language, 'Leave this interval unchanged.')}
+                          icon={<StatusReadyIcon aria-hidden="true" className="size-4" />}
+                          label={translateUiLiteral(language, 'No event')}
+                        />
+                      </SelectItem>
+                      <SelectItem className="py-2.5 pl-3 pr-9 !text-base" value="stockout">
+                        <StockEventOptionContent
+                          description={translateUiLiteral(language, 'Service was constrained by linked SKU availability.')}
+                          icon={<EntityFlagIcon aria-hidden="true" className="size-4" />}
+                          label={translateUiLiteral(language, 'Stockout')}
+                        />
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Button className="h-12 rounded-xl px-5 text-base" type="button" variant="outline" onClick={resetActivePosServiceUpdateChanges}>
+                  <ActionUndoIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Reset changes')}
+                </Button>
+                <Button className="h-12 rounded-xl px-6 text-base" type="button" onClick={closePosTileDialog}>
+                  <ActionConfirmIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Done')}
+                </Button>
               </div>
             </DialogPrimitive.Content>
           ) : activePosTile && activePosTileLine ? (
@@ -13087,10 +14010,10 @@ export function StockUpdateSessionRoute() {
                   <p className="mt-2 text-lg font-semibold text-foreground">
                     {activePosTileLine.unitAmount == null
                       ? translateUiLiteral(language, '{count} units', {
-                          count: Number.isFinite(Number(posTileDialogQuantity)) ? Math.max(0, Math.trunc(Number(posTileDialogQuantity))) : 0,
+                          count: parsePosQuantityInput(posTileDialogQuantity),
                         })
                       : formatCurrency(
-                          Math.max(0, Math.trunc(Number(posTileDialogQuantity) || 0)) * activePosTileLine.unitAmount,
+                          parsePosQuantityInput(posTileDialogQuantity) * activePosTileLine.unitAmount,
                           currency,
                           language,
                           usdToKhrExchangeRate,
@@ -13160,6 +14083,7 @@ export function StockUpdateSessionRoute() {
                 changedRows={stockCountPosChangedRows}
                 emptyState={posSummaryEmptyState}
                 language={language}
+                mobileLayout={embeddedPhonePortrait}
               />
             ) : (
               <div className="grid gap-4">

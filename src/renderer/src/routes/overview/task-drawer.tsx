@@ -48,6 +48,7 @@ import {
   formatLocalDateInputValue,
   formatLocalDateTimeInputValue,
   observedLocalDateInputValue,
+  parseLocalDateTimeInputIso,
 } from '@/lib/date-input-utils';
 import { buildSupplierTicketCaptureHref } from '@/lib/record-update-routes';
 import { translateUiLiteral } from '@/lib/translations';
@@ -87,6 +88,12 @@ function daysBetween(start: string, endDate: string) {
   return calendarDaysBetweenObservedAndDateInput(start, endDate);
 }
 
+function leadTimeStdDaysDraft(value: number | null | undefined) {
+  return value != null && Number.isFinite(value) && value > 0
+    ? String(Math.max(1, Math.round(value)))
+    : '2';
+}
+
 function leadTimeHintFromTaskInputs({
   observedAt,
   skuId,
@@ -111,7 +118,10 @@ function leadTimeHintFromTaskInputs({
     return [];
   }
 
-  const uncertainty = uncertaintyDays ? Number(uncertaintyDays) : 0;
+  const uncertainty = uncertaintyDays.trim() ? Number(uncertaintyDays) : 0;
+  if (!Number.isFinite(uncertainty) || uncertainty < 0) {
+    return [];
+  }
   const derivedLeadTime = uncertaintyDays.trim()
     ? deriveLeadTimeFromStdDays(typicalDays, uncertainty)
     : deriveLeadTimeFromVariabilityClass(typicalDays, variabilityClass || null);
@@ -204,6 +214,40 @@ function supplierTicketIdentityForDrawer({
     ticketId: task.ticketId,
     revision: (latestTicket?.revision ?? task.ticket.revision ?? 0) + 1,
   };
+}
+
+function supplierCaptureTicketIdForTask(task: OverviewSupplierTicketTask) {
+  if (!task.ticketId.startsWith(DRAFT_SUPPLIER_TICKET_ID_PREFIX)) {
+    return task.ticketId;
+  }
+  const childTicketIds = [
+    ...new Set(
+      task.childTasks
+        .map((childTask) => childTask.supplierTicketId)
+        .filter((ticketId): ticketId is string => Boolean(ticketId)),
+    ),
+  ];
+  return childTicketIds.length === 1 ? childTicketIds[0]! : task.ticketId;
+}
+
+function supplierCaptureHrefForTask(task: OverviewSupplierTicketTask, mode: OverviewTaskDrawerMode) {
+  const ticketId = supplierCaptureTicketIdForTask(task);
+  if (mode !== 'goods_received') {
+    return buildSupplierTicketCaptureHref({ mode: 'edit', ticketId });
+  }
+
+  const skuIds = task.childTasks.map((childTask) => childTask.skuId);
+  return buildSupplierTicketCaptureHref({
+    mode: 'edit',
+    intent: 'receipt',
+    ticketId,
+    skuIds,
+    flashTargets: skuIds.map((skuId) => ({
+      action: 'supplier-receipt',
+      targetId: skuId,
+      targetType: 'sku',
+    })),
+  });
 }
 
 function ticketLinesForDrawer({
@@ -496,12 +540,12 @@ export function OverviewTaskDrawer({
     const frameId = window.requestAnimationFrame(() => {
       setShowDetailBody(true);
     });
-    setMode(task.defaultDrawerMode);
+    setMode(controlledMode ?? task.defaultDrawerMode);
     const nextObservedAt = initialObservedAt(null);
     setObservedAt(nextObservedAt);
     setNotes('');
     setExpectedArrivalDate(clampDateInputToObservedDate(initialExpectedArrivalDate(task.expectedArrivalDate), nextObservedAt));
-    setUncertaintyDays(task.leadTimeStdDays != null ? String(Math.max(1, Math.round(task.leadTimeStdDays))) : '2');
+    setUncertaintyDays(leadTimeStdDaysDraft(task.leadTimeStdDays));
     setVariabilityClass(task.variabilityClass ?? '');
     setLeadTimeDraftMode('std');
     setUseLeadTimeEstimate(true);
@@ -590,7 +634,7 @@ export function OverviewTaskDrawer({
       return {
         ...baseSnapshot,
         expectedArrivalDate: clampDateInputToObservedDate(initialExpectedArrivalDate(nextTask.expectedArrivalDate), nextObservedAt),
-        uncertaintyDays: nextTask.leadTimeStdDays != null ? String(Math.max(1, Math.round(nextTask.leadTimeStdDays))) : '2',
+        uncertaintyDays: leadTimeStdDaysDraft(nextTask.leadTimeStdDays),
         variabilityClass: nextTask.variabilityClass ?? '',
         useLeadTimeEstimate: true,
       };
@@ -635,6 +679,12 @@ export function OverviewTaskDrawer({
 
   async function submit() {
     setError(null);
+    const observedAtIso = parseLocalDateTimeInputIso(observedAt);
+    if (!observedAtIso) {
+      setError(t('overviewDrawerObservedAtRequired'));
+      setSaveErrorFlashKey((current) => current + 1);
+      return false;
+    }
     if (
       ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate)
     ) {
@@ -645,7 +695,6 @@ export function OverviewTaskDrawer({
       setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
-    const observedAtIso = new Date(observedAt).toISOString();
     const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
@@ -792,6 +841,7 @@ export function OverviewTaskDrawer({
   const RealLifeIcon = overviewDrawerBandIcons.real_life;
   const submitDisabled =
     isSaving ||
+    !parseLocalDateTimeInputIso(observedAt) ||
     ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate);
   const bottomPresentation = presentation === 'bottom';
   const drawerContentStyle = bottomPresentation
@@ -1129,7 +1179,7 @@ export function OverviewTaskDrawer({
             ) : null}
             <div className={cn('flex w-full gap-2', bottomPresentation ? 'flex-row' : 'flex-col sm:w-auto sm:flex-row')}>
               <Button asChild className={cn('w-full', bottomPresentation ? 'min-w-0 flex-1' : 'sm:w-auto sm:min-w-[11rem]')} size="lg" variant="outline">
-                <Link to={buildSupplierTicketCaptureHref({ mode: 'edit', ticketId: task.ticketId })}>
+                <Link to={supplierCaptureHrefForTask(task, mode)}>
                   <ActionOpenExternalIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Edit in Capture')}
                 </Link>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { IconComponent } from '@icons';
 import { ActionContinueIcon, ActionCreatePackageIcon, ActionOpenExternalIcon, ActionSearchOffIcon } from '@icons/actions';
-import { EntityComparisonIcon, EntityEvidenceIcon, EntitySkuIcon, EntityTagsIcon } from '@icons/entities';
+import { EntityComparisonIcon, EntityEvidenceIcon, EntityTagsIcon } from '@icons/entities';
 import {
   NavigationAutomationIcon,
   NavigationCatalogIcon,
@@ -17,7 +17,7 @@ import {
   NavigationWorkIcon,
   NavigationWorkspacePanelsIcon,
 } from '@icons/navigation';
-import { StatusHelpBadgeIcon, StatusNarrativeIcon } from '@icons/status';
+import { StatusHelpBadgeIcon, StatusNarrativeIcon, StatusSquareActivityIcon } from '@icons/status';
 import { AttentionFlash } from '@/components/system/attention-flash';
 import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
@@ -35,6 +35,14 @@ const indexIconClassName = 'size-4 shrink-0 text-muted-foreground';
 const helpSubsectionHighlightDurationMs = 1900;
 const helpSubsectionScrollHighlightDelayMs = 500;
 
+function safeDecodeHelpHash(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 const helpSectionIcons: Array<{ pattern: RegExp; icon: IconComponent }> = [
   { pattern: /^(what-kaur-khor-is-for|កខ-សម្រាប់អ្វី)$/, icon: NavigationWorkspacePanelsIcon },
   { pattern: /^(daily-workflow|លំហូរការងារប្រចាំថ្ងៃ)$/, icon: NavigationTaskListIcon },
@@ -44,10 +52,11 @@ const helpSectionIcons: Array<{ pattern: RegExp; icon: IconComponent }> = [
   { pattern: /^queue$/, icon: NavigationTaskListIcon },
   { pattern: /^capture$/, icon: ActionCreatePackageIcon },
   { pattern: /^intake$/, icon: NavigationAutomationIcon },
-  { pattern: /^catalog$/, icon: NavigationCatalogIcon },
-  { pattern: /^catalog-/, icon: EntitySkuIcon },
+  { pattern: /^products$|^catalog$/, icon: NavigationCatalogIcon },
+  { pattern: /^catalog-/, icon: NavigationCatalogIcon },
   { pattern: /^record-update|record-update-/, icon: EntityEvidenceIcon },
   { pattern: /^insights$/, icon: NavigationPerformanceIcon },
+  { pattern: /^inventory|^inventory-/, icon: StatusSquareActivityIcon },
   { pattern: /^pressure$/, icon: EntityComparisonIcon },
   { pattern: /^pressure-/, icon: NavigationAnalysisIcon },
   { pattern: /^money$/, icon: NavigationFinancialsIcon },
@@ -59,7 +68,8 @@ const helpSectionIcons: Array<{ pattern: RegExp; icon: IconComponent }> = [
   { pattern: /^history$/, icon: NavigationHistoryIcon },
   { pattern: /^settings|^interface-|^planning-|^local-data|^benchmark|^preferences/, icon: NavigationSettingsIcon },
   { pattern: /^first-useful-workflow$/, icon: ActionContinueIcon },
-  { pattern: /^glossary|^coverage$|^confidence$/, icon: EntityTagsIcon },
+  { pattern: /^glossary$/, icon: StatusNarrativeIcon },
+  { pattern: /^coverage$|^confidence$/, icon: EntityTagsIcon },
   { pattern: /^faq|សំណួរញឹកញាប់$/, icon: StatusHelpBadgeIcon },
 ];
 
@@ -142,7 +152,7 @@ export function HelpRoute() {
       setHighlightedSubsectionId(null);
       return;
     }
-    const targetId = decodeURIComponent(location.hash.slice(1));
+    const targetId = safeDecodeHelpHash(location.hash.slice(1));
     const target = document.getElementById(targetId);
     if (!target) {
       return;
@@ -366,7 +376,8 @@ export function HelpRoute() {
           >
             <nav
               aria-label={t('helpIndexAriaLabel')}
-              className="grid"
+              className="grid xl:max-h-[calc(100svh-12rem)] xl:overflow-y-auto xl:overscroll-contain"
+              data-slot="help-index-scroll"
             >
               {visibleSections.map((section) => (
                 <button

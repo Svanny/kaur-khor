@@ -14,6 +14,7 @@ import { linkedSkuIdsForService } from '@/lib/sena-catalog';
 import { translateLeadTimeVariabilityLabel, translateRegimeLabel } from '@/lib/localized-display';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { formatWholeNumber } from '@/lib/format';
+import { buildServiceDetailHref, buildSkuDetailHref } from '@/lib/navigation-state';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import { translateUiLiteral } from '@/lib/translations';
 import { formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity } from '@/routes/sku-detail/format';
@@ -322,7 +323,22 @@ function lastObservedAt(workspaceSummary: SenaWorkspaceSummary | null, observati
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
+  if (!Number.isFinite(value)) {
+    return minimum;
+  }
   return Math.min(Math.max(value, minimum), maximum);
+}
+
+function finiteOrZero(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function nonNegativeOrZero(value: number | null | undefined) {
+  return Math.max(0, finiteOrZero(value));
+}
+
+function probabilityOrZero(value: number | null | undefined) {
+  return clamp(finiteOrZero(value), 0, 1);
 }
 
 function normalizeRegimeLabel(value: string | null | undefined) {
@@ -460,9 +476,10 @@ function filterObservationsForScope({
   observations: SenaObservationRecord[];
   scope: AnalysisScope;
 }) {
-  const scopedObservations = orderedObservations(observations).filter((observation) =>
-    observationBelongsToScope({ catalog, observation, scope }),
-  );
+  const scopedObservations = orderedObservations(observations).filter((observation) => {
+    const observedTime = new Date(observation.input.observedAt).getTime();
+    return Number.isFinite(observedTime) && observationBelongsToScope({ catalog, observation, scope });
+  });
 
   return scopedObservations;
 }
@@ -558,26 +575,36 @@ function closestInventoryState(detail: SenaSkuDetail | null, endAt: string | nul
   }
   if (!endAt) {
     return {
-      mean: detail.summary.latestPosteriorUnits,
-      low: detail.summary.credibleIntervalLow,
-      high: detail.summary.credibleIntervalHigh,
+      mean: nonNegativeOrZero(detail.summary.latestPosteriorUnits),
+      low: nonNegativeOrZero(detail.summary.credibleIntervalLow),
+      high: nonNegativeOrZero(detail.summary.credibleIntervalHigh),
     };
   }
   const targetTime = new Date(endAt).getTime();
-  const orderedPoints = [...detail.inventoryPosterior].sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
+  const orderedPoints = [...detail.inventoryPosterior]
+    .filter((point) => Number.isFinite(new Date(point.at).getTime()))
+    .sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
   const candidate = orderedPoints
-    .filter((point) => new Date(point.at).getTime() <= targetTime)
+    .filter((point) => Number.isFinite(targetTime) && new Date(point.at).getTime() <= targetTime)
     .at(-1);
-  return candidate ?? {
+  if (candidate) {
+    return {
+      ...candidate,
+      mean: nonNegativeOrZero(candidate.mean),
+      low: nonNegativeOrZero(candidate.low),
+      high: nonNegativeOrZero(candidate.high),
+    };
+  }
+  return {
     at: endAt,
-    mean: detail.summary.latestPosteriorUnits,
-    low: detail.summary.credibleIntervalLow,
-    high: detail.summary.credibleIntervalHigh,
+    mean: nonNegativeOrZero(detail.summary.latestPosteriorUnits),
+    low: nonNegativeOrZero(detail.summary.credibleIntervalLow),
+    high: nonNegativeOrZero(detail.summary.credibleIntervalHigh),
   };
 }
 
 function averageProbability(value: number, count: number) {
-  return count > 0 ? value / count : 0;
+  return count > 0 ? probabilityOrZero(value / count) : 0;
 }
 
 function variabilityLabel(
@@ -859,11 +886,11 @@ export function deriveAnalysisViewModel({
       if (!seed) {
         continue;
       }
-      seed.serviceDemandMean += interval.serviceDemandMean;
-      seed.retailDemandMean += interval.retailDemandMean;
-      seed.realizedConsumptionMean += interval.realizedConsumptionMean;
-      seed.receiptsMean += interval.receiptsMean;
-      seed.adjustmentsMean += interval.adjustmentsMean;
+      seed.serviceDemandMean += nonNegativeOrZero(interval.serviceDemandMean);
+      seed.retailDemandMean += nonNegativeOrZero(interval.retailDemandMean);
+      seed.realizedConsumptionMean += nonNegativeOrZero(interval.realizedConsumptionMean);
+      seed.receiptsMean += nonNegativeOrZero(interval.receiptsMean);
+      seed.adjustmentsMean += finiteOrZero(interval.adjustmentsMean);
       const inventory = closestInventoryState(detail, seed.endAt);
       seed.inventoryMean += inventory.mean;
       seed.inventoryLow += inventory.low;
@@ -875,20 +902,20 @@ export function deriveAnalysisViewModel({
       if (!seed) {
         continue;
       }
-      seed.inTransitMean += interval.inTransitMean;
-      seed.orderProbabilitySum += interval.orderProbability;
+      seed.inTransitMean += nonNegativeOrZero(interval.inTransitMean);
+      seed.orderProbabilitySum += probabilityOrZero(interval.orderProbability);
       seed.pipelineCount += 1;
-      seed.orderQuantityMean += interval.orderQuantityMean;
-      seed.receiptQuantityMean += interval.receiptQuantityMean;
-      seed.ageDaysMean += interval.ageDaysMean;
+      seed.orderQuantityMean += nonNegativeOrZero(interval.orderQuantityMean);
+      seed.receiptQuantityMean += nonNegativeOrZero(interval.receiptQuantityMean);
+      seed.ageDaysMean += nonNegativeOrZero(interval.ageDaysMean);
     }
     for (const interval of detail?.leadTimePosterior ?? []) {
       const seed = intervalSeeds.get(interval.intervalIndex);
       if (!seed) {
         continue;
       }
-      seed.leadTimeMeanDays += interval.meanDays;
-      seed.leadTimeStdDays += interval.stdDays;
+      seed.leadTimeMeanDays += nonNegativeOrZero(interval.meanDays);
+      seed.leadTimeStdDays += nonNegativeOrZero(interval.stdDays);
       seed.leadTimeCount += 1;
       if (!seed.leadTimeVariabilityClass && interval.observedVariabilityClass) {
         seed.leadTimeVariabilityClass = interval.observedVariabilityClass;
@@ -1159,10 +1186,17 @@ export function deriveAnalysisViewModel({
     }
     const pipeline = latestPipeline(detail);
     const leadTime = latestLeadTime(detail);
+    const latestPosteriorUnits = nonNegativeOrZero(summary.latestPosteriorUnits);
+    const demandPerDayMean = nonNegativeOrZero(summary.demandPerDayMean);
+    const reorderTriggerProbability = probabilityOrZero(summary.reorderTriggerProbability);
+    const stockoutRisk = probabilityOrZero(summary.stockoutRisk);
+    const inTransitMean = nonNegativeOrZero(pipeline?.inTransitMean);
+    const leadTimeMeanDays = nonNegativeOrZero(leadTime?.meanDays ?? summary.leadTimeMeanDays);
+    const leadTimeStdDays = nonNegativeOrZero(leadTime?.stdDays ?? summary.leadTimeStdDays);
     const priceSensitivityScore = clamp(latestRetailPriceCount(sku.skuId, filteredObservations) / Math.max(filteredObservations.length, 1), 0, 1);
-    const leadTimeRiskScore = clamp((leadTime?.stdDays ?? summary.leadTimeStdDays) / Math.max(leadTime?.meanDays ?? summary.leadTimeMeanDays, 1), 0, 1);
-    const pipelineRiskScore = clamp(summary.reorderTriggerProbability * 0.72 + ((pipeline?.inTransitMean ?? 0) > 0 ? 0.14 : 0), 0, 1);
-    const pressureScore = clamp(summary.stockoutRisk * 0.42 + pipelineRiskScore * 0.32 + leadTimeRiskScore * 0.16 + priceSensitivityScore * 0.1, 0, 1);
+    const leadTimeRiskScore = clamp(leadTimeStdDays / Math.max(leadTimeMeanDays, 1), 0, 1);
+    const pipelineRiskScore = clamp(reorderTriggerProbability * 0.72 + (inTransitMean > 0 ? 0.14 : 0), 0, 1);
+    const pressureScore = clamp(stockoutRisk * 0.42 + pipelineRiskScore * 0.32 + leadTimeRiskScore * 0.16 + priceSensitivityScore * 0.1, 0, 1);
     const tone = coverTone(pressureScore);
     const pipelineRiskLevel = labelForLevel(pipelineRiskScore);
     const leadTimeRiskLevel = labelForLevel(leadTimeRiskScore);
@@ -1174,7 +1208,7 @@ export function deriveAnalysisViewModel({
       entityType: 'sku',
       name: sku.name,
       imagePath: sku.imagePath?.trim() || null,
-      href: `/catalog/skus/${sku.skuId}`,
+      href: buildSkuDetailHref(sku.skuId),
       pressureScoreValue: Math.round(pressureScore * 100),
       pressureScoreLabel: `${Math.round(pressureScore * 100)}`,
       pipelineRiskLevel,
@@ -1186,21 +1220,21 @@ export function deriveAnalysisViewModel({
       driverLabel: literal(language, pipelineRiskScore >= leadTimeRiskScore ? 'incoming stock risk' : 'delivery timing change'),
       tone,
       summary: literal(language, '{units} latest estimate · reorder signal {trigger}', {
-        units: formatSenaQuantity(summary.latestPosteriorUnits, language),
-        trigger: formatSenaPercent(summary.reorderTriggerProbability, language),
+        units: formatSenaQuantity(latestPosteriorUnits, language),
+        trigger: formatSenaPercent(reorderTriggerProbability, language),
       }),
       selectedSummary: [
         literal(language, 'latest estimate {value}', {
-          value: formatSenaQuantity(summary.latestPosteriorUnits, language),
+          value: formatSenaQuantity(latestPosteriorUnits, language),
         }),
         literal(language, '{value} demand per day', {
-          value: formatSenaQuantity(summary.demandPerDayMean, language),
+          value: formatSenaQuantity(demandPerDayMean, language),
         }),
         literal(language, 'reorder signal {value}', {
-          value: formatSenaPercent(summary.reorderTriggerProbability, language),
+          value: formatSenaPercent(reorderTriggerProbability, language),
         }),
         literal(language, 'on the way {value}', {
-          value: formatSenaQuantity(pipeline?.inTransitMean ?? 0, language),
+          value: formatSenaQuantity(inTransitMean, language),
         }),
       ],
       contributorStack: catalog.services
@@ -1208,14 +1242,14 @@ export function deriveAnalysisViewModel({
         .slice(0, 3)
         .map((service) => service.name),
       activityLabel: literal(language, 'estimated units {value}', {
-        value: formatSenaQuantity(summary.latestPosteriorUnits, language),
+        value: formatSenaQuantity(latestPosteriorUnits, language),
       }),
-      posteriorUnitsLabel: formatSenaQuantity(summary.latestPosteriorUnits, language),
-      demandPerDayLabel: formatSenaQuantity(summary.demandPerDayMean, language),
-      reorderTriggerLabel: formatSenaPercent(summary.reorderTriggerProbability, language),
-      inTransitExposureLabel: formatSenaQuantity(pipeline?.inTransitMean ?? 0, language),
-      leadTimeMeanLabel: formatSenaDays(leadTime?.meanDays ?? summary.leadTimeMeanDays, language),
-      leadTimeSpreadLabel: formatSenaDays(leadTime?.stdDays ?? summary.leadTimeStdDays, language),
+      posteriorUnitsLabel: formatSenaQuantity(latestPosteriorUnits, language),
+      demandPerDayLabel: formatSenaQuantity(demandPerDayMean, language),
+      reorderTriggerLabel: formatSenaPercent(reorderTriggerProbability, language),
+      inTransitExposureLabel: formatSenaQuantity(inTransitMean, language),
+      leadTimeMeanLabel: formatSenaDays(leadTimeMeanDays, language),
+      leadTimeSpreadLabel: formatSenaDays(leadTimeStdDays, language),
       reorderPolicyLabels: reorderRecommendation.hasBackendRecommendation
         ? {
             needProbability: reorderRecommendation.needProbabilityValueLabel,
@@ -1241,7 +1275,13 @@ export function deriveAnalysisViewModel({
       linkedRows.reduce((sum, row) => sum + riskLevelWeight(row.leadTimeRiskLevel), 0) /
       Math.max(linkedRows.length, 1);
     const priceSensitivityScore = clamp(latestServicePriceCount(service.serviceId, filteredObservations) / Math.max(filteredObservations.length, 1), 0, 1);
-    const bottleneckScore = detail?.bottleneckProbability ?? 0;
+    const bottleneckScore = probabilityOrZero(detail?.bottleneckProbability);
+    const activityMean = nonNegativeOrZero(detail?.activityMean);
+    const linkedInTransitMean = linkedSkuIds.reduce((sum, skuId) => sum + nonNegativeOrZero(latestPipeline(skuDetailsById[skuId])?.inTransitMean), 0);
+    const linkedLeadTimeMeanDays = linkedSkuIds.reduce((sum, skuId) => sum + nonNegativeOrZero(latestLeadTime(skuDetailsById[skuId])?.meanDays), 0) /
+      Math.max(linkedSkuIds.length, 1);
+    const linkedLeadTimeStdDays = linkedSkuIds.reduce((sum, skuId) => sum + nonNegativeOrZero(latestLeadTime(skuDetailsById[skuId])?.stdDays), 0) /
+      Math.max(linkedSkuIds.length, 1);
     const pressureScore = clamp(bottleneckScore * 0.48 + pipelineRiskScore * 0.24 + leadTimeRiskScore * 0.18 + priceSensitivityScore * 0.1, 0, 1);
     const tone = coverTone(pressureScore);
     const pipelineRiskLevel = labelForLevel(pipelineRiskScore);
@@ -1253,7 +1293,7 @@ export function deriveAnalysisViewModel({
       entityType: 'service',
       name: service.name,
       imagePath: service.imagePath?.trim() || null,
-      href: `/catalog/services/${service.serviceId}`,
+      href: buildServiceDetailHref(service.serviceId),
       pressureScoreValue: Math.round(pressureScore * 100),
       pressureScoreLabel: `${Math.round(pressureScore * 100)}`,
       pipelineRiskLevel,
@@ -1265,15 +1305,15 @@ export function deriveAnalysisViewModel({
       driverLabel: literal(language, bottleneckScore >= pipelineRiskScore ? 'linked blocker' : 'linked supply risk'),
       tone,
       summary: literal(language, 'blocker risk {probability} · {count} linked SKUs', {
-        probability: formatSenaPercent(detail?.bottleneckProbability ?? 0, language),
+        probability: formatSenaPercent(bottleneckScore, language),
         count: formatWholeNumber(linkedSkuIds.length, language),
       }),
       selectedSummary: [
         literal(language, '{value} activity interval', {
-          value: formatSenaQuantity(detail?.activityMean ?? 0, language),
+          value: formatSenaQuantity(activityMean, language),
         }),
         literal(language, 'blocker risk {value}', {
-          value: formatSenaPercent(detail?.bottleneckProbability ?? 0, language),
+          value: formatSenaPercent(bottleneckScore, language),
         }),
         literal(language, '{value} contributors linked', {
           value: formatWholeNumber(linkedSkuIds.length, language),
@@ -1285,25 +1325,14 @@ export function deriveAnalysisViewModel({
           .filter((value): value is string => Boolean(value))
           .slice(0, 4) ?? [],
       activityLabel: literal(language, '{value} activity', {
-        value: formatSenaQuantity(detail?.activityMean ?? 0, language),
+        value: formatSenaQuantity(activityMean, language),
       }),
       posteriorUnitsLabel: '—',
-      demandPerDayLabel: formatSenaQuantity(detail?.activityMean ?? 0, language),
+      demandPerDayLabel: formatSenaQuantity(activityMean, language),
       reorderTriggerLabel: '—',
-      inTransitExposureLabel: formatSenaQuantity(
-        linkedSkuIds.reduce((sum, skuId) => sum + (latestPipeline(skuDetailsById[skuId])?.inTransitMean ?? 0), 0),
-        language,
-      ),
-      leadTimeMeanLabel: formatSenaDays(
-        linkedSkuIds.reduce((sum, skuId) => sum + (latestLeadTime(skuDetailsById[skuId])?.meanDays ?? 0), 0) /
-          Math.max(linkedSkuIds.length, 1),
-        language,
-      ),
-      leadTimeSpreadLabel: formatSenaDays(
-        linkedSkuIds.reduce((sum, skuId) => sum + (latestLeadTime(skuDetailsById[skuId])?.stdDays ?? 0), 0) /
-          Math.max(linkedSkuIds.length, 1),
-        language,
-      ),
+      inTransitExposureLabel: formatSenaQuantity(linkedInTransitMean, language),
+      leadTimeMeanLabel: formatSenaDays(linkedLeadTimeMeanDays, language),
+      leadTimeSpreadLabel: formatSenaDays(linkedLeadTimeStdDays, language),
       reorderPolicyLabels: null,
     });
   }
@@ -1404,9 +1433,12 @@ export function deriveAnalysisViewModel({
           const skuDetail = skuDetailsById[column.skuId];
           const pipeline = latestPipeline(skuDetail);
           const leadTime = latestLeadTime(skuDetail);
-          const reliefSoon = (pipeline?.inTransitMean ?? 0) > 0 && (pipeline?.ageDaysMean ?? 0) <= (leadTime?.meanDays ?? Number.POSITIVE_INFINITY);
+          const inTransitMean = nonNegativeOrZero(pipeline?.inTransitMean);
+          const ageDaysMean = nonNegativeOrZero(pipeline?.ageDaysMean);
+          const leadTimeMeanDays = nonNegativeOrZero(leadTime?.meanDays);
+          const reliefSoon = inTransitMean > 0 && leadTimeMeanDays > 0 && ageDaysMean <= leadTimeMeanDays;
           const intensity = linkedSkuIds.has(column.skuId)
-            ? clamp((contributor?.usageProbability ?? 0.45) * 0.55 + (contributor?.bottleneckProbability ?? 0.18) * 0.45, 0, 1)
+            ? clamp(probabilityOrZero(contributor?.usageProbability ?? 0.45) * 0.55 + probabilityOrZero(contributor?.bottleneckProbability ?? 0.18) * 0.45, 0, 1)
             : 0;
           return {
             key: `${service.serviceId}:${column.skuId}`,
@@ -1414,11 +1446,11 @@ export function deriveAnalysisViewModel({
             intensity,
             usageLabel:
               contributor
-                ? formatSenaPercent(contributor.usageProbability, language)
+                ? formatSenaPercent(probabilityOrZero(contributor.usageProbability), language)
                 : linkedSkuIds.has(column.skuId)
                   ? literal(language, 'linked')
                   : '—',
-            bottleneckLabel: contributor ? formatSenaPercent(contributor.bottleneckProbability, language) : linkedSkuIds.has(column.skuId) ? '—' : '—',
+            bottleneckLabel: contributor ? formatSenaPercent(probabilityOrZero(contributor.bottleneckProbability), language) : linkedSkuIds.has(column.skuId) ? '—' : '—',
             pressureLabel: intensity > 0 ? literal(language, labelForLevel(intensity)) : '—',
             reliefLabel: reliefSoon ? literal(language, 'inbound soon') : linkedSkuIds.has(column.skuId) ? literal(language, 'no relief') : '—',
             tone: intensity >= 0.6 ? 'danger' : intensity >= 0.35 ? 'warning' : intensity > 0 ? 'info' : 'neutral',
@@ -1433,6 +1465,10 @@ export function deriveAnalysisViewModel({
   const currentRegime =
     intervalRows.at(-1)?.dominantRegime ??
     translateRegimeLabel(language, workspaceSummary.topRegime ?? 'normal');
+  const coverageEstimate = probabilityOrZero(diagnostics?.coverageEstimate);
+  const changePointProbability = probabilityOrZero(diagnostics?.changePointProbability);
+  const predictiveError = probabilityOrZero(diagnostics?.posteriorPredictiveErrorMean);
+  const effectiveSampleSizeMean = nonNegativeOrZero(diagnostics?.effectiveSampleSizeMean);
   const priceShiftCount = filteredObservations.reduce((sum, observation) => {
     return sum + observation.input.servicePrices.length + observation.input.retailPrices.length;
   }, 0);
@@ -1463,7 +1499,7 @@ export function deriveAnalysisViewModel({
       label: literal(language, 'Incoming stock risk'),
       value: literal(language, labelForLevel(avgPipelinePressure)),
       detail: literal(language, '{count} pending reorder cues', {
-        count: formatWholeNumber(workspaceSummary.pendingReorderCount, language),
+        count: formatWholeNumber(nonNegativeOrZero(workspaceSummary.pendingReorderCount), language),
       }),
       tone: coverTone(avgPipelinePressure),
     },
@@ -1488,11 +1524,11 @@ export function deriveAnalysisViewModel({
     {
       key: 'coverage',
       label: literal(language, 'Evidence coverage'),
-      value: literal(language, coverageBand(diagnostics?.coverageEstimate ?? 0)),
+      value: literal(language, coverageBand(coverageEstimate)),
       detail: literal(language, '{value} coverage estimate', {
-        value: formatSenaPercent(diagnostics?.coverageEstimate ?? 0, language),
+        value: formatSenaPercent(coverageEstimate, language),
       }),
-      tone: coverTone(1 - (diagnostics?.coverageEstimate ?? 0)),
+      tone: coverTone(1 - coverageEstimate),
     },
     {
       key: 'bottleneck',
@@ -1522,10 +1558,10 @@ export function deriveAnalysisViewModel({
     fragilityColumns,
     inspectorOverview: {
       dominantRegime: currentRegime,
-      changePointProbability: formatSenaPercent(diagnostics?.changePointProbability ?? 0, language),
+      changePointProbability: formatSenaPercent(changePointProbability, language),
       coverageSummary: literal(language, '{count} evidence points · {coverage} coverage', {
-        count: formatWholeNumber(Math.round(diagnostics?.effectiveSampleSizeMean ?? 0), language),
-        coverage: literal(language, coverageBand(diagnostics?.coverageEstimate ?? 0)),
+        count: formatWholeNumber(Math.round(effectiveSampleSizeMean), language),
+        coverage: literal(language, coverageBand(coverageEstimate)),
       }),
       strongestChannels,
       affectedEntities: topEntityNames(entityRows, 4),
@@ -1536,9 +1572,9 @@ export function deriveAnalysisViewModel({
       observationsUsed: formatWholeNumber(filteredObservations.length, language),
       intervalCount: formatWholeNumber(intervalRows.length, language),
       smoothingLabel: literal(language, diagnostics?.smoothingEnabled ? 'Enabled' : 'Disabled'),
-      effectiveSampleSize: formatWholeNumber(Math.round(diagnostics?.effectiveSampleSizeMean ?? 0), language),
-      predictiveError: formatSenaPercent(diagnostics?.posteriorPredictiveErrorMean ?? 0, language),
-      coverageEstimate: formatSenaPercent(diagnostics?.coverageEstimate ?? 0, language),
+      effectiveSampleSize: formatWholeNumber(Math.round(effectiveSampleSizeMean), language),
+      predictiveError: formatSenaPercent(predictiveError, language),
+      coverageEstimate: formatSenaPercent(coverageEstimate, language),
       scopeSummary: literal(language, scopeSummary(scope)),
     },
     internalNavSummary: literal(language, '{scope} · {observations} observations · {intervals} intervals', {

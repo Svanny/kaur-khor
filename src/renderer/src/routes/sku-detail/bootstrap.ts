@@ -14,6 +14,7 @@ import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import type { InventoryContextValue } from '@/state/inventory';
 import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { activeSenaCatalog } from '@/lib/sena-catalog';
+import { latestObservationAt } from '@/routes/observation-payload';
 import { hashSenaCatalog, projectInventorySnapshotFromSena } from './catalog-seed';
 
 export type SkuDetailUiState = 'ready' | 'bootstrapping' | 'running' | 'needs_observations' | 'degraded';
@@ -201,7 +202,7 @@ export async function bootstrapSkuDetail({
       shouldContinue() &&
       shouldTriggerBootstrapRun({
         detail,
-        latestObservationAt: observations[observations.length - 1]?.input.observedAt ?? null,
+        latestObservationAt: latestObservationAt(observations),
         latestRunObservationCount,
         observationCount: observations.length,
         workspaceSummary,

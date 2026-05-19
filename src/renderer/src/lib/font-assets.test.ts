@@ -48,6 +48,8 @@ describe('bundled font assets', () => {
   test('keeps embedded phone onboarding inside horizontal gutters', () => {
     const globalsCss = readFileSync(join(process.cwd(), 'src/renderer/src/globals.css'), 'utf8');
 
+    expect(globalsCss).toMatch(/\[data-slot="embedded-phone-shell"\]\s+\[data-slot="embedded-phone-main"\]\s*>\s*\[data-slot="onboarding-page"\]\s*\{[^}]*min-height:\s*0\s*!important;[^}]*padding:\s*0 0\.75rem 1rem\s*!important;/s);
+    expect(globalsCss).toMatch(/html\[data-kaur-khor-embedded-phone-portrait="true"\]\s+\[data-slot="onboarding-page"\]\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*min-height:\s*100%;/s);
     expect(globalsCss).toMatch(/html\[data-kaur-khor-embedded-phone-portrait="true"\]\s+\[data-slot="onboarding-page"\]\s*\{[^}]*padding:\s*0 0\.75rem 1rem\s*!important;/s);
   });
 });

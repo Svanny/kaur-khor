@@ -125,6 +125,7 @@ function benchmarkRunWithTargets(targets: Array<{
 }
 
 describe('SettingsRoute', () => {
+  const originalLocation = window.location;
   const getPreferences = vi.fn();
   const savePreferences = vi.fn();
   const getAppContext = vi.fn();
@@ -392,7 +393,7 @@ describe('SettingsRoute', () => {
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: {
-        ...window.location,
+        ...originalLocation,
         reload: reloadLocation,
       },
     });
@@ -1170,7 +1171,7 @@ describe('SettingsRoute', () => {
     const exchangeRateInput = await screen.findByRole('textbox', { name: /exchange rate for 1 usd in khr/i });
     expect(exchangeRateInput).toHaveDisplayValue('4,000');
 
-    fireEvent.change(exchangeRateInput, { target: { value: '4100' } });
+    fireEvent.change(exchangeRateInput, { target: { value: '4,100' } });
     fireEvent.click(firstSavePreferencesButton());
 
     await waitFor(() => {
@@ -1904,6 +1905,18 @@ describe('SettingsRoute', () => {
       expect(screen.queryByText('Valid range: 32 to 2048.')).not.toBeInTheDocument();
     });
     expect(firstSavePreferencesButton()).not.toBeDisabled();
+  });
+
+  it('rejects JavaScript numeric syntax in SENA planning number fields', async () => {
+    renderSettingsRoute('/settings/planning');
+
+    const particleInput = await screen.findByLabelText(/evidence detail level/i);
+    fireEvent.change(particleInput, { target: { value: '1e3' } });
+
+    expect(await screen.findByText('Enter a number. Valid range: 32 to 2048.')).toBeInTheDocument();
+    expect(firstSavePreferencesButton()).toBeDisabled();
+    fireEvent.click(firstSavePreferencesButton());
+    expect(savePreferences).not.toHaveBeenCalled();
   });
 
   it('blocks saving when range low quantile is higher than range high quantile', async () => {

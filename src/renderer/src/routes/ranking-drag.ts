@@ -12,6 +12,15 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function finiteRectNumbers(rect: ClientRect) {
+  return Number.isFinite(rect.left) &&
+    Number.isFinite(rect.right) &&
+    Number.isFinite(rect.top) &&
+    Number.isFinite(rect.bottom) &&
+    Number.isFinite(rect.width) &&
+    Number.isFinite(rect.height);
+}
+
 export function clampOverlayTransformToBoundary({
   activeNodeRect,
   boundaryRect,
@@ -19,6 +28,15 @@ export function clampOverlayTransformToBoundary({
   transform,
 }: ClampOverlayTransformArgs): Transform {
   if (!activeNodeRect || !boundaryRect || !overlayNodeRect) {
+    return transform;
+  }
+  if (
+    !finiteRectNumbers(activeNodeRect) ||
+    !finiteRectNumbers(boundaryRect) ||
+    !finiteRectNumbers(overlayNodeRect) ||
+    !Number.isFinite(transform.x) ||
+    !Number.isFinite(transform.y)
+  ) {
     return transform;
   }
 

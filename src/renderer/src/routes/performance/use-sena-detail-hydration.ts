@@ -114,6 +114,7 @@ export function useSenaDetailHydration(
   const servicePagesByIdRef = useRef<Record<string, SenaServiceDetailPage | null>>({});
   const isLoadingOlderIntervalsRef = useRef(false);
   const timeframeCacheRef = useRef<Record<string, SenaHydrationPages>>({});
+  const hydrationRequestIdRef = useRef(0);
   const previousTimeframeRef = useRef<AnalysisTimeframe | null>(null);
   const previousFreshnessFingerprintRef = useRef<string | null>(null);
   const activeCacheKey = timeframeCacheKey ?? timeframe;
@@ -178,19 +179,23 @@ export function useSenaDetailHydration(
           nextSkuPagesById[skuId] = current ?? null;
           return;
         }
-        const older = normalizeSkuDetailPage(await loadSenaSkuDetail(skuId, {
-          beforeIntervalIndex: current.nextBeforeIntervalIndex,
-          limit,
-          strategy: 'network-only',
-        }));
-        maxPrependedCount = Math.max(maxPrependedCount, older?.detail.demandPosterior.length ?? 0);
-        nextSkuPagesById[skuId] = older && current
-          ? {
-              ...older,
-              latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
-              detail: mergeSkuDetails(older.detail, current.detail),
-            }
-          : current ?? older ?? null;
+        try {
+          const older = normalizeSkuDetailPage(await loadSenaSkuDetail(skuId, {
+            beforeIntervalIndex: current.nextBeforeIntervalIndex,
+            limit,
+            strategy: 'network-only',
+          }));
+          maxPrependedCount = Math.max(maxPrependedCount, older?.detail.demandPosterior.length ?? 0);
+          nextSkuPagesById[skuId] = older && current
+            ? {
+                ...older,
+                latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
+                detail: mergeSkuDetails(older.detail, current.detail),
+              }
+            : current ?? older ?? null;
+        } catch {
+          nextSkuPagesById[skuId] = current;
+        }
       }),
       ...orderedServiceIds.map((serviceId) => async () => {
         const current = currentServicePagesById[serviceId];
@@ -198,19 +203,23 @@ export function useSenaDetailHydration(
           nextServicePagesById[serviceId] = current ?? null;
           return;
         }
-        const older = normalizeServiceDetailPage(await loadSenaServiceDetail(serviceId, {
-          beforeIntervalIndex: current.nextBeforeIntervalIndex,
-          limit,
-          strategy: 'network-only',
-        }));
-        maxPrependedCount = Math.max(maxPrependedCount, older?.detail.regimeTimeline.length ?? 0);
-        nextServicePagesById[serviceId] = older && current
-          ? {
-              ...older,
-              latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
-              detail: mergeServiceDetails(older.detail, current.detail),
-            }
-          : current ?? older ?? null;
+        try {
+          const older = normalizeServiceDetailPage(await loadSenaServiceDetail(serviceId, {
+            beforeIntervalIndex: current.nextBeforeIntervalIndex,
+            limit,
+            strategy: 'network-only',
+          }));
+          maxPrependedCount = Math.max(maxPrependedCount, older?.detail.regimeTimeline.length ?? 0);
+          nextServicePagesById[serviceId] = older && current
+            ? {
+                ...older,
+                latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
+                detail: mergeServiceDetails(older.detail, current.detail),
+              }
+            : current ?? older ?? null;
+        } catch {
+          nextServicePagesById[serviceId] = current;
+        }
       }),
     ];
     await runTaskBatches(tasks, DETAIL_HYDRATION_CONCURRENCY);
@@ -263,12 +272,15 @@ export function useSenaDetailHydration(
     targetBoundaryOverride,
     targetCacheKey,
     targetTimeframe,
+    requestId,
   }: {
     onPagesChange?: (pages: SenaHydrationPages) => void;
+    requestId?: number;
     targetBoundaryOverride?: Date | null;
     targetCacheKey: string;
     targetTimeframe: AnalysisTimeframe;
   }) => {
+    const isCurrentRequest = () => requestId == null || hydrationRequestIdRef.current === requestId;
     const storage = detailHydrationStorage();
     const cachedSkuPages = Object.fromEntries(
       targetSkuIds.map((skuId) => [
@@ -331,6 +343,12 @@ export function useSenaDetailHydration(
     await runTaskBatches(hydrationTasks, DETAIL_HYDRATION_CONCURRENCY, () => {
       onPagesChange?.({ servicePages, skuPages });
     });
+    if (!isCurrentRequest()) {
+      return {
+        servicePages,
+        skuPages,
+      };
+    }
     onPagesChange?.({ servicePages, skuPages });
 
     const boundary = deriveAnalysisTimeframeBoundary(workspaceSummary?.latestObservedAt, targetTimeframe);
@@ -369,6 +387,12 @@ export function useSenaDetailHydration(
     })) {
       const requestedBatchCount = Math.max(1, estimatedBatchCount);
       if (requestedBatchCount > 1) {
+        if (!isCurrentRequest()) {
+          return {
+            servicePages,
+            skuPages,
+          };
+        }
         setTimeframeHydrationProgress({
           current: 1,
           total: requestedBatchCount,
@@ -379,11 +403,23 @@ export function useSenaDetailHydration(
         currentSkuPagesById: skuPages,
         limit: 10 * requestedBatchCount,
       });
+      if (!isCurrentRequest()) {
+        return {
+          servicePages,
+          skuPages,
+        };
+      }
       skuPages = nextBatch.skuPagesById;
       servicePages = nextBatch.servicePagesById;
       onPagesChange?.({ servicePages, skuPages });
     }
 
+    if (!isCurrentRequest()) {
+      return {
+        servicePages,
+        skuPages,
+      };
+    }
     setTimeframeHydrationProgress(null);
     timeframeCacheRef.current[targetCacheKey] = { servicePages, skuPages };
     setResolvedTimeframeCacheKey(targetCacheKey);
@@ -407,6 +443,7 @@ export function useSenaDetailHydration(
 
   useEffect(() => {
     if (!catalog || !workspaceSummary) {
+      hydrationRequestIdRef.current += 1;
       timeframeCacheRef.current = {};
       setResolvedTimeframeCacheKey(null);
       skuPagesByIdRef.current = {};
@@ -418,6 +455,8 @@ export function useSenaDetailHydration(
       previousFreshnessFingerprintRef.current = null;
       return;
     }
+
+    const requestId = hydrationRequestIdRef.current;
 
     if (previousFreshnessFingerprintRef.current !== freshnessFingerprint) {
       timeframeCacheRef.current = {};
@@ -478,17 +517,18 @@ export function useSenaDetailHydration(
       }
       void loadInitialPages({
         onPagesChange: (pages) => {
-          if (!active) {
+          if (!active || hydrationRequestIdRef.current !== requestId) {
             return;
           }
           publishPages(activeCacheKey, pages);
         },
+        requestId,
         targetBoundaryOverride: timeframeBoundaryOverride,
         targetCacheKey: activeCacheKey,
         targetTimeframe: timeframe,
       })
         .then((pages) => {
-          if (!active) {
+          if (!active || hydrationRequestIdRef.current !== requestId) {
             return;
           }
           publishPages(activeCacheKey, pages);
@@ -496,7 +536,7 @@ export function useSenaDetailHydration(
           setIsHydratingDetails(false);
         })
         .catch(() => {
-          if (!active) {
+          if (!active || hydrationRequestIdRef.current !== requestId) {
             return;
           }
           setIsHydratingDetails(false);
@@ -513,6 +553,7 @@ export function useSenaDetailHydration(
 
     return () => {
       active = false;
+      hydrationRequestIdRef.current += 1;
       if (timeoutId != null) {
         window.clearTimeout(timeoutId);
       }
@@ -538,14 +579,24 @@ export function useSenaDetailHydration(
       setServicePagesById({});
       return;
     }
+    const requestId = hydrationRequestIdRef.current + 1;
+    hydrationRequestIdRef.current = requestId;
     setIsHydratingDetails(true);
     try {
       const pages = await loadInitialPages({
-        onPagesChange: (nextPages) => publishPages(activeCacheKey, nextPages),
+        onPagesChange: (nextPages) => {
+          if (hydrationRequestIdRef.current === requestId) {
+            publishPages(activeCacheKey, nextPages);
+          }
+        },
+        requestId,
         targetBoundaryOverride: timeframeBoundaryOverride,
         targetCacheKey: activeCacheKey,
         targetTimeframe: timeframe,
       });
+      if (hydrationRequestIdRef.current !== requestId) {
+        return;
+      }
       publishPages(activeCacheKey, pages);
       setResolvedTimeframeCacheKey(activeCacheKey);
     } finally {
@@ -560,12 +611,16 @@ export function useSenaDetailHydration(
     }
     isLoadingOlderIntervalsRef.current = true;
     setIsLoadingOlderIntervals(true);
+    const requestId = hydrationRequestIdRef.current;
     try {
       const nextBatch = await loadOlderPageBatch({
         currentServicePagesById: servicePagesByIdRef.current,
         currentSkuPagesById: skuPagesByIdRef.current,
         limit,
       });
+      if (hydrationRequestIdRef.current !== requestId) {
+        return 0;
+      }
       publishPages(activeCacheKey, {
         servicePages: nextBatch.servicePagesById,
         skuPages: nextBatch.skuPagesById,

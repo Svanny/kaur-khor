@@ -382,6 +382,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   const loadOlder = useCallback(async (limit = INTERVAL_LOAD_BATCH_SIZE) => {
     const currentPage = pageRef.current;
     const activeCacheKey = timeframeCacheKey ?? timeframe;
+    const requestId = hydrationRequestIdRef.current;
     if (
       isLoadingOlderRef.current ||
       !currentPage?.hasOlder ||
@@ -395,6 +396,9 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
         currentPage,
         limit,
       });
+      if (hydrationRequestIdRef.current !== requestId) {
+        return null;
+      }
       timeframeCacheRef.current[activeCacheKey] = nextBatch.page;
       setPage(nextBatch.page);
       return nextBatch.page;

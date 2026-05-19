@@ -885,6 +885,394 @@ describe('InventoryProvider', () => {
     });
   });
 
+  it('hydrates the initial observation page when cursor fields normalize to empty', async () => {
+    function ObservationPageHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="observation-count">{inventory.observations.length}</div>
+          <button
+            type="button"
+            onClick={() => void inventory.listSenaObservationPage({ beforeObservedAt: ' ', beforeObservationId: ' ' })}
+          >
+            load whitespace observation page
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <InventoryProvider>
+        <ObservationPageHarness />
+      </InventoryProvider>,
+    );
+
+    fireEvent.click(screen.getByText('load whitespace observation page'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('observation-count').textContent).toBe('1');
+    });
+    expect(window.kaurKhorDesktop.sena.listObservationPage).toHaveBeenLastCalledWith({
+      beforeObservedAt: null,
+      beforeObservationId: null,
+      limit: 100,
+    });
+  });
+
+  it('does not let stale in-flight reads repopulate the SENA read cache after mutations', async () => {
+    function OrderCacheHarness() {
+      const inventory = useInventory();
+      const [filteredCount, setFilteredCount] = useState('none');
+
+      return (
+        <div>
+          <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <div data-testid="filtered-order-count">{filteredCount}</div>
+          <div data-testid="state-order-count">{inventory.orderBatches.length}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.listSenaOrderBatches({ status: 'open' }).then((batches) => {
+                setFilteredCount(String(batches.length));
+              })
+            }
+          >
+            load filtered orders
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.createSenaOrderBatch({
+                children: [{ skuId: 'sku-1' }],
+                shared: { supplierName: 'Test supplier' },
+              })
+            }
+          >
+            create order
+          </button>
+        </div>
+      );
+    }
+
+    const staleFilteredRead = deferred<SenaOrderBatchRecord[]>();
+    const freshBatch = makeOrderBatch();
+    const filteredReads: Array<SenaOrderBatchRecord[]> = [[freshBatch]];
+    window.kaurKhorDesktop.sena.listOrderBatches = vi.fn(async (payload) => {
+      if (payload?.status === 'open') {
+        return filteredReads.shift() ?? [freshBatch];
+      }
+      return [freshBatch];
+    });
+    vi.mocked(window.kaurKhorDesktop.sena.listOrderBatches).mockImplementationOnce(async (payload) => {
+      if (payload?.status === 'open') {
+        return staleFilteredRead.promise;
+      }
+      return [freshBatch];
+    });
+
+    render(
+      <InventoryProvider>
+        <OrderCacheHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
+    });
+
+    fireEvent.click(screen.getByText('load filtered orders'));
+    await waitFor(() => {
+      expect(window.kaurKhorDesktop.sena.listOrderBatches).toHaveBeenCalledWith({ status: 'open' });
+    });
+
+    fireEvent.click(screen.getByText('create order'));
+    await waitFor(() => {
+      expect(screen.getByTestId('state-order-count').textContent).toBe('1');
+    });
+
+    await act(async () => {
+      staleFilteredRead.resolve([]);
+      await staleFilteredRead.promise;
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('filtered-order-count').textContent).toBe('0');
+    });
+
+    fireEvent.click(screen.getByText('load filtered orders'));
+    await waitFor(() => {
+      expect(screen.getByTestId('filtered-order-count').textContent).toBe('1');
+    });
+    expect(window.kaurKhorDesktop.sena.listOrderBatches).toHaveBeenCalledTimes(3);
+  });
+
+  it('treats blank order lookup filters as an unfiltered state update', async () => {
+    function BlankOrderFilterHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="state-order-count">{inventory.orderBatches.length}</div>
+          <button
+            type="button"
+            onClick={() => void inventory.listSenaOrderBatches({ batchOrderId: ' ', childOrderId: ' ', skuId: ' ', supplierName: ' ' })}
+          >
+            load blank-filter orders
+          </button>
+        </div>
+      );
+    }
+
+    const batch = makeOrderBatch();
+    window.kaurKhorDesktop.sena.listOrderBatches = vi.fn(async () => [batch]);
+
+    render(
+      <InventoryProvider>
+        <BlankOrderFilterHarness />
+      </InventoryProvider>,
+    );
+
+    fireEvent.click(screen.getByText('load blank-filter orders'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('state-order-count').textContent).toBe('1');
+    });
+    expect(window.kaurKhorDesktop.sena.listOrderBatches).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('does not let stale in-flight detail reads repopulate the local or persisted detail cache after mutations', async () => {
+    function DetailCacheHarness() {
+      const inventory = useInventory();
+      const [latestIntervalIndex, setLatestIntervalIndex] = useState('none');
+
+      return (
+        <div>
+          <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <div data-testid="latest-interval-index">{latestIntervalIndex}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.loadSenaSkuDetail('sku-1').then((page) => {
+                setLatestIntervalIndex(String(page?.latestIntervalIndex ?? 'none'));
+              })
+            }
+          >
+            load sku detail
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.createSenaOrderBatch({
+                children: [{ skuId: 'sku-1' }],
+                shared: { supplierName: 'Test supplier' },
+              })
+            }
+          >
+            create order
+          </button>
+        </div>
+      );
+    }
+
+    const staleDetailRead = deferred<SenaSkuDetailPage>();
+    window.kaurKhorDesktop.sena.getSkuDetail = vi
+      .fn()
+      .mockImplementationOnce(async () => staleDetailRead.promise)
+      .mockResolvedValueOnce(makeSkuDetailPage(30));
+    const freshBatch = makeOrderBatch();
+    window.kaurKhorDesktop.sena.listOrderBatches = vi.fn(async () => [freshBatch]);
+
+    render(
+      <InventoryProvider>
+        <DetailCacheHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
+    });
+
+    fireEvent.click(screen.getByText('load sku detail'));
+    await waitFor(() => {
+      expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByText('create order'));
+    await waitFor(() => {
+      expect(window.kaurKhorDesktop.sena.createOrderBatch).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      staleDetailRead.resolve(makeSkuDetailPage(10));
+      await staleDetailRead.promise;
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('latest-interval-index').textContent).toBe('10');
+    });
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(sampleWorkspace),
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+
+    fireEvent.click(screen.getByText('load sku detail'));
+    await waitFor(() => {
+      expect(screen.getByTestId('latest-interval-index').textContent).toBe('30');
+    });
+    expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(2);
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(sampleWorkspace),
+      limit: 20,
+      storage: window.localStorage,
+    })?.latestIntervalIndex).toBe(30);
+  });
+
+  it('does not let stale in-flight detail reads repopulate the detail cache after reload', async () => {
+    function ReloadDetailCacheHarness() {
+      const inventory = useInventory();
+      const [latestIntervalIndex, setLatestIntervalIndex] = useState('none');
+
+      return (
+        <div>
+          <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <div data-testid="latest-interval-index">{latestIntervalIndex}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.loadSenaSkuDetail('sku-1').then((page) => {
+                setLatestIntervalIndex(String(page?.latestIntervalIndex ?? 'none'));
+              })
+            }
+          >
+            load sku detail
+          </button>
+          <button type="button" onClick={() => void inventory.reload()}>
+            reload workspace
+          </button>
+        </div>
+      );
+    }
+
+    const staleDetailRead = deferred<SenaSkuDetailPage>();
+    window.kaurKhorDesktop.sena.getSkuDetail = vi
+      .fn()
+      .mockImplementationOnce(async () => staleDetailRead.promise)
+      .mockResolvedValueOnce(makeSkuDetailPage(30));
+
+    render(
+      <InventoryProvider>
+        <ReloadDetailCacheHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
+    });
+
+    fireEvent.click(screen.getByText('load sku detail'));
+    await waitFor(() => {
+      expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByText('reload workspace'));
+    await waitFor(() => {
+      expect(window.kaurKhorDesktop.sena.getStartupWorkspace).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      staleDetailRead.resolve(makeSkuDetailPage(10));
+      await staleDetailRead.promise;
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('latest-interval-index').textContent).toBe('10');
+    });
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(sampleWorkspace),
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+
+    fireEvent.click(screen.getByText('load sku detail'));
+    await waitFor(() => {
+      expect(screen.getByTestId('latest-interval-index').textContent).toBe('30');
+    });
+    expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores stale reload responses after a newer reload finishes', async () => {
+    function ReloadRaceHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="loading">{String(inventory.isLoading)}</div>
+          <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <button type="button" onClick={() => void inventory.reload()}>
+            reload workspace
+          </button>
+        </div>
+      );
+    }
+
+    const firstReload = deferred<Awaited<ReturnType<DesktopBridge['sena']['getStartupWorkspace']>>>();
+    const secondWorkspace = {
+      catalog: sampleCatalog,
+      workspaceSummary: { ...sampleWorkspace, runId: 'run-new' },
+      latestRun: { ...sampleRun, runId: 'run-new', summary: { ...sampleWorkspace, runId: 'run-new' } },
+      observationFingerprint: sampleObservationFingerprint,
+    };
+    const staleWorkspace = {
+      catalog: sampleCatalog,
+      workspaceSummary: { ...sampleWorkspace, runId: 'run-stale' },
+      latestRun: { ...sampleRun, runId: 'run-stale', summary: { ...sampleWorkspace, runId: 'run-stale' } },
+      observationFingerprint: sampleObservationFingerprint,
+    };
+    window.kaurKhorDesktop.sena.getStartupWorkspace = vi
+      .fn()
+      .mockResolvedValueOnce({
+        catalog: sampleCatalog,
+        workspaceSummary: sampleWorkspace,
+        latestRun: sampleRun,
+        observationFingerprint: sampleObservationFingerprint,
+      })
+      .mockImplementationOnce(async () => firstReload.promise)
+      .mockResolvedValueOnce(secondWorkspace);
+
+    render(
+      <InventoryProvider>
+        <ReloadRaceHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
+    });
+
+    fireEvent.click(screen.getByText('reload workspace'));
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('true');
+    });
+    fireEvent.click(screen.getByText('reload workspace'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-run').textContent).toBe('run-new');
+    });
+
+    await act(async () => {
+      firstReload.resolve(staleWorkspace);
+      await firstReload.promise;
+    });
+
+    expect(screen.getByTestId('workspace-run').textContent).toBe('run-new');
+    expect(screen.getByTestId('loading').textContent).toBe('false');
+  });
+
   it('normalizes missing archive flags on load and persists archive mutations', async () => {
     function ArchiveHarness() {
       const inventory = useInventory();

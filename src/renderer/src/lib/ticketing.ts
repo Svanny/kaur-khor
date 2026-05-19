@@ -111,9 +111,10 @@ export function buildCustomerLinkDirectoryFromParties(parties: Array<SenaTicketP
       continue;
     }
     const name = collapseSpaces(party.customerName ?? '');
-    const phone = formatPhoneForDisplay(party.phone ?? '');
-    const nameKey = party.customerNameKey ?? normalizeTicketLookupValue(name);
-    const phoneKey = normalizePhoneLookupKey(party.phone ?? party.phoneKey ?? '');
+    const rawPhone = party.phone ?? party.phoneKey ?? '';
+    const phone = formatPhoneForDisplay(rawPhone);
+    const nameKey = normalizeTicketLookupValue(name);
+    const phoneKey = normalizePhoneLookupKey(rawPhone);
     if (name && nameKey) {
       nameByKey.set(nameKey, name);
       entriesByKey.set(`${nameKey}:${phoneKey}`, { name, phone });
@@ -262,7 +263,7 @@ export function summarizeDeliveryFee({
   payer: SenaDeliveryFeePayer;
   subtotalUsd: number | null;
 }): DeliveryFeeSummary {
-  if (subtotalUsd == null) {
+  if (subtotalUsd == null || !Number.isFinite(subtotalUsd)) {
     return {
       subtotalUsd: null,
       displayDeliveryUsd: null,
@@ -270,28 +271,29 @@ export function summarizeDeliveryFee({
       netSettlementUsd: null,
     };
   }
+  const safeSubtotal = Math.max(0, subtotalUsd);
   const safeFee = feeUsd != null && Number.isFinite(feeUsd) && feeUsd > 0 ? feeUsd : 0;
   if (bucket === 'supplier') {
     return {
-      subtotalUsd,
+      subtotalUsd: safeSubtotal,
       displayDeliveryUsd: safeFee,
-      displayTotalUsd: subtotalUsd + safeFee,
-      netSettlementUsd: subtotalUsd + safeFee,
+      displayTotalUsd: safeSubtotal + safeFee,
+      netSettlementUsd: safeSubtotal + safeFee,
     };
   }
   if (payer === 'customer') {
     return {
-      subtotalUsd,
+      subtotalUsd: safeSubtotal,
       displayDeliveryUsd: safeFee,
-      displayTotalUsd: subtotalUsd + safeFee,
-      netSettlementUsd: subtotalUsd + safeFee,
+      displayTotalUsd: safeSubtotal + safeFee,
+      netSettlementUsd: safeSubtotal + safeFee,
     };
   }
   return {
-    subtotalUsd,
+    subtotalUsd: safeSubtotal,
     displayDeliveryUsd: 0,
-    displayTotalUsd: subtotalUsd,
-    netSettlementUsd: subtotalUsd - safeFee,
+    displayTotalUsd: safeSubtotal,
+    netSettlementUsd: safeSubtotal - safeFee,
   };
 }
 
@@ -306,11 +308,12 @@ export function buildDeliveryFeeMetadata({
   payer: SenaDeliveryFeePayer;
   subtotalUsd: number | null;
 }): SenaDeliveryFeeMetadata {
+  const normalizedFeeUsd = feeUsd != null && Number.isFinite(feeUsd) && feeUsd >= 0 ? feeUsd : null;
   return {
-    feeUsd,
+    feeUsd: normalizedFeeUsd,
     payer,
     bucket,
-    ...summarizeDeliveryFee({ bucket, feeUsd, payer, subtotalUsd }),
+    ...summarizeDeliveryFee({ bucket, feeUsd: normalizedFeeUsd, payer, subtotalUsd }),
   };
 }
 
@@ -356,11 +359,20 @@ export function buildDiscountMetadata({
   percent: number | null;
   subtotalUsd: number | null;
 }): SenaDiscountMetadata {
+  const normalizedAmountUsd = amountUsd != null && Number.isFinite(amountUsd) && amountUsd >= 0 ? amountUsd : null;
+  const normalizedPercent = percent != null && Number.isFinite(percent)
+    ? Math.min(100, Math.max(0, percent))
+    : null;
   return {
     mode,
-    amountUsd: mode === 'amount' ? amountUsd : null,
-    percent: mode === 'percent' ? percent : null,
-    ...summarizeDiscount({ amountUsd, mode, percent, subtotalUsd }),
+    amountUsd: mode === 'amount' ? normalizedAmountUsd : null,
+    percent: mode === 'percent' ? normalizedPercent : null,
+    ...summarizeDiscount({
+      amountUsd: normalizedAmountUsd,
+      mode,
+      percent: normalizedPercent,
+      subtotalUsd,
+    }),
   };
 }
 
@@ -390,10 +402,10 @@ export function latestDeliveryFeeMetadata(
 }
 
 export function ticketLabel(event: SenaTicketEvent) {
-  const partyName = event.party?.customerName ?? event.party?.supplierName ?? null;
+  const partyName = collapseSpaces(event.party?.customerName ?? event.party?.supplierName ?? '');
   const lineSummary = event.lines
     .map((line) => line.entityId)
     .slice(0, 2)
     .join(', ');
-  return (partyName ?? lineSummary) || event.ticketId;
+  return partyName || lineSummary || event.ticketId;
 }

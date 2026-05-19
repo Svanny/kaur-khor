@@ -92,7 +92,7 @@ function CapturePage() {
       <CurrentPath />
       <RouteBackButton />
       <Link to="/work/capture/stock-count">
-        Open Stock Count
+        Open Products Update
       </Link>
     </div>
   );
@@ -173,6 +173,36 @@ describe('NavigationHistoryProvider', () => {
     await user.click(screen.getByRole('link', { name: 'Open SKU' }));
     expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
     expect(storage.setItem).toHaveBeenCalled();
+  });
+
+  test('ignores poisoned session history targets outside the app', async () => {
+    window.sessionStorage.setItem('kaur-khor.navigation-history', JSON.stringify([
+      {
+        fallbackTo: 'https://example.com/fallback',
+        key: 'poisoned',
+        origin: '//example.com/origin',
+        to: 'https://example.com/current',
+      },
+    ]));
+    const user = userEvent.setup();
+    renderHistoryApp(['/catalog/skus/sku-1']);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog$/);
+  });
+
+  test('ignores poisoned navigation state targets outside the app', async () => {
+    const user = userEvent.setup();
+    renderHistoryApp([{
+      pathname: '/catalog/skus/sku-1',
+      state: {
+        kaurKhorNavigationFallback: '//example.com/fallback',
+        kaurKhorNavigationOrigin: 'https://example.com/origin',
+      },
+    }]);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog$/);
   });
 
   test('returns to the exact overview route including search params', async () => {
@@ -277,7 +307,7 @@ describe('NavigationHistoryProvider', () => {
     const user = userEvent.setup();
     renderHistoryApp(['/work/capture']);
 
-    await user.click(screen.getByRole('link', { name: 'Open Stock Count' }));
+    await user.click(screen.getByRole('link', { name: 'Open Products Update' }));
     expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture\/stock-count$/);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
@@ -292,7 +322,7 @@ describe('NavigationHistoryProvider', () => {
     await user.click(screen.getByRole('link', { name: 'Open Capture' }));
     expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture$/);
 
-    await user.click(screen.getByRole('link', { name: 'Open Stock Count' }));
+    await user.click(screen.getByRole('link', { name: 'Open Products Update' }));
     expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture\/stock-count$/);
 
     await user.click(screen.getByRole('link', { name: 'Open Capture As Link' }));

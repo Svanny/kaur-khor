@@ -7,12 +7,14 @@ import {
   formatEditableMoneyFromUsd,
   formatEditableNumberWithCommas,
   parseEditableNumberWithCommas,
+  formatNumber,
   sanitizeEditableWholeNumber,
   sanitizeEditableNumberDraft,
   formatEditableWholeNumber,
   formatEditableMoney,
   formatQuantityForDisplay,
   formatWholeNumber,
+  reformatMoneyDraftValue,
   sanitizeWholeNumberForDisplay,
   usdMoneyFromDisplay,
   currencyInputSymbol,
@@ -35,6 +37,56 @@ describe('format helpers', () => {
     expect(usdMoneyFromDisplay(8000, 'KHR', 4000)).toBe(2);
   });
 
+  it('falls back from dirty exchange rates before money conversion', () => {
+    expect(displayMoneyFromUsd(2, 'KHR', Number.POSITIVE_INFINITY)).toBe(displayMoneyFromUsd(2, 'KHR'));
+    expect(displayMoneyFromUsd(2, 'KHR', Number.NaN)).toBe(displayMoneyFromUsd(2, 'KHR'));
+    expect(usdMoneyFromDisplay(8000, 'KHR', 0)).toBe(usdMoneyFromDisplay(8000, 'KHR'));
+    expect(formatCurrency(2, 'KHR', 'en', Number.POSITIVE_INFINITY)).toBe(formatCurrency(2, 'KHR', 'en'));
+    expect(formatEditableMoneyFromUsd(2, 'KHR', Number.NaN)).toBe(formatEditableMoneyFromUsd(2, 'KHR'));
+  });
+
+  it('does not divide KHR drafts by dirty exchange rates during currency reformatting', () => {
+    expect(
+      reformatMoneyDraftValue({
+        value: '8,000',
+        previousCurrency: 'KHR',
+        previousUsdToKhrExchangeRate: 0,
+        nextCurrency: 'USD',
+      }),
+    ).toBe(formatEditableMoneyFromUsd(usdMoneyFromDisplay(8000, 'KHR'), 'USD'));
+  });
+
+  it('contains non-finite display numbers before they reach route copy', () => {
+    expect(formatCurrency(Number.NaN, 'USD', 'en', 4000)).toBe('$0.00');
+    expect(formatNumber(Number.POSITIVE_INFINITY, 'en')).toBe('0');
+    expect(formatWholeNumber(Number.NaN, 'en')).toBe('0');
+    expect(formatQuantityForDisplay(Number.NaN, 'en')).toBe('0');
+    expect(formatCompactQuantityPill(Number.POSITIVE_INFINITY)).toBe('0');
+  });
+
+  it('leaves non-finite money drafts unchanged during currency reformatting', () => {
+    expect(
+      reformatMoneyDraftValue({
+        value: 'Infinity',
+        previousCurrency: 'USD',
+        nextCurrency: 'KHR',
+        nextUsdToKhrExchangeRate: 4000,
+      }),
+    ).toBe('Infinity');
+  });
+
+  it('reformats comma-formatted money drafts between currencies', () => {
+    expect(parseEditableNumberWithCommas('1,234.50')).toBe(1234.5);
+    expect(
+      reformatMoneyDraftValue({
+        value: '1,234.50',
+        previousCurrency: 'USD',
+        nextCurrency: 'KHR',
+        nextUsdToKhrExchangeRate: 4000,
+      }),
+    ).toBe('4938000');
+  });
+
   it('trims trailing zeros after rounding editable decimals', () => {
     expect(formatEditableDecimal(3.4567, 2)).toBe('3.46');
     expect(formatEditableDecimal(8.0, 2)).toBe('8');
@@ -52,6 +104,11 @@ describe('format helpers', () => {
 
   it('parses and sanitizes editable number drafts', () => {
     expect(parseEditableNumberWithCommas('7,960,000.12345')).toBe(7960000.12345);
+    expect(parseEditableNumberWithCommas('-1,234.5')).toBe(-1234.5);
+    expect(parseEditableNumberWithCommas('0x10')).toBeNaN();
+    expect(parseEditableNumberWithCommas('1e3')).toBeNaN();
+    expect(parseEditableNumberWithCommas('Infinity')).toBeNaN();
+    expect(parseEditableNumberWithCommas('12,34')).toBeNaN();
     expect(sanitizeEditableNumberDraft('7,960,000.12345')).toBe('7960000.12345');
     expect(sanitizeEditableNumberDraft('12.34.56')).toBe('12.3456');
     expect(sanitizeEditableNumberDraft('12.34', 'integer')).toBe('1234');
@@ -64,6 +121,7 @@ describe('format helpers', () => {
     expect(formatEditableWholeNumber(9.6)).toBe('10');
     expect(sanitizeEditableWholeNumber('9.6')).toBe('10');
     expect(sanitizeEditableWholeNumber('')).toBe('');
+    expect(sanitizeEditableWholeNumber('Infinity')).toBe('Infinity');
   });
 
   it('preserves sub-unit quantity precision without collapsing to zero', () => {

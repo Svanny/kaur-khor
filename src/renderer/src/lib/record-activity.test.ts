@@ -151,6 +151,15 @@ const context: SenaRecordUpdateContext = {
   recentActivity: [],
 };
 
+function localDateKey(value: string) {
+  const date = new Date(value);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 describe('record activity helpers', () => {
   test('builds open ticket options from compact context', () => {
     expect(recordTicketOptions(context, 'customer', catalog)).toEqual([{
@@ -221,6 +230,30 @@ describe('record activity helpers', () => {
     expect(option?.label).not.toContain('service-');
   });
 
+  test('builds fallback ticket option labels by local calendar date', () => {
+    const occurredAt = '2026-04-21T17:30:00.000Z';
+    const customerContext: SenaRecordUpdateContext = {
+      ...context,
+      openTicketsByFamily: {
+        customer: [{
+          ticketId: 'ticket-customer-local-date',
+          ticketFamily: 'customer',
+          lifecycle: 'open',
+          stage: 'pending',
+          revision: 1,
+          eventType: 'created',
+          occurredAt,
+          lines: [{ entityType: 'sku', entityId: 'sku-1', quantityDelta: 2 }],
+        }],
+        supplier: [],
+      },
+    };
+
+    const [option] = recordTicketOptions(customerContext, 'customer', catalog);
+
+    expect(option?.label).toBe(`Ticket ID: ${localDateKey(occurredAt)}-#1`);
+  });
+
   test('sorts dirty customer ticket timestamps after valid display labels', () => {
     const dirtyContext: SenaRecordUpdateContext = {
       ...context,
@@ -276,6 +309,34 @@ describe('record activity helpers', () => {
     expect(option?.metadata).toBe('SKU · 4u, Service · 1u');
     expect(visibleText).not.toContain('sku-secret');
     expect(visibleText).not.toContain('service-secret');
+  });
+
+  test('keeps dirty supplier ticket quantities out of metadata labels', () => {
+    const supplierContext: SenaRecordUpdateContext = {
+      ...context,
+      openTicketsByFamily: {
+        customer: [],
+        supplier: [{
+          ticketId: 'ticket-supplier-dirty',
+          ticketFamily: 'supplier',
+          lifecycle: 'open',
+          stage: 'ordered_waiting',
+          revision: 1,
+          eventType: 'created',
+          occurredAt: '2026-04-21T10:10:00.000Z',
+          party: { role: 'supplier', supplierName: 'Mekong Looms' },
+          lines: [
+            { entityType: 'sku', entityId: 'sku-1', orderedQuantity: Number.NaN },
+            { entityType: 'service', entityId: 'service-1', orderedQuantity: 0 },
+          ],
+        }],
+      },
+    };
+
+    const [option] = recordTicketOptions(supplierContext, 'supplier', catalog);
+
+    expect(option?.metadata).toBe('Razor refill, Haircut · 0u');
+    expect(option?.metadata).not.toContain('NaN');
   });
 
   test('builds customer directory from compact ticket summaries', () => {

@@ -16,6 +16,10 @@ import {
 
 const PAGE_STATE_MEMORY_STORAGE_KEY = 'kaur-khor:page-state-memory:v1';
 
+function scopedPageValueKey(scope: string, key: string) {
+  return `$scoped:${JSON.stringify([scope, key])}`;
+}
+
 function makeStorageMock() {
   const state = new Map<string, string>();
   return {
@@ -152,8 +156,8 @@ describe('useTradingChartController', () => {
 
     await waitFor(() => {
       const record = JSON.parse(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY) ?? '{}');
-      expect(record.catalog?.values?.['sku:sku-1:chartLayout']?.paneHeights).toEqual({ main: 360 });
-      expect(record.catalog?.values?.['sku:sku-1:chartLayout']?.paneHeightsSource).toBe('manual');
+      expect(record.catalog?.values?.[scopedPageValueKey('sku:sku-1', 'chartLayout')]?.paneHeights).toEqual({ main: 360 });
+      expect(record.catalog?.values?.[scopedPageValueKey('sku:sku-1', 'chartLayout')]?.paneHeightsSource).toBe('manual');
     });
   });
 

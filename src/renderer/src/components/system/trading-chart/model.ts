@@ -816,10 +816,15 @@ export function deriveTradingChartModel(model: SenaSkuDetailViewModel): TradingC
 }
 
 function pointTimestampMs(point: TradingChartPoint) {
-  const timestamp =
-    Date.parse(point.endAt ?? '') ||
-    Date.parse(point.startAt ?? '') ||
-    (typeof point.time === 'number' ? point.time * 1000 : Number(point.time) * 1000);
+  const endAtTimestamp = Date.parse(point.endAt ?? '');
+  if (Number.isFinite(endAtTimestamp)) {
+    return endAtTimestamp;
+  }
+  const startAtTimestamp = Date.parse(point.startAt ?? '');
+  if (Number.isFinite(startAtTimestamp)) {
+    return startAtTimestamp;
+  }
+  const timestamp = typeof point.time === 'number' ? point.time * 1000 : Number(point.time) * 1000;
   return Number.isFinite(timestamp) ? timestamp : point.intervalIndex;
 }
 

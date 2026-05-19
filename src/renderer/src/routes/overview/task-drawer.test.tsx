@@ -329,6 +329,17 @@ describe('OverviewTaskDrawer', () => {
     expect(expectedArrivalInput).toHaveValue('2026-04-20');
   });
 
+  test('blocks supplier drawer saves when the observed timestamp is cleared', async () => {
+    renderDrawer(ticketTask, 'goods_received');
+
+    fireEvent.change(await screen.findByLabelText('Received date/time'), { target: { value: '' } });
+
+    const saveButton = screen.getByRole('button', { name: 'Confirm inventory update' });
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(saveButton);
+    expect(inventoryHook().ingestSenaObservation).not.toHaveBeenCalled();
+  });
+
   test('renders an existing ticket quick-update drawer without detailed quantity or cost editors', async () => {
     renderDrawer(ticketTask);
 
@@ -344,6 +355,29 @@ describe('OverviewTaskDrawer', () => {
     expect(screen.queryByLabelText('Received cost')).not.toBeInTheDocument();
     expect(screen.queryByText('Recommended order')).not.toBeInTheDocument();
     expect(screen.queryByText(/next stock/i)).not.toBeInTheDocument();
+  });
+
+  test('routes draft supplier queue groups to the existing child ticket when editing in Capture', async () => {
+    renderDrawer({
+      ...ticketTask,
+      id: 'draft-supplier-ticket:sku-3',
+      ticketId: 'draft-supplier-ticket:sku-3',
+      ticket: {
+        ...supplierTicket,
+        ticketId: 'draft-supplier-ticket:sku-3',
+      },
+      childTasks: [{
+        ...childTask,
+        supplierTicket: null,
+        supplierTicketId: 'supplier-ticket-1',
+      }],
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Supplier Ticket ID: 2026-04-09-#1' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Edit in Capture' })).toHaveAttribute(
+      'href',
+      '/work/capture/supplier-order?ticketMode=edit&ticketId=supplier-ticket-1',
+    );
   });
 
   test('uses the bottom sheet presentation for embedded phone drawers', async () => {
@@ -395,8 +429,34 @@ describe('OverviewTaskDrawer', () => {
     });
   });
 
+  test('does not propagate dirty lead-time uncertainty from supplier tasks', async () => {
+    renderDrawer({ ...ticketTask, leadTimeStdDays: Number.POSITIVE_INFINITY }, 'eta_changed');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => {
+      expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+        leadTimeHints: [
+          expect.objectContaining({
+            skuId: 'sku-3',
+            typicalDays: expect.any(Number),
+            lowDays: expect.any(Number),
+            highDays: expect.any(Number),
+          }),
+        ],
+      }));
+    });
+    const payload = inventoryHook().ingestSenaObservation.mock.calls[0]?.[0] as { leadTimeHints?: Array<Record<string, unknown>> };
+    expect(JSON.stringify(payload.leadTimeHints)).not.toMatch(/Infinity|NaN|null/);
+  });
+
   test('marks goods received with existing ticket line quantities', async () => {
     renderDrawer({ ...ticketTask, defaultDrawerMode: 'goods_received' }, 'goods_received');
+
+    expect(await screen.findByRole('link', { name: 'Edit in Capture' })).toHaveAttribute(
+      'href',
+      '/work/capture/supplier-receipt?ticketMode=edit&ticketId=supplier-ticket-1&skus=sku-3&flashTargets=supplier-receipt%3Asku-3',
+    );
 
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm inventory update' }));
 

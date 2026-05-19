@@ -24,6 +24,8 @@ export interface ProductAttributeSelection {
 export type ProductAttributeCombination = ProductAttributeSelection[];
 
 export const MAX_PRODUCT_ATTRIBUTE_VARIANTS = 100;
+export const MAX_CUSTOM_PRODUCT_ATTRIBUTE_PRESETS = 50;
+export const MAX_PRODUCT_ATTRIBUTE_OPTIONS_PER_PRESET = 50;
 
 export const curatedProductAttributePresets: ProductAttributePreset[] = [
   { name: 'Size', options: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
@@ -77,13 +79,17 @@ export function sanitizeProductAttributePresets(value: unknown): ProductAttribut
     }
     for (const option of candidate.options) {
       const sanitizedOption = sanitizeText(option);
-      if (sanitizedOption) {
-        optionMap.set(normalizeKey(sanitizedOption), sanitizedOption);
+      const sanitizedOptionKey = normalizeKey(sanitizedOption);
+      if (sanitizedOption && (optionMap.has(sanitizedOptionKey) || optionMap.size < MAX_PRODUCT_ATTRIBUTE_OPTIONS_PER_PRESET)) {
+        optionMap.set(sanitizedOptionKey, sanitizedOption);
       }
     }
 
     const options = Array.from(optionMap.values());
     if (options.length > 0) {
+      if (!existing && presets.size >= MAX_CUSTOM_PRODUCT_ATTRIBUTE_PRESETS) {
+        continue;
+      }
       presets.set(normalizeKey(name), {
         name: existing?.name ?? name,
         options,
@@ -165,7 +171,7 @@ export function customProductAttributePresetsFromDraft(draft: ProductAttributeDr
   const curatedByName = new Map(curatedProductAttributePresets.map((preset) => [normalizeKey(preset.name), preset] as const));
   const customPresets: ProductAttributePreset[] = [];
 
-  for (const row of draft.rows) {
+  for (const row of sanitizedProductAttributeDraft(draft).rows) {
     const name = sanitizeText(row.name);
     const options = sanitizeProductAttributeOptions(row.options);
     if (!name || options.length === 0) {
@@ -212,15 +218,23 @@ export function sanitizeProductAttributeOptions(options: unknown) {
   return Array.from(optionMap.values());
 }
 
-export function sanitizedProductAttributeDraft(draft: ProductAttributeDraft): ProductAttributeDraft {
+export function sanitizedProductAttributeDraft(draft: unknown): ProductAttributeDraft {
+  if (!draft || typeof draft !== 'object') {
+    return emptyProductAttributeDraft();
+  }
+  const candidate = draft as Partial<ProductAttributeDraft>;
   return {
-    enabled: Boolean(draft.enabled),
-    rows: draft.rows
+    enabled: Boolean(candidate.enabled),
+    rows: (Array.isArray(candidate.rows) ? candidate.rows : [])
       .map((row) => {
-        const name = sanitizeText(row.name);
-        const options = sanitizeProductAttributeOptions(row.options);
+        if (!row || typeof row !== 'object') {
+          return { name: '', options: [], selectedOptions: [] };
+        }
+        const candidateRow = row as Partial<ProductAttributeDraftRow>;
+        const name = sanitizeText(candidateRow.name);
+        const options = sanitizeProductAttributeOptions(candidateRow.options);
         const optionKeys = new Set(options.map(normalizeKey));
-        const selectedOptions = sanitizeProductAttributeOptions(row.selectedOptions).filter((option) =>
+        const selectedOptions = sanitizeProductAttributeOptions(candidateRow.selectedOptions).filter((option) =>
           optionKeys.has(normalizeKey(option)),
         );
         return { name, options, selectedOptions };

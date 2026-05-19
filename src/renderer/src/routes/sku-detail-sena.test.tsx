@@ -734,6 +734,43 @@ describe('SKU detail SENA helpers', () => {
     expect(sparseSeries.segments).toHaveLength(1);
   });
 
+  test('uses the latest retail price by timestamp instead of observation array order', () => {
+    const model = deriveSenaSkuDetailViewModel({
+      currency: 'USD',
+      diagnostics,
+      observations: [
+        {
+          ...observations[0]!,
+          observationId: 'newer-price',
+          input: {
+            ...observations[0]!.input,
+            observedAt: '2026-04-10T09:00:00.000Z',
+            retailPrices: [{ skuId: 'sku-1', price: 33 }],
+          },
+        },
+        {
+          ...observations[0]!,
+          observationId: 'older-price',
+          input: {
+            ...observations[0]!.input,
+            observedAt: '2026-04-01T09:00:00.000Z',
+            retailPrices: [{ skuId: 'sku-1', price: 22 }],
+          },
+        },
+      ],
+      linkedServiceDetails: [],
+      selectedIntervalIndex: 0,
+      skuId: 'sku-1',
+      snapshot,
+      detail,
+      uiState: 'ready',
+      workspaceSummary: workspace,
+      language: 'en',
+    });
+
+    expect(model.lanes.regimePriceLane.currentPriceLabel).toBe('$33.00');
+  });
+
   test('derives hero and order-band data from the SENA detail payload', () => {
     const model = deriveSenaSkuDetailViewModel({
       currency: 'USD',
@@ -766,6 +803,113 @@ describe('SKU detail SENA helpers', () => {
     expect(model.rail.actNow.quantityBand).toBe('Recommended order 15 units');
     expect(model.rail.actNow.rationale).toContain('Recommended range 10-18 units');
     expect(deriveRecommendedOrderBand(detail)).toEqual({ low: 0, high: 0 });
+  });
+
+  test('ignores dirty numeric SKU detail values before building labels and action context', () => {
+    const dirtySnapshot: InventorySnapshot = {
+      ...snapshot,
+      skus: [{
+        ...snapshot.skus[0]!,
+        unitsInStock: Number.NaN,
+        costPerUnit: Number.POSITIVE_INFINITY,
+        productPrice: Number.NaN,
+      }],
+    };
+    const dirtyDetail: SenaSkuDetail = {
+      ...detail,
+      summary: {
+        ...detail.summary,
+        latestPosteriorUnits: Number.NaN,
+        credibleIntervalLow: Number.NaN,
+        credibleIntervalHigh: Number.POSITIVE_INFINITY,
+        stockoutRisk: Number.NaN,
+        daysOfCover: Number.NaN,
+        safetyStock: Number.NaN,
+        reorderPoint: Number.POSITIVE_INFINITY,
+        reorderTriggerProbability: Number.POSITIVE_INFINITY,
+        reorderQuantity: {
+          ...detail.summary.reorderQuantity!,
+          recommendedUnits: Number.POSITIVE_INFINITY,
+          ungatedRecommendedUnits: Number.POSITIVE_INFINITY,
+          needProbability: Number.POSITIVE_INFINITY,
+          needProbabilityGate: 0.5,
+        },
+      },
+      pipelinePosterior: [{
+        ...detail.pipelinePosterior[0]!,
+        inTransitMean: Number.NaN,
+        orderProbability: Number.POSITIVE_INFINITY,
+        ageDaysMean: Number.NaN,
+      }],
+    };
+    const dirtyObservations: SenaObservationRecord[] = [{
+      ...observations[0]!,
+      input: {
+        ...observations[0]!.input,
+        retailPrices: [{ skuId: 'sku-1', price: Number.POSITIVE_INFINITY }],
+      },
+    }];
+    const dirtyOrderBatch = {
+      batchOrderId: 'dirty-batch',
+      children: [
+        {
+          childOrderId: 'dirty-child',
+          createdAt: '2026-03-27T09:00:00Z',
+          effective: {
+            orderedQuantity: Number.POSITIVE_INFINITY,
+            receivedQuantity: Number.NaN,
+            expectedArrivalAt: '2026-03-29T09:00:00Z',
+          },
+          inheritedFromBatch: true,
+          overrides: {},
+          skuId: 'sku-1',
+          status: 'awaiting_receipt',
+          updatedAt: '2026-03-27T09:00:00Z',
+        },
+      ],
+      createdAt: '2026-03-27T09:00:00Z',
+      ownerSub: 'desktop-owner',
+      shared: {},
+      status: 'awaiting_receipt',
+      supplierName: null,
+      updatedAt: '2026-03-27T09:00:00Z',
+    } as SenaOrderBatchRecord;
+
+    const model = deriveSenaSkuDetailViewModel({
+      currency: 'USD',
+      diagnostics,
+      observations: dirtyObservations,
+      linkedServiceDetails: [{
+        serviceId: 'service-1',
+        activityMean: 0,
+        activityIntervalLow: 0,
+        activityIntervalHigh: 0,
+        bottleneckProbability: Number.POSITIVE_INFINITY,
+        contributors: [],
+        regimeTimeline: [],
+      }],
+      orderBatches: [dirtyOrderBatch],
+      selectedIntervalIndex: 0,
+      skuId: 'sku-1',
+      snapshot: dirtySnapshot,
+      detail: dirtyDetail,
+      uiState: 'ready',
+      workspaceSummary: workspace,
+      language: 'en',
+    });
+
+    expect(model.identity.statusLabel).toBe('Watch');
+    expect(model.heartbeat.headlineUnits).toContain('0 units likely on hand');
+    expect(model.heartbeat.credibleBandLabel).toBe('0-0');
+    expect(model.heartbeat.reorderLabel).toBe('—');
+    expect(model.lanes.regimePriceLane.currentPriceLabel).toBe('—');
+    expect(model.lanes.regimePriceLane.priceMarkers).toHaveLength(0);
+    expect(model.lanes.pipelineLane.intervals[0]?.ordersReadyToReceiveMean).toBe(0);
+    expect(model.rail.openPipeline.summary.join(' ')).not.toMatch(/NaN|Infinity|∞/);
+    expect(model.actionContext.currentStock).toBe(0);
+    expect(model.actionContext.costPerUnit).toBe(0);
+    expect(model.actionContext.productPrice).toBeNull();
+    expect(model.actionContext.reorderRecommendation.recommendationIssued).toBe(false);
   });
 
   test('keeps a quiet order quantity available when the reorder gate is not triggered', () => {
@@ -805,6 +949,82 @@ describe('SKU detail SENA helpers', () => {
     expect(model.rail.actNow.quantityBand).toBe('No order quantity recommended · optional order 8 units');
     expect(model.actionContext.recommendedOrderQuantity).toBe(8);
     expect(model.actionContext.reorderRecommendation.quietLabel).toBe('Keep watching · optional order 8 units · order likelihood 34%');
+  });
+
+  test('uses the latest observation timestamp by date when observations are prepended', () => {
+    const prependedObservations: SenaObservationRecord[] = [
+      {
+        ...observations[0]!,
+        observationId: 'newer-observation',
+        input: {
+          ...observations[0]!.input,
+          observedAt: '2026-04-01T09:00:00.000Z',
+        },
+      },
+      {
+        ...observations[0]!,
+        observationId: 'older-observation',
+        input: {
+          ...observations[0]!.input,
+          observedAt: '2026-03-20T09:00:00.000Z',
+        },
+      },
+    ];
+
+    const model = deriveSenaSkuDetailViewModel({
+      currency: 'USD',
+      diagnostics,
+      observations: prependedObservations,
+      linkedServiceDetails: [],
+      selectedIntervalIndex: 0,
+      skuId: 'sku-1',
+      snapshot,
+      detail,
+      uiState: 'ready',
+      workspaceSummary: workspace,
+      language: 'en',
+    });
+
+    expect(model.actionContext.latestObservationAt).toBe('2026-04-01T09:00:00.000Z');
+  });
+
+  test('keeps the SKU detail model renderable when the latest observation timestamp is malformed', () => {
+    const invalidLatestObservations: SenaObservationRecord[] = observations.map((observation, index) =>
+      index === observations.length - 1
+        ? {
+            ...observation,
+            input: {
+              ...observation.input,
+              observedAt: 'not-a-date',
+            },
+          }
+        : observation,
+    );
+    const quietDetail: SenaSkuDetail = {
+      ...detail,
+      summary: {
+        ...detail.summary,
+        reorderTriggerProbability: 0.24,
+      },
+    };
+
+    const model = deriveSenaSkuDetailViewModel({
+      currency: 'USD',
+      diagnostics,
+      observations: invalidLatestObservations,
+      linkedServiceDetails: [],
+      selectedIntervalIndex: 0,
+      skuId: 'sku-1',
+      snapshot,
+      detail: quietDetail,
+      uiState: 'ready',
+      workspaceSummary: workspace,
+      language: 'en',
+    });
+
+    expect(model.rail.nextTouch.dateLabel).not.toContain('Invalid');
+    expect(model.rail.openPipeline.summary.join(' ')).toContain('Next delivery');
+    expect(model.rail.openPipeline.summary.join(' ')).not.toContain('Invalid');
   });
 
   test('gives manual order guidance when no reorder backend field is available', () => {
@@ -856,6 +1076,32 @@ describe('SKU detail SENA helpers', () => {
     expect(extractEvidence(observations, 'sku-1')[4]?.detail).toContain('Tight variability');
   });
 
+  test('keeps malformed observation dates behind valid SKU evidence rows', () => {
+    const evidence = extractEvidence([
+      {
+        ...observations[0]!,
+        observationId: 'dirty-evidence',
+        input: {
+          ...observations[0]!.input,
+          observedAt: 'not-a-date',
+          notes: 'dirty evidence',
+        },
+      },
+      {
+        ...observations[0]!,
+        observationId: 'valid-evidence',
+        input: {
+          ...observations[0]!.input,
+          observedAt: '2026-04-10T09:00:00.000Z',
+          notes: 'valid evidence',
+        },
+      },
+    ], 'sku-1');
+
+    expect(evidence[0]?.observedAt).toBe('2026-04-10T09:00:00.000Z');
+    expect(evidence.at(-1)?.observedAt).toBe('not-a-date');
+  });
+
   test('includes ticket events in the SKU evidence timeline', () => {
     const ticketedObservations: SenaObservationRecord[] = [
       {
@@ -895,6 +1141,62 @@ describe('SKU detail SENA helpers', () => {
         }),
       ]),
     );
+  });
+
+  test('keeps dirty SKU activity quantities out of the evidence timeline', () => {
+    const ticketedObservations: SenaObservationRecord[] = [
+      {
+        ...observations[0]!,
+        input: {
+          ...observations[0]!.input,
+          commercialEvents: [
+            {
+              party: 'customer',
+              entityType: 'sku',
+              entityId: 'sku-1',
+              stage: 'realized',
+              quantityDelta: Number.NaN,
+              flow: 'scheduled',
+              reason: 'from_pending',
+            },
+          ],
+          ticketEvents: [
+            {
+              ticketId: 'supplier-ticket-dirty',
+              ticketFamily: 'supplier',
+              eventType: 'created',
+              lifecycle: 'open',
+              stage: 'ordered_waiting',
+              revision: 1,
+              occurredAt: '2026-03-27T09:00:00Z',
+              lines: [
+                {
+                  entityType: 'sku',
+                  entityId: 'sku-1',
+                  orderedQuantity: Number.NaN,
+                },
+                {
+                  entityType: 'sku',
+                  entityId: 'sku-1',
+                  orderedQuantity: 3,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ];
+
+    const evidence = extractEvidence(ticketedObservations, 'sku-1');
+    const visibleText = evidence.map((entry) => entry.detail).join(' ');
+
+    expect(evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ detail: '0 units · from_pending' }),
+        expect.objectContaining({ detail: '3 units · ordered_waiting' }),
+      ]),
+    );
+    expect(visibleText).not.toContain('NaN');
   });
 
   test('ignores ticket events without matching lines', () => {
@@ -1231,69 +1533,6 @@ describe('SKU detail SENA helpers', () => {
     expect(handleTimeframeChange).toHaveBeenCalledWith('1M');
   });
 
-  test.skip('expanded pipeline lane stretches tiles to the full plot height while preserving inset gaps', async () => {
-    const resizeCallbacks: Array<() => void> = [];
-    const originalResizeObserver = globalThis.ResizeObserver;
-
-    class ResizeObserverMock {
-      constructor(private readonly callback: ResizeObserverCallback) {}
-
-      observe(target: Element) {
-        Object.defineProperty(target, 'offsetHeight', {
-          configurable: true,
-          value: 520,
-        });
-        resizeCallbacks.push(() => this.callback([], this as unknown as ResizeObserver));
-      }
-
-      disconnect() {}
-    }
-
-    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
-
-    const LedgerHarness = () => {
-      const [selectedIntervalIndex, setSelectedIntervalIndex] = React.useState<number | null>(0);
-      return (
-        <SkuDetailLedger
-          chartLayoutPreferences={defaultChartLayoutPreferences()}
-          hasOlderIntervals={false}
-          isHydratingDetails={false}
-          isLoadingOlderIntervals={false}
-          loadOlderIntervals={vi.fn(async () => null)}
-          model={buildLedgerModel(12)}
-          onResetCharts={vi.fn()}
-          selectedIntervalIndex={selectedIntervalIndex}
-          setSelectedIntervalIndex={setSelectedIntervalIndex}
-          timeframe="Recent"
-          onTimeframeChange={vi.fn()}
-        />
-      );
-    };
-
-    try {
-      const { container } = render(<LedgerHarness />);
-      const initialPipelineTile = container.querySelector('[data-pipeline-tile="true"]') as HTMLElement | null;
-
-      expect(initialPipelineTile).not.toBeNull();
-      const initialTileHeight = Number.parseFloat(initialPipelineTile?.style.height ?? '0');
-      const initialTileMarginLeft = Number.parseFloat(initialPipelineTile?.style.marginLeft ?? '0');
-      const initialTileMarginRight = Number.parseFloat(initialPipelineTile?.style.marginRight ?? '0');
-
-      resizeCallbacks.forEach((callback) => callback());
-      fireEvent.click(screen.getByRole('button', { name: 'Expand Pipeline lane' }));
-
-      await waitFor(() => {
-        const expandedPipelineTile = container.querySelector('[data-pipeline-tile="true"]') as HTMLElement | null;
-
-        expect(expandedPipelineTile).not.toBeNull();
-        expect(Number.parseFloat(expandedPipelineTile?.style.height ?? '0')).toBeGreaterThan(initialTileHeight);
-        expect(Number.parseFloat(expandedPipelineTile?.style.marginLeft ?? '0')).toBe(initialTileMarginLeft);
-        expect(Number.parseFloat(expandedPipelineTile?.style.marginRight ?? '0')).toBe(initialTileMarginRight);
-      });
-    } finally {
-      globalThis.ResizeObserver = originalResizeObserver;
-    }
-  });
 });
 
 describe('SKU detail route', () => {

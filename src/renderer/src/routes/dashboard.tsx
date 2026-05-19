@@ -74,6 +74,7 @@ import {
   observedLocalDateInputValue,
   parseLocalDateTimeInputIso,
 } from '@/lib/date-input-utils';
+import { parseEditableNumberWithCommas } from '@/lib/format';
 import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
 import { createAnimationFrameScheduler } from '@/lib/animation-frame-scheduler';
 import { deriveAvailableObservationCount } from '@/lib/observation-count';
@@ -151,7 +152,8 @@ function initialCustomerCompletionQuantity(task: OverviewCustomerTask | null) {
 }
 
 function customerLineQuantity(line: SenaTicketLine) {
-  return Math.abs(line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? 1);
+  const quantity = line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? 1;
+  return typeof quantity === 'number' && Number.isFinite(quantity) && quantity > 0 ? Math.abs(quantity) : null;
 }
 
 function customerCompletionLines(task: OverviewCustomerTask, fallbackQuantity: number): SenaTicketLine[] {
@@ -211,7 +213,7 @@ function CustomerQueueDrawer({
     setNextTouchAt((current) => clampDateInputToObservedDate(current, observedAt));
   }, [observedAt]);
 
-  const parsedQuantity = Number(quantity);
+  const parsedQuantity = parseEditableNumberWithCommas(quantity);
   const isTicketTask = isCustomerTicketTask(task);
   const observedDateInput = observedLocalDateInputValue(observedAt);
   const canComplete = task?.action === 'mark_completed' && !isTicketTask;
@@ -358,7 +360,7 @@ function CustomerQueueDrawer({
                   inputMode="decimal"
                   min="0"
                   step="1"
-                  type="number"
+                  type="text"
                   value={quantity}
                   onChange={(event) => setQuantity(event.target.value)}
                 />
@@ -950,13 +952,17 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       );
   }
 
-  function supplierOrderFlashTargetsForTask(task: OverviewSkuTask | OverviewSupplierTicketTask): CaptureSessionFlashTarget[] {
-    return supplierOrderFlashTargetsForSkuIds(supplierSkuIdsForTask(task));
+  function supplierCaptureIntentForTask(task: OverviewSkuTask | OverviewSupplierTicketTask): 'order' | 'receipt' {
+    return task.action === 'receive' ? 'receipt' : 'order';
   }
 
-  function supplierOrderFlashTargetsForSkuIds(skuIds: string[]): CaptureSessionFlashTarget[] {
+  function supplierCaptureFlashTargetsForTask(task: OverviewSkuTask | OverviewSupplierTicketTask): CaptureSessionFlashTarget[] {
+    return supplierCaptureFlashTargetsForSkuIds(supplierSkuIdsForTask(task), supplierCaptureIntentForTask(task));
+  }
+
+  function supplierCaptureFlashTargetsForSkuIds(skuIds: string[], intent: 'order' | 'receipt'): CaptureSessionFlashTarget[] {
     return skuIds.map((skuId) => ({
-      action: 'supplier-order',
+      action: intent === 'receipt' ? 'supplier-receipt' : 'supplier-order',
       targetId: skuId,
       targetType: 'sku',
     }));
@@ -979,26 +985,39 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   }
 
   function buildSupplierQueueCaptureHref(task: OverviewSkuTask | OverviewSupplierTicketTask, mode: 'single' | 'batch') {
+    const intent = supplierCaptureIntentForTask(task);
     if (isOverviewSupplierTicketTask(task)) {
       const skuIds = mode === 'batch' ? batchSkuTasksForTask(task).map((batchTask) => batchTask.skuId) : supplierSkuIdsForTask(task);
       const singleSkuId = skuIds[0];
       return buildSupplierTicketCaptureHref({
         mode: 'edit',
+        intent,
         ticketId: task.ticketId,
         targetId: mode === 'single' ? singleSkuId : undefined,
         targetType: mode === 'single' && singleSkuId ? 'sku' : undefined,
         skuIds: mode === 'batch' ? skuIds : undefined,
-        flashTargets: mode === 'batch' ? supplierOrderFlashTargetsForSkuIds(skuIds) : undefined,
+        flashTargets: mode === 'batch' ? supplierCaptureFlashTargetsForSkuIds(skuIds, intent) : undefined,
       });
     }
 
     const skuIds = mode === 'batch' ? batchSkuTasksForTask(task).map((batchTask) => batchTask.skuId) : supplierSkuIdsForTask(task);
+    if (task.supplierTicketId) {
+      return buildSupplierTicketCaptureHref({
+        mode: 'edit',
+        intent,
+        ticketId: task.supplierTicketId,
+        targetId: mode === 'single' ? task.skuId : undefined,
+        targetType: mode === 'single' ? 'sku' : undefined,
+        skuIds: mode === 'batch' ? skuIds : undefined,
+        flashTargets: mode === 'batch' ? supplierCaptureFlashTargetsForSkuIds(skuIds, intent) : undefined,
+      });
+    }
     return buildSupplierTicketCaptureHref({
       mode: 'new',
       targetId: task.skuId,
       targetType: 'sku',
       skuIds: mode === 'batch' ? skuIds : undefined,
-      flashTargets: mode === 'batch' ? supplierOrderFlashTargetsForSkuIds(skuIds) : undefined,
+      flashTargets: mode === 'batch' ? supplierCaptureFlashTargetsForSkuIds(skuIds, intent) : undefined,
     });
   }
 
@@ -1050,6 +1069,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       decision: mode === 'batch' ? 'navigate_capture_batch' : 'navigate_capture_single',
       href,
       reason,
+      flashTargets: supplierCaptureFlashTargetsForTask(task).map((target) => `${target.action}:${target.targetId}`),
       skuIds: supplierSkuIdsForTask(task),
       supplierName: task.supplierName,
       taskId: task.id,
@@ -1419,6 +1439,9 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     const completionLines = customerCompletionLines(selectedCustomerCompletionTask, completedQuantity);
     payload.commercialEvents = completionLines.flatMap((line) => {
       const lineQuantity = customerLineQuantity(line);
+      if (lineQuantity == null) {
+        return [];
+      }
       const appliedQuantity = selectedCustomerCompletionTask.ticket ? lineQuantity : completedQuantity;
       return [
         ...(pendingQuantity > 0
@@ -1546,9 +1569,16 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       return false;
     }
     const note = input.notes.trim() || null;
-    if (input.action === 'follow_up' && input.nextTouchAt && clampDateInputToObservedDate(input.nextTouchAt, input.observedAt) !== input.nextTouchAt) {
-      setCustomerCompletionError(translateUiLiteral(language, 'Expected date of arrival cannot be before the observed date.'));
-      return false;
+    const nextTouchAtIso = input.action === 'follow_up' ? nextTouchDateInputToIso(input.nextTouchAt, input.observedAt) : null;
+    if (input.action === 'follow_up') {
+      if (!nextTouchAtIso) {
+        setCustomerCompletionError(translateUiLiteral(language, 'Next touch date is required.'));
+        return false;
+      }
+      if (clampDateInputToObservedDate(input.nextTouchAt, input.observedAt) !== input.nextTouchAt) {
+        setCustomerCompletionError(translateUiLiteral(language, 'Expected date of arrival cannot be before the observed date.'));
+        return false;
+      }
     }
     const payload = createEmptyObservationInput({
       observedAt: observedAtIso,
@@ -1565,7 +1595,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       revision: ticket.revision + 1,
       eventType,
       occurredAt: observedAtIso,
-      nextTouchAt: input.action === 'follow_up' ? nextTouchDateInputToIso(input.nextTouchAt, input.observedAt) ?? ticket.nextTouchAt ?? null : null,
+      nextTouchAt: nextTouchAtIso,
       party: ticket.party ?? null,
       lines: ticket.lines,
       deliveryFee: ticket.deliveryFee ?? null,
@@ -1577,6 +1607,9 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     if (input.action === 'fulfill') {
       payload.commercialEvents = ticket.lines.flatMap((line) => {
         const quantity = customerLineQuantity(line);
+        if (quantity == null) {
+          return [];
+        }
         return [
           {
             party: 'customer' as const,

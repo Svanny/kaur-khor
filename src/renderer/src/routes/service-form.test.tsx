@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useParams } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import * as senaCatalog from '@/lib/sena-catalog';
@@ -96,7 +96,7 @@ function serviceRouteTree(
           <Route
             element={
               <>
-                <div>Service detail destination</div>
+                <ServiceDetailDestination />
                 <RouteBackButton />
               </>
             }
@@ -106,6 +106,11 @@ function serviceRouteTree(
       </NavigationHistoryProvider>
     </MemoryRouter>
   );
+}
+
+function ServiceDetailDestination() {
+  const { serviceId } = useParams();
+  return <div>Service detail destination: {serviceId}</div>;
 }
 
 function findButtonByText(text: string) {
@@ -361,7 +366,6 @@ describe('ServiceFormRoute', () => {
     fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
     fireEvent.change(screen.getByDisplayValue('24'), { target: { value: '29' } });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'SKU 2' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => {
@@ -382,7 +386,6 @@ describe('ServiceFormRoute', () => {
     });
     expect(savedCatalog.sharingMask).toEqual([
       { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null },
-      { enabled: true, serviceId: 'service-1', skuId: 'sku-2', usageProbability: null },
     ]);
     expect(ingestSenaObservation).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -394,7 +397,7 @@ describe('ServiceFormRoute', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Service detail destination')).toBeInTheDocument();
+      expect(screen.getByText(/Service detail destination/)).toBeInTheDocument();
     });
   });
 
@@ -428,7 +431,7 @@ describe('ServiceFormRoute', () => {
     expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 
-  test('does not append history when only linked SKUs change', async () => {
+  test('forks a new service when linked SKUs change and keeps the current service active by default', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -444,15 +447,61 @@ describe('ServiceFormRoute', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'SKU 2' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
+    const dialog = await screen.findByRole('dialog', { name: 'Create a new service for linked SKU changes' });
+    expect(within(dialog).getByLabelText('New service name')).toHaveValue('Service 1 (copy)');
+    expect(within(dialog).getByRole('checkbox', { name: 'Archive Service 1' })).not.toBeChecked();
+    expect(within(dialog).getByText('Leave unchecked to keep Service 1 active alongside the new service.')).toBeInTheDocument();
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create new service' }));
+
     await waitFor(() => {
       expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
     });
 
-    expect(upsertSenaCatalog.mock.calls[0]?.[0].sharingMask).toEqual([
+    const nextCatalog = upsertSenaCatalog.mock.calls[0]?.[0];
+    const newService = nextCatalog.services.find((service: { serviceId: string }) => service.serviceId !== 'service-1');
+    expect(newService).toBeDefined();
+    expect(nextCatalog.services.find((service: { serviceId: string }) => service.serviceId === 'service-1')?.archived).toBe(false);
+    expect(newService).toMatchObject({ archived: false, description: 'Style and fit', name: 'Service 1 (copy)', price: 24 });
+    expect(nextCatalog.sharingMask).toEqual([
       { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null },
-      { enabled: true, serviceId: 'service-1', skuId: 'sku-2', usageProbability: null },
+      { enabled: true, serviceId: newService!.serviceId, skuId: 'sku-1', usageProbability: null },
+      { enabled: true, serviceId: newService!.serviceId, skuId: 'sku-2', usageProbability: null },
     ]);
     expect(ingestSenaObservation).not.toHaveBeenCalled();
+    await screen.findByText(`Service detail destination: ${newService!.serviceId}`);
+  });
+
+  test('archives the current service when requested from the linked SKU fork dialog', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      ingestSenaObservation,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'SKU 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Create a new service for linked SKU changes' });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Archive Service 1' }));
+    fireEvent.change(within(dialog).getByLabelText('New service name'), { target: { value: 'Service 1 new recipe' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create new service' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    const nextCatalog = upsertSenaCatalog.mock.calls[0]?.[0];
+    const currentService = nextCatalog.services.find((service: { serviceId: string }) => service.serviceId === 'service-1');
+    const newService = nextCatalog.services.find((service: { serviceId: string }) => service.serviceId !== 'service-1');
+    expect(currentService?.archived).toBe(true);
+    expect(newService).toMatchObject({ archived: false, name: 'Service 1 new recipe' });
   });
 
   test('adds a service picture via drag and drop', async () => {
@@ -655,7 +704,7 @@ describe('ServiceFormRoute', () => {
 
     await waitFor(() => {
       expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Service detail destination')).toBeInTheDocument();
+      expect(screen.getByText(/Service detail destination/)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
@@ -827,6 +876,33 @@ describe('ServiceFormRoute', () => {
         servicePrices: [{ serviceId: 'service-1', price: 2 }],
       }),
     );
+  });
+
+  test('does not write invalid service money drafts into saved catalog payloads', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      ingestSenaObservation,
+      isLoading: false,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+
+    fireEvent.change(priceInput, { target: { value: 'not money' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+
+    fireEvent.change(priceInput, { target: { value: '27.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(upsertSenaCatalog).toHaveBeenCalledTimes(1));
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].price).toBe(27.5);
+    expect(Number.isFinite(upsertSenaCatalog.mock.calls[0]?.[0].services[0].price)).toBe(true);
   });
 
   test('asks before leaving with unsaved service changes', async () => {

@@ -10,6 +10,7 @@ import type {
   SenaTicketSummary,
 } from '@shared/sena';
 import { formatPhoneForDisplay } from '@shared/phone';
+import { formatLocalDateInputValue } from '@/lib/date-input-utils';
 import { formatWholeNumber } from '@/lib/format';
 import { translateUiLiteral } from '@/lib/translations';
 import type { AppLanguage } from '@shared/inventory';
@@ -40,12 +41,13 @@ export function ticketLineDisplayName(
 }
 
 function ticketLineDisplayQuantity(line: Pick<SenaTicketLine, 'orderedQuantity' | 'quantityDelta' | 'receivedQuantity'>) {
-  return line.orderedQuantity ?? line.receivedQuantity ?? (line.quantityDelta != null ? Math.abs(line.quantityDelta) : null);
+  const quantity = line.orderedQuantity ?? line.receivedQuantity ?? (line.quantityDelta != null ? Math.abs(line.quantityDelta) : null);
+  return typeof quantity === 'number' && Number.isFinite(quantity) ? quantity : null;
 }
 
 export function ticketLineMetadataLabel(line: SenaTicketLine, catalog?: TicketDisplayCatalog) {
   const quantity = ticketLineDisplayQuantity(line);
-  return `${ticketLineDisplayName(line, catalog)}${quantity ? ` · ${quantity}u` : ''}`;
+  return `${ticketLineDisplayName(line, catalog)}${quantity != null ? ` · ${quantity}u` : ''}`;
 }
 
 export function ticketSummaryLabel(
@@ -62,13 +64,13 @@ export function ticketSummaryLabel(
 
 function ticketDisplayDate(value: string | null | undefined) {
   if (!value) {
-    return new Date().toISOString().slice(0, 10);
+    return formatLocalDateInputValue(new Date());
   }
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) {
     return value.slice(0, 10);
   }
-  return date.toISOString().slice(0, 10);
+  return formatLocalDateInputValue(date);
 }
 
 function ticketDisplaySortValue(value: string | null | undefined) {

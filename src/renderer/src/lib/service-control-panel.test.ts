@@ -1,6 +1,12 @@
 import type { InventorySnapshot, ServiceRecord, StockReport } from '@shared/inventory';
 import { describe, expect, test } from 'vitest';
-import { mapServiceTimelineEvents } from './service-control-panel';
+import {
+  currentServiceBottleneck,
+  mapServiceTimelineEvents,
+  rankedServiceContributors,
+  serviceHeartbeatSummary,
+} from './service-control-panel';
+import { computeServiceSellableUnits, serviceCoverageState } from './catalog';
 
 const service: ServiceRecord = {
   serviceId: 'service-1',
@@ -70,6 +76,36 @@ function report(overrides: Partial<StockReport>): StockReport {
 }
 
 describe('mapServiceTimelineEvents', () => {
+  test('treats non-finite linked stock as blocked service availability', () => {
+    const dirtySnapshot: InventorySnapshot = {
+      ...snapshot,
+      skus: snapshot.skus.map((sku) =>
+        sku.skuId === 'sku-internal-a'
+          ? { ...sku, unitsInStock: Number.NaN }
+          : sku,
+      ),
+    };
+
+    expect(computeServiceSellableUnits(service, dirtySnapshot)).toBe(0);
+    expect(serviceCoverageState(service, dirtySnapshot)).toBe('blocked');
+    expect(currentServiceBottleneck(service, dirtySnapshot)?.skuId).toBe('sku-internal-a');
+    expect(rankedServiceContributors(service, dirtySnapshot)[0]).toMatchObject({
+      health: 'blocked',
+      isBlocked: true,
+      sku: {
+        skuId: 'sku-internal-a',
+      },
+    });
+    expect(serviceHeartbeatSummary({
+      language: 'en',
+      reports: [],
+      service,
+      snapshot: dirtySnapshot,
+    })).toMatchObject({
+      state: 'blocked',
+    });
+  });
+
   test('uses SKU display names in service recent update summaries instead of internal ids', () => {
     const events = mapServiceTimelineEvents({
       service,

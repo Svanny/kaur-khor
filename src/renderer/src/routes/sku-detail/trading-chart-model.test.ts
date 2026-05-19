@@ -215,6 +215,58 @@ describe('deriveTradingChartModel', () => {
     expect(secondDisplayModel).toBe(firstDisplayModel);
   });
 
+  test('buckets epoch-dated points by their explicit timestamp instead of fallback time', () => {
+    const epochPoint: TradingChartModel['points'][number] = {
+      intervalIndex: 0,
+      startAt: null,
+      endAt: '1970-01-01T00:00:00.000Z',
+      time: 1_767_225_600 as TradingChartModel['points'][number]['time'],
+      label: 'Epoch',
+      inventoryMean: 10,
+      inventoryLow: null,
+      inventoryHigh: null,
+      reorderPoint: null,
+      safetyStock: null,
+      serviceDemandMean: null,
+      retailDemandMean: null,
+      availableCapacity: null,
+      demandMinusAvailableCapacity: null,
+      receiptsMean: null,
+      adjustmentsMean: null,
+      ordersInTransitMean: null,
+      ordersLateMean: null,
+      ordersReadyToReceiveMean: null,
+      ordersReceivedMean: null,
+      newOrderFlag: null,
+      newReceiptFlag: null,
+      price: null,
+      leadTimeMean: null,
+      leadTimeLow: null,
+      leadTimeHigh: null,
+      dominantRegime: null,
+    };
+    const nextPoint = {
+      ...epochPoint,
+      intervalIndex: 1,
+      endAt: '1970-01-02T00:00:00.000Z',
+      time: 1_767_312_000 as TradingChartModel['points'][number]['time'],
+      label: 'Next',
+      inventoryMean: 9,
+    };
+    const chartModel: TradingChartModel = {
+      points: [epochPoint, nextPoint],
+      pointByIntervalIndex: new Map([[0, epochPoint], [1, nextPoint]]),
+      pointByTimeKey: new Map([[String(epochPoint.time), epochPoint], [String(nextPoint.time), nextPoint]]),
+      availability: buildAvailability({ inventory: true }),
+    };
+
+    const displayModel = deriveTradingChartDisplayModel(chartModel, { amount: 1, unit: 'D' });
+
+    expect(displayModel.points[0]?.time).toBe(0);
+    expect(displayModel.pointByIntervalIndex.get(0)?.time).toBe(0);
+    expect(displayModel.points[1]?.time).toBe(86_400);
+  });
+
   test('matches inventory points to intervals by timestamp before array position', () => {
     const model = buildModel();
     const chartModel = deriveTradingChartModel({

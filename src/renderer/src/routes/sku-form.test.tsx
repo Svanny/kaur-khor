@@ -856,6 +856,33 @@ describe('SkuFormRoute', () => {
     expect(findButtonByText('Replace image')).toBeUndefined();
   });
 
+  test('rejects oversized pasted sku pictures before reading or storing them', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const dropzone = screen.getByTestId('catalog-image-dropzone');
+    const file = new File(['fake-image'], 'pasted.png', { type: 'image/png' });
+    const arrayBuffer = vi.spyOn(file, 'arrayBuffer');
+    Object.defineProperty(file, 'size', { value: 20 * 1024 * 1024 + 1 });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
+    fireEvent(dropzone, pasteEvent);
+
+    await waitFor(() => {
+      expect(screen.getByText('Images must be 20 MB or smaller.')).toBeInTheDocument();
+    });
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(storeDroppedImage).not.toHaveBeenCalled();
+  });
+
   test('accepts WebP images during clipboard paste using items fallback', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
@@ -1074,6 +1101,31 @@ describe('SkuFormRoute', () => {
     expect(screen.getAllByText('Enter ETA variation days and hours or choose an ETA variation before saving.')).toHaveLength(1);
   });
 
+  test('blocks edit save when stored SKU lead time drafts are negative', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: {
+        ...sampleCatalog,
+        skus: [{
+          ...sampleCatalog.skus[0],
+          leadTimeMeanDaysHint: -1,
+          leadTimeStdDaysHint: -0.5,
+        }],
+      },
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter the expected time of arrival days before saving.')).toBeInTheDocument();
+    expect(screen.getAllByText('Enter ETA variation days and hours or choose an ETA variation before saving.')).toHaveLength(1);
+  });
+
   test('blocks edit save when SKU cost draft is negative', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
@@ -1143,6 +1195,39 @@ describe('SkuFormRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
+  });
+
+  test('does not write invalid SKU money drafts into saved catalog payloads', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      ingestSenaObservation,
+      isSaving: false,
+      snapshot: sampleSnapshot,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costInput, productPriceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+
+    fireEvent.change(costInput, { target: { value: 'not money' } });
+    fireEvent.change(productPriceInput, { target: { value: 'also bad' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+
+    fireEvent.change(costInput, { target: { value: '5.25' } });
+    fireEvent.change(productPriceInput, { target: { value: '12.50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(upsertSenaCatalog).toHaveBeenCalledTimes(1));
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0]).toMatchObject({
+      costPerUnit: 5.25,
+      productPrice: 12.5,
+    });
+    expect(Number.isFinite(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].costPerUnit)).toBe(true);
+    expect(Number.isFinite(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].productPrice)).toBe(true);
   });
 
   test('localizes catalog image controls in Khmer mode', () => {

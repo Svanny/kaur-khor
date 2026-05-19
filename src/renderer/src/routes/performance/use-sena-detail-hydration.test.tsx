@@ -1,8 +1,10 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SenaServiceDetailPage, SenaSkuDetailPage } from '@shared/sena';
 import { deriveSenaDetailCacheFreshnessFingerprint, writePersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
+import type { AnalysisTimeframe } from './analysis-timeframe';
 import { useSenaDetailHydration } from './use-sena-detail-hydration';
 
 const inventoryHook = vi.fn();
@@ -170,6 +172,30 @@ function TestHarness() {
   );
 }
 
+function MultiSkuHarness() {
+  const { isLoadingOlderIntervals, loadOlderIntervals, skuDetailsById } = useSenaDetailHydration('1M', {
+    skuIds: ['sku-1', 'sku-2'],
+  });
+  const firstLength = skuDetailsById['sku-1']?.demandPosterior.length ?? 0;
+  const secondLength = skuDetailsById['sku-2']?.demandPosterior.length ?? 0;
+
+  return (
+    <div>
+      <span data-testid="first-length">{firstLength}</span>
+      <span data-testid="second-length">{secondLength}</span>
+      <span data-testid="older-loading">{String(isLoadingOlderIntervals)}</span>
+      <button
+        type="button"
+        onClick={() => {
+          void loadOlderIntervals(10);
+        }}
+      >
+        Load older
+      </button>
+    </div>
+  );
+}
+
 function MaxHydrationHarness() {
   const { isHydratingDetails, skuDetailsById, timeframeHydrationProgress } = useSenaDetailHydration('MAX');
   const length = skuDetailsById['sku-1']?.demandPosterior.length ?? 0;
@@ -217,6 +243,30 @@ function FreshnessHarness() {
       <span data-testid="freshness-hydrating">{String(isHydratingDetails)}</span>
       <span data-testid="freshness-sku-units">{latestPosteriorUnits}</span>
       <span data-testid="freshness-service-activity">{serviceActivityMean}</span>
+    </div>
+  );
+}
+
+function TimeframeSwitchHarness() {
+  const [timeframe, setTimeframe] = useState<AnalysisTimeframe>('1M');
+  const { loadOlderIntervals, resolvedTimeframeCacheKey, skuDetailsById } = useSenaDetailHydration(timeframe);
+  const length = skuDetailsById['sku-1']?.demandPosterior.length ?? 0;
+
+  return (
+    <div>
+      <span data-testid="switch-length">{length}</span>
+      <span data-testid="switch-cache-key">{resolvedTimeframeCacheKey ?? 'none'}</span>
+      <button
+        type="button"
+        onClick={() => {
+          void loadOlderIntervals(10);
+        }}
+      >
+        Load older
+      </button>
+      <button type="button" onClick={() => setTimeframe('Recent')}>
+        Show recent
+      </button>
     </div>
   );
 }
@@ -356,6 +406,137 @@ describe('useSenaDetailHydration', () => {
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(1, 'sku-1', { limit: 20 });
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(2, 'sku-1', { beforeIntervalIndex: 20, limit: 10, strategy: 'network-only' });
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(3, 'sku-1', { beforeIntervalIndex: 10, limit: 10, strategy: 'network-only' });
+  });
+
+  test('keeps older interval loading usable when one entity page request fails', async () => {
+    const loadSenaSkuDetail = vi.fn(async (skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => {
+      if (options?.beforeIntervalIndex === 20 && skuId === 'sku-1') {
+        throw new Error('detail page unavailable');
+      }
+      if (options?.beforeIntervalIndex === 20 && skuId === 'sku-2') {
+        return makeSkuPage(10, 10, 10);
+      }
+      return makeSkuPage(20, 20, 20);
+    });
+
+    inventoryHook.mockReturnValue({
+      catalog: {
+        bundles: [],
+        schemaVersion: 1,
+        services: [],
+        sharingMask: [],
+        skus: [
+          {
+            costPerUnit: 1,
+            description: 'sku',
+            leadTimeMeanDaysHint: 1,
+            leadTimeStdDaysHint: 1,
+            name: 'sku',
+            productPrice: 1,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+          {
+            costPerUnit: 1,
+            description: 'sku',
+            leadTimeMeanDaysHint: 1,
+            leadTimeStdDaysHint: 1,
+            name: 'sku 2',
+            productPrice: 1,
+            skuId: 'sku-2',
+            soldAsProduct: true,
+          },
+        ],
+      },
+      loadSenaServiceDetail: vi.fn(),
+      loadSenaSkuDetail,
+      workspaceSummary: {
+        highRiskSkuIds: [],
+        intervalCount: 40,
+        latestObservedAt: '2026-03-21T08:00:00.000Z',
+        ownerSub: 'desktop-owner',
+        pendingReorderCount: 0,
+        runId: 'run-1',
+        serviceCount: 0,
+        skuCount: 2,
+        skuSummaries: [],
+        topRegime: 'normal',
+      },
+    });
+
+    const user = userEvent.setup();
+    render(<MultiSkuHarness />);
+
+    await waitFor(() => expect(screen.getByTestId('second-length')).toHaveTextContent('20'));
+
+    await user.click(screen.getByRole('button', { name: 'Load older' }));
+
+    await waitFor(() => expect(screen.getByTestId('older-loading')).toHaveTextContent('false'));
+    expect(screen.getByTestId('second-length')).toHaveTextContent('30');
+  });
+
+  test('ignores older interval loads that resolve after the timeframe changes', async () => {
+    const olderPage = deferred<ReturnType<typeof makeSkuPage>>();
+    const loadSenaSkuDetail = vi.fn(async (_skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => {
+      if (options?.beforeIntervalIndex === 20) {
+        return olderPage.promise;
+      }
+      return makeSkuPage(20, 20, 20);
+    });
+
+    inventoryHook.mockReturnValue({
+      catalog: {
+        bundles: [],
+        schemaVersion: 1,
+        services: [],
+        sharingMask: [],
+        skus: [
+          {
+            costPerUnit: 1,
+            description: 'sku',
+            leadTimeMeanDaysHint: 1,
+            leadTimeStdDaysHint: 1,
+            name: 'sku',
+            productPrice: 1,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+        ],
+      },
+      loadSenaServiceDetail: vi.fn(),
+      loadSenaSkuDetail,
+      workspaceSummary: {
+        highRiskSkuIds: [],
+        intervalCount: 40,
+        latestObservedAt: '2026-03-21T08:00:00.000Z',
+        ownerSub: 'desktop-owner',
+        pendingReorderCount: 0,
+        runId: 'run-1',
+        serviceCount: 0,
+        skuCount: 1,
+        skuSummaries: [],
+        topRegime: 'normal',
+      },
+    });
+
+    render(<TimeframeSwitchHarness />);
+
+    await waitFor(() => expect(screen.getByTestId('switch-length')).toHaveTextContent('20'));
+
+    await act(async () => {
+      screen.getByText('Load older').click();
+      screen.getByText('Show recent').click();
+    });
+
+    await waitFor(() => expect(screen.getByTestId('switch-cache-key')).toHaveTextContent('Recent'));
+
+    await act(async () => {
+      olderPage.resolve(makeSkuPage(10, 10, 10));
+      await olderPage.promise;
+    });
+
+    expect(screen.getByTestId('switch-length')).toHaveTextContent('20');
+    expect(screen.getByTestId('switch-cache-key')).toHaveTextContent('Recent');
   });
 
   test('hydrates first pages when persisted detail storage is blocked', async () => {

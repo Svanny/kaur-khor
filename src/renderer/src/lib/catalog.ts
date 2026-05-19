@@ -30,6 +30,10 @@ export function linkedServicesForSku(skuId: string, snapshot: InventorySnapshot)
   return sortByName(snapshot.services.filter((service) => service.skuIds.includes(skuId)));
 }
 
+function nonNegativeFiniteStock(value: number) {
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
 export function computeServiceSellableUnits(service: ServiceRecord, snapshot: InventorySnapshot) {
   const linkedSkus = serviceLinkedSkus(service, snapshot);
   if (linkedSkus.length === 0) {
@@ -37,8 +41,8 @@ export function computeServiceSellableUnits(service: ServiceRecord, snapshot: In
   }
 
   return linkedSkus.reduce(
-    (minimum, sku) => Math.min(minimum, sku.unitsInStock),
-    linkedSkus[0].unitsInStock,
+    (minimum, sku) => Math.min(minimum, nonNegativeFiniteStock(sku.unitsInStock)),
+    nonNegativeFiniteStock(linkedSkus[0].unitsInStock),
   );
 }
 

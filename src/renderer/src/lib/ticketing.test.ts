@@ -154,6 +154,74 @@ describe('ticketing phone normalization', () => {
     expect(directory.nameToPhone.get('sokha')).toBe('+855 12345678');
   });
 
+  test('uses canonical phone keys when building customer link directories from partial party metadata', () => {
+    const observations = [{
+      input: {
+        observedAt: '2026-04-22T00:00:00.000Z',
+        ticketEvents: [{
+          ticketId: 'ticket-key-only',
+          ticketFamily: 'customer',
+          lifecycle: 'open',
+          stage: 'pending',
+          revision: 1,
+          eventType: 'created',
+          occurredAt: '2026-04-22T00:00:00.000Z',
+          party: {
+            role: 'customer',
+            customerName: 'Sokha',
+            customerNameKey: 'sokha',
+            phone: null,
+            phoneKey: '+85512345678',
+          },
+          lines: [],
+        }],
+      },
+    }] as unknown as SenaObservationRecord[];
+
+    const directory = buildCustomerLinkDirectory(observations);
+
+    expect(directory.entries).toEqual([{ name: 'Sokha', phone: '+855 12345678' }]);
+    expect(directory.nameToPhone.get('sokha')).toBe('+855 12345678');
+    expect(directory.phoneToName.get('+85512345678')).toBe('Sokha');
+  });
+
+  test('derives customer directory name keys from display names instead of persisted keys', () => {
+    const observations = [{
+      input: {
+        observedAt: '2026-04-22T00:00:00.000Z',
+        ticketEvents: [{
+          ticketId: 'ticket-dirty-key',
+          ticketFamily: 'customer',
+          lifecycle: 'open',
+          stage: 'pending',
+          revision: 1,
+          eventType: 'created',
+          occurredAt: '2026-04-22T00:00:00.000Z',
+          party: {
+            role: 'customer',
+            customerName: 'Dara',
+            customerNameKey: 'sokha',
+            phone: '+855 12345678',
+            phoneKey: '+85512345678',
+          },
+          lines: [],
+        }],
+      },
+    }] as unknown as SenaObservationRecord[];
+
+    const directory = buildCustomerLinkDirectory(observations);
+
+    expect(directory.nameToPhone.get('dara')).toBe('+855 12345678');
+    expect(directory.nameToPhone.has('sokha')).toBe(false);
+    expect(customerLinkWarning({
+      channel: 'Telegram',
+      customChannel: '',
+      customerName: 'Sokha',
+      phone: '+85512345678',
+      location: '',
+    }, directory)).toBe('This phone was previously linked to a different customer. Save if this is intentional.');
+  });
+
   test('maps workflow buckets and summarizes merchant-paid customer delivery', () => {
     expect(deliveryFeeBucketForWorkflow({
       customerCompletedMode: 'immediate_sale',
@@ -198,6 +266,45 @@ describe('ticketing phone normalization', () => {
       displayDeliveryUsd: 3,
       displayTotalUsd: 23,
       netSettlementUsd: 23,
+    });
+  });
+
+  test('keeps dirty delivery fee totals from propagating non-finite values', () => {
+    expect(summarizeDeliveryFee({
+      bucket: 'customer_order',
+      feeUsd: Number.POSITIVE_INFINITY,
+      payer: 'customer',
+      subtotalUsd: Number.NaN,
+    })).toEqual({
+      subtotalUsd: null,
+      displayDeliveryUsd: null,
+      displayTotalUsd: null,
+      netSettlementUsd: null,
+    });
+    expect(summarizeDeliveryFee({
+      bucket: 'customer_order',
+      feeUsd: Number.NaN,
+      payer: 'merchant',
+      subtotalUsd: -5,
+    })).toEqual({
+      subtotalUsd: 0,
+      displayDeliveryUsd: 0,
+      displayTotalUsd: 0,
+      netSettlementUsd: 0,
+    });
+  });
+
+  test('normalizes dirty raw delivery fee metadata values before storage', () => {
+    expect(buildDeliveryFeeMetadata({
+      bucket: 'customer_order',
+      feeUsd: Number.POSITIVE_INFINITY,
+      payer: 'customer',
+      subtotalUsd: 20,
+    })).toMatchObject({
+      feeUsd: null,
+      displayDeliveryUsd: 0,
+      displayTotalUsd: 20,
+      netSettlementUsd: 20,
     });
   });
 
@@ -318,6 +425,23 @@ describe('ticketing phone normalization', () => {
     })).toBe('ticket-empty');
   });
 
+  test('falls back from dirty blank ticket party names to line labels', () => {
+    expect(ticketLabel({
+      ticketId: 'ticket-dirty-name',
+      ticketFamily: 'customer',
+      lifecycle: 'open',
+      stage: 'pending',
+      revision: 1,
+      eventType: 'created',
+      occurredAt: '2026-04-22T00:00:00.000Z',
+      party: {
+        role: 'customer',
+        customerName: '   ',
+      },
+      lines: [{ entityType: 'sku', entityId: 'sku-1' }],
+    })).toBe('sku-1');
+  });
+
   test('summarizes flat amount discounts against subtotal', () => {
     expect(summarizeDiscount({
       amountUsd: 5,
@@ -395,6 +519,29 @@ describe('ticketing phone normalization', () => {
     })).toMatchObject({
       displayDiscountUsd: 0,
       discountedSubtotalUsd: 20,
+    });
+  });
+
+  test('normalizes dirty raw discount metadata values before storage', () => {
+    expect(buildDiscountMetadata({
+      amountUsd: Number.NaN,
+      mode: 'amount',
+      percent: null,
+      subtotalUsd: 20,
+    })).toMatchObject({
+      amountUsd: null,
+      displayDiscountUsd: 0,
+      discountedSubtotalUsd: 20,
+    });
+    expect(buildDiscountMetadata({
+      amountUsd: null,
+      mode: 'percent',
+      percent: 250,
+      subtotalUsd: 20,
+    })).toMatchObject({
+      percent: 100,
+      displayDiscountUsd: 20,
+      discountedSubtotalUsd: 0,
     });
   });
 });

@@ -1,7 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
+import {
+  RECORD_UPDATE_CUSTOMER_PENDING_PATH,
+  RECORD_UPDATE_HUB_PATH,
+  RECORD_UPDATE_STOCK_COUNT_PATH,
+  RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
+} from '@/lib/record-update-routes';
 import { StockUpdateRoute } from './stock-update';
 
 const realDate = Date;
@@ -274,14 +280,14 @@ function renderRoute(overrides?: Record<string, unknown>, initialEntry = '/opera
   );
 }
 
-function renderRouteWithDestination() {
+function renderRouteWithDestination(nextObservations = sampleObservations) {
   inventoryHook.mockReturnValue({
     catalog: sampleCatalog,
     deleteSenaObservation,
     isLoading: false,
     isSaving: false,
     latestRun: null,
-    observations: sampleObservations,
+    observations: nextObservations,
     retrySenaRun: vi.fn(),
     triggerSenaRun,
     workspaceSummary: null,
@@ -290,7 +296,7 @@ function renderRouteWithDestination() {
   function Destination() {
     const location = useLocation();
     const state = location.state as { editSession?: { observationId: string } } | null;
-    return <div>edit target: {state?.editSession?.observationId ?? 'none'}</div>;
+    return <div>edit target: {state?.editSession?.observationId ?? 'none'} at {location.pathname}{location.search}</div>;
   }
 
   return render(
@@ -298,6 +304,9 @@ function renderRouteWithDestination() {
       <Routes>
         <Route element={<StockUpdateRoute />} path="/operations" />
         <Route element={<Destination />} path={RECORD_UPDATE_STOCK_COUNT_PATH} />
+        <Route element={<Destination />} path={RECORD_UPDATE_CUSTOMER_PENDING_PATH} />
+        <Route element={<Destination />} path={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />
+        <Route element={<Destination />} path={RECORD_UPDATE_SUPPLIER_RECEIPT_PATH} />
       </Routes>
     </MemoryRouter>,
   );
@@ -394,6 +403,21 @@ describe('StockUpdateRoute', () => {
     ]);
   });
 
+  it('keeps the heatmap stable when all filtered observations have malformed dates', () => {
+    freezeDate('2026-04-10T08:00:00.000Z');
+
+    renderRoute({
+      observations: [
+        makeObservation('obs-dirty-1', 'not-a-date', 'Dirty date report 1'),
+        makeObservation('obs-dirty-2', 'also-not-a-date', 'Dirty date report 2'),
+      ],
+    });
+
+    expect(screen.getByText('0 contributions in 2025-2026')).toBeInTheDocument();
+    expect(document.body).toHaveTextContent(/Apr \d+, 2025 to Apr 10, 2026/);
+    expect(screen.queryByText('Dirty date report 1')).not.toBeInTheDocument();
+  });
+
   it('hides the view button and forces all view when disabled', () => {
     preferenceState.showLogsViewToggle = false;
 
@@ -420,7 +444,115 @@ describe('StockUpdateRoute', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit report' })[0]!);
 
     await waitFor(() => {
-      expect(screen.getByText('edit target: obs-sku-same-day')).toBeInTheDocument();
+      expect(screen.getByText(`edit target: obs-sku-same-day at ${RECORD_UPDATE_STOCK_COUNT_PATH}`)).toBeInTheDocument();
+    });
+  });
+
+  it('routes supplier ticket edit sessions to the supplier POS lane with item cards', async () => {
+    const supplierObservation = {
+      ...makeObservation('obs-supplier-ticket', '2026-04-07T12:00:00.000Z', 'Supplier order ticket'),
+      input: {
+        ...makeObservation('obs-supplier-ticket', '2026-04-07T12:00:00.000Z', 'Supplier order ticket').input,
+        ticketEvents: [{
+          ticketId: 'supplier-ticket-1',
+          ticketFamily: 'supplier' as const,
+          lifecycle: 'open' as const,
+          stage: 'ordered_waiting' as const,
+          revision: 1,
+          eventType: 'created' as const,
+          occurredAt: '2026-04-07T12:00:00.000Z',
+          nextTouchAt: '2026-04-10T12:00:00.000Z',
+          lines: [{
+            entityType: 'sku' as const,
+            entityId: 'sku-1',
+            orderedQuantity: 8,
+            receivedQuantity: null,
+            expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+          }],
+        }],
+      },
+    };
+
+    renderRouteWithDestination([supplierObservation]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit report' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(
+        `edit target: obs-supplier-ticket at ${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit&ticketId=supplier-ticket-1&flashTargets=supplier-order%3Asku-1`,
+      )).toBeInTheDocument();
+    });
+  });
+
+  it('routes supplier receipt edit sessions to the supplier receipt POS lane with item cards', async () => {
+    const supplierReceiptObservation = {
+      ...makeObservation('obs-supplier-receipt-ticket', '2026-04-07T12:00:00.000Z', 'Supplier receipt ticket'),
+      input: {
+        ...makeObservation('obs-supplier-receipt-ticket', '2026-04-07T12:00:00.000Z', 'Supplier receipt ticket').input,
+        ticketEvents: [{
+          ticketId: 'supplier-ticket-1',
+          ticketFamily: 'supplier' as const,
+          lifecycle: 'resolved' as const,
+          stage: 'received' as const,
+          revision: 2,
+          eventType: 'fully_received' as const,
+          occurredAt: '2026-04-07T12:00:00.000Z',
+          nextTouchAt: null,
+          lines: [{
+            entityType: 'sku' as const,
+            entityId: 'sku-1',
+            orderedQuantity: 8,
+            receivedQuantity: 8,
+            expectedArrivalAt: null,
+          }],
+        }],
+      },
+    };
+
+    renderRouteWithDestination([supplierReceiptObservation]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit report' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(
+        `edit target: obs-supplier-receipt-ticket at ${RECORD_UPDATE_SUPPLIER_RECEIPT_PATH}?ticketMode=edit&ticketId=supplier-ticket-1&flashTargets=supplier-receipt%3Asku-1`,
+      )).toBeInTheDocument();
+    });
+  });
+
+  it('routes customer ticket edit sessions to the customer POS lane with item cards', async () => {
+    const customerObservation = {
+      ...makeObservation('obs-customer-ticket', '2026-04-07T12:00:00.000Z', 'Customer order ticket'),
+      input: {
+        ...makeObservation('obs-customer-ticket', '2026-04-07T12:00:00.000Z', 'Customer order ticket').input,
+        ticketEvents: [{
+          ticketId: 'customer-ticket-1',
+          ticketFamily: 'customer' as const,
+          lifecycle: 'open' as const,
+          stage: 'pending' as const,
+          revision: 1,
+          eventType: 'created' as const,
+          occurredAt: '2026-04-07T12:00:00.000Z',
+          nextTouchAt: '2026-04-10T12:00:00.000Z',
+          lines: [{
+            entityType: 'sku' as const,
+            entityId: 'sku-1',
+            orderedQuantity: 2,
+            receivedQuantity: null,
+            expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+          }],
+        }],
+      },
+    };
+
+    renderRouteWithDestination([customerObservation]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit report' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(
+        `edit target: obs-customer-ticket at ${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=edit&ticketId=customer-ticket-1&flashTargets=retail%3Asku-1`,
+      )).toBeInTheDocument();
     });
   });
 

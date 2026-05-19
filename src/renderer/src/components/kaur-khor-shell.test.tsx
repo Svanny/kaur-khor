@@ -272,7 +272,7 @@ describe('KaurKhorShell', () => {
     expect(workChildLinks).toEqual(['Queue', 'Intake', 'Capture']);
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand Capture' }));
-    expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', '/work/capture/stock-count');
+    expect(screen.getByRole('link', { name: 'Products Update' })).toHaveAttribute('href', '/work/capture/stock-count');
     expect(screen.getByRole('link', { name: 'Customer Order' })).toHaveAttribute('href', '/work/capture/customer-order');
     expect(screen.getByRole('link', { name: 'Immediate Sale' })).toHaveAttribute('href', '/work/capture/immediate-sale');
     expect(screen.getByRole('link', { name: 'Supplier Order' })).toHaveAttribute('href', '/work/capture/supplier-order');

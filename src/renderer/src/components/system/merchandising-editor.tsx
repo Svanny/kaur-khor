@@ -68,7 +68,7 @@ export function buildEligibleReportRanking(snapshot: InventorySnapshot): Ranking
       position: index,
     })),
     ...snapshot.skus
-      .filter((sku) => sku.soldAsProduct && sku.productPrice !== null)
+      .filter((sku) => sku.soldAsProduct && sku.productPrice !== null && Number.isFinite(sku.productPrice) && sku.productPrice >= 0)
       .map((sku, index) => ({
         entryType: 'sku' as const,
         entryId: sku.skuId,

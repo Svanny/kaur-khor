@@ -14,6 +14,20 @@ type ContinueAfterSave = () => void;
 type SaveBeforeContinueHandler = (continueAfterSave: ContinueAfterSave) => void | boolean | Promise<void | boolean>;
 
 export function resolveInternalNavigationPath(anchor: HTMLAnchorElement) {
+  if (anchor.hasAttribute('download')) {
+    return null;
+  }
+
+  const rawHref = anchor.getAttribute('href')?.trim() ?? '';
+  if (rawHref.startsWith('#') && !rawHref.startsWith('#/')) {
+    return null;
+  }
+
+  const target = anchor.getAttribute('target')?.trim().toLowerCase();
+  if (target && target !== '_self') {
+    return null;
+  }
+
   const url = new URL(anchor.href, window.location.href);
   if (url.origin !== window.location.origin) {
     return null;
@@ -194,6 +208,7 @@ export function useRouteLeaveConfirm({
   const navigate = useNavigate();
   const currentPathRef = useRef(`${location.pathname}${location.search}${location.hash}`);
   const enabledRef = useRef(enabled);
+  const replayingAnchorClickRef = useRef(false);
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled,
     description: description ?? message,
@@ -210,6 +225,9 @@ export function useRouteLeaveConfirm({
 
   useEffect(() => {
     function handleDocumentClick(event: MouseEvent) {
+      if (replayingAnchorClickRef.current) {
+        return;
+      }
       if (event.defaultPrevented || event.button !== 0) {
         return;
       }
@@ -233,7 +251,20 @@ export function useRouteLeaveConfirm({
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      requestDiscardRef.current(() => navigate(nextPath));
+      requestDiscardRef.current(() => {
+        if (!anchor.isConnected) {
+          navigate(nextPath);
+          return;
+        }
+        replayingAnchorClickRef.current = true;
+        try {
+          anchor.click();
+        } finally {
+          window.setTimeout(() => {
+            replayingAnchorClickRef.current = false;
+          }, 0);
+        }
+      });
     }
 
     function handleHistoryNavigation() {

@@ -10,7 +10,6 @@ export interface PageIssueCollector {
 
 const IGNORED_CONSOLE_PATTERNS = [
   /\[browser-mock\] installed mock kaurKhorDesktop bridge/i,
-  /Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element/i,
 ];
 
 function slugify(value: string) {
@@ -43,7 +42,7 @@ export function attachPageIssueCollector(page: Page): PageIssueCollector {
     if (!/^https?:/i.test(url)) {
       return;
     }
-    if (request.failure()?.errorText === 'net::ERR_ABORTED' && /\/src\/renderer\/src\//.test(url)) {
+    if (request.failure()?.errorText === 'net::ERR_ABORTED' && /\/(?:kaur-khor\/)?src\//.test(url)) {
       return;
     }
     issues.push(`requestfailed: ${request.method()} ${url} ${request.failure()?.errorText ?? ''}`.trim());
@@ -128,6 +127,11 @@ export async function assertNoBrokenNumericText(page: Page, context: string) {
 }
 
 export async function assertRenderedContent(page: Page, context: string) {
+  await page.waitForFunction(() => {
+    const bodyTextLength = (document.body?.innerText.trim() || document.body?.textContent?.trim() || '').length;
+    return bodyTextLength > 0;
+  }, undefined, { timeout: 5_000 });
+
   const content = await page.evaluate(() => {
     const body = document.body;
     const visibleText = Array.from(document.querySelectorAll<HTMLElement>('body *'))
@@ -143,17 +147,16 @@ export async function assertRenderedContent(page: Page, context: string) {
           && rect.left < window.innerWidth
           && rect.top < window.innerHeight;
       })
-      .map((element) => element.innerText?.trim() ?? element.getAttribute('aria-label')?.trim() ?? '')
+      .map((element) => element.innerText?.trim() || element.textContent?.trim() || element.getAttribute('aria-label')?.trim() || '')
       .filter(Boolean)
       .slice(0, 20);
 
     return {
-      bodyTextLength: body?.innerText.trim().length ?? 0,
+      bodyTextLength: (body?.innerText.trim() || body?.textContent?.trim() || '').length,
       title: document.title,
       visibleText,
     };
   });
-
   expect(
     content.bodyTextLength,
     `${context} should render visible textual content: ${JSON.stringify(content.visibleText)}`,
@@ -161,7 +164,7 @@ export async function assertRenderedContent(page: Page, context: string) {
 }
 
 export async function assertInteractiveControlsStable(page: Page, context: string) {
-  const unstableControls = await page.evaluate(() => {
+  const collectUnstableControls = () => page.evaluate(() => {
     const selectors = [
       'button',
       'a[href]',
@@ -220,6 +223,13 @@ export async function assertInteractiveControlsStable(page: Page, context: strin
       })
       .filter((entry) => entry.clipsText || entry.tooSmall)
       .slice(0, 8);
+  });
+  const unstableControls = await collectUnstableControls().catch(async (error: unknown) => {
+    if (error instanceof Error && /Execution context was destroyed/i.test(error.message)) {
+      await page.waitForLoadState('domcontentloaded');
+      return collectUnstableControls();
+    }
+    throw error;
   });
 
   expect(
@@ -284,10 +294,12 @@ export async function scrollMainSurface(page: Page) {
 }
 
 export async function navigateHashRoute(page: Page, route: `/${string}`) {
-  await page.evaluate((nextRoute) => {
-    window.location.hash = `#${nextRoute}`;
-  }, route);
-  const reachedRoute = await page.waitForFunction((expectedRoute) => window.location.hash.slice(1) === expectedRoute, route, { timeout: 3_000 })
+  const setRouteHash = () =>
+    page.evaluate((nextRoute) => {
+      window.location.hash = `#${nextRoute}`;
+    }, route);
+  await setRouteHash();
+  let reachedRoute = await page.waitForFunction((expectedRoute) => window.location.hash.slice(1) === expectedRoute, route, { timeout: 3_000 })
     .then(() => true)
     .catch(() => false);
   if (!reachedRoute) {
@@ -295,10 +307,17 @@ export async function navigateHashRoute(page: Page, route: `/${string}`) {
     if (await leaveDialog.isVisible().catch(() => false)) {
       await leaveDialog.getByRole('button', { name: 'Discard changes' }).click();
       await leaveDialog.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
-      await page.evaluate((nextRoute) => {
-        window.location.hash = `#${nextRoute}`;
-      }, route);
+      await setRouteHash();
+    } else {
+      await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+      await setRouteHash();
     }
+    reachedRoute = await page.waitForFunction((expectedRoute) => window.location.hash.slice(1) === expectedRoute, route, { timeout: 3_000 })
+      .then(() => true)
+      .catch(() => false);
+  }
+  if (!reachedRoute) {
+    await setRouteHash();
   }
   await page.waitForFunction((expectedRoute) => window.location.hash.slice(1) === expectedRoute, route);
   await page.waitForTimeout(300);

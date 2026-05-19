@@ -6,6 +6,7 @@ export const captureLaneValues = [
   'customer-order',
   'immediate-sale',
   'supplier-order',
+  'supplier-receipt',
   'custom',
 ] as const;
 export type CaptureLaneValue = typeof captureLaneValues[number];
@@ -300,6 +301,29 @@ function writeBooleanValue(
   searchParams.set(key, value ? '1' : '0');
 }
 
+function readCustomRangeValue(searchParams: URLSearchParams) {
+  const start = searchParams.get('customStart')?.trim() || null;
+  const end = searchParams.get('customEnd')?.trim() || null;
+  if (!start || !end) {
+    return { customRangeStart: null, customRangeEnd: null };
+  }
+  const startTime = Date.parse(start);
+  const endTime = Date.parse(end);
+  if (
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime) ||
+    startTime > endTime ||
+    new Date(startTime).toISOString() !== start ||
+    new Date(endTime).toISOString() !== end
+  ) {
+    return { customRangeStart: null, customRangeEnd: null };
+  }
+  return {
+    customRangeStart: start,
+    customRangeEnd: end,
+  };
+}
+
 function writeOptionalValue(
   searchParams: URLSearchParams,
   key: string,
@@ -313,6 +337,25 @@ function writeOptionalValue(
   searchParams.set(key, value);
 }
 
+function readOptionalTrimmedValue(searchParams: URLSearchParams, key: string) {
+  const value = searchParams.get(key)?.trim();
+  return value ? value : null;
+}
+
+function readCustomColumnsValue(searchParams: URLSearchParams) {
+  const seen = new Set<string>();
+  return searchParams.get('columns')?.split(',')
+    .map((value) => value.trim())
+    .filter((value) => {
+      if (!value || value.length > 64 || seen.has(value)) {
+        return false;
+      }
+      seen.add(value);
+      return true;
+    })
+    .slice(0, 32) ?? [];
+}
+
 function cloneSearchParams(searchParams?: URLSearchParams | null) {
   return new URLSearchParams(searchParams ?? undefined);
 }
@@ -324,18 +367,18 @@ export function createHref(pathname: string, searchParams: URLSearchParams) {
 
 export function readOverviewRouteState(searchParams: URLSearchParams): OverviewRouteState {
   const taskMode = readEnumValue(searchParams, 'taskMode', overviewTaskModeValues, overviewTaskModeValues[0]);
-  const taskId = searchParams.get('task');
+  const taskId = readOptionalTrimmedValue(searchParams, 'task');
 
   return {
     section: readEnumValue(searchParams, 'section', inboxSectionValues, 'queue'),
     filter: readEnumValue(searchParams, 'filter', overviewTaskFilterValues, 'all'),
     scope: readEnumValue(searchParams, 'scope', overviewScopeValues, 'all'),
-    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
-    taskId: taskId?.trim() ? taskId : null,
-    taskMode: taskId?.trim() ? taskMode : null,
-    workflow: readEnumValue(searchParams, 'workflow', overviewWorkflowValues, 'customer'),
+    supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
+    taskId,
+    taskMode: taskId ? taskMode : null,
+    workflow: readEnumValue(searchParams, 'workflow', overviewWorkflowValues, 'supplier'),
     customerFilter: readEnumValue(searchParams, 'customerFilter', overviewCustomerFilterValues, 'all'),
-    customerTaskId: searchParams.get('customerTask')?.trim() ? searchParams.get('customerTask')!.trim() : null,
+    customerTaskId: readOptionalTrimmedValue(searchParams, 'customerTask'),
   };
 }
 
@@ -346,16 +389,20 @@ export function buildOverviewSearchParams(
   const currentState = readOverviewRouteState(cloneSearchParams(currentSearchParams));
   const searchParams = cloneSearchParams(currentSearchParams);
   const resolvedState = { ...currentState, ...nextState };
+  const isSupplierWorkflow = resolvedState.workflow === 'supplier';
+  const supplierTaskId = isSupplierWorkflow ? resolvedState.taskId : null;
+  const customerTaskId = isSupplierWorkflow ? null : resolvedState.customerTaskId;
+  const customerFilter = isSupplierWorkflow ? 'all' : resolvedState.customerFilter;
 
   writeEnumValue(searchParams, 'filter', resolvedState.filter, 'all');
   writeEnumValue(searchParams, 'section', resolvedState.section, 'queue');
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
-  writeOptionalValue(searchParams, 'task', resolvedState.taskId);
-  writeOptionalValue(searchParams, 'taskMode', resolvedState.taskId ? resolvedState.taskMode : null);
-  writeEnumValue(searchParams, 'workflow', resolvedState.workflow, 'customer');
-  writeEnumValue(searchParams, 'customerFilter', resolvedState.customerFilter, 'all');
-  writeOptionalValue(searchParams, 'customerTask', resolvedState.customerTaskId);
+  writeOptionalValue(searchParams, 'task', supplierTaskId);
+  writeOptionalValue(searchParams, 'taskMode', supplierTaskId ? resolvedState.taskMode : null);
+  writeEnumValue(searchParams, 'workflow', resolvedState.workflow, 'supplier');
+  writeEnumValue(searchParams, 'customerFilter', customerFilter, 'all');
+  writeOptionalValue(searchParams, 'customerTask', customerTaskId);
   return searchParams;
 }
 
@@ -391,7 +438,7 @@ export function readAnalysisRouteState(searchParams: URLSearchParams): AnalysisR
     chart: chartValue === 'expanded' ? 'expanded' : null,
     scope: readEnumValue(searchParams, 'scope', analysisScopeValues, 'all'),
     section: readEnumValue(searchParams, 'section', analysisSectionValues, 'workbench'),
-    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
     timeframe: readEnumValue(searchParams, 'timeframe', analysisTimeframeValues, 'Recent'),
   };
 }
@@ -417,13 +464,15 @@ export function buildAnalysisHref(nextState?: Partial<AnalysisRouteState>, curre
 }
 
 export function readPerformanceRouteState(searchParams: URLSearchParams): PerformanceRouteState {
+  const customRange = readCustomRangeValue(searchParams);
+  const range = readEnumValue(searchParams, 'range', performanceRangeValues, '30d');
   return {
     compare: readBooleanValue(searchParams, 'compare', false),
-    range: readEnumValue(searchParams, 'range', performanceRangeValues, '30d'),
+    range: range === 'custom' && !customRange.customRangeStart ? '30d' : range,
     scope: readEnumValue(searchParams, 'scope', performanceScopeValues, 'all'),
-    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
-    customRangeStart: searchParams.get('customStart')?.trim() || null,
-    customRangeEnd: searchParams.get('customEnd')?.trim() || null,
+    supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
+    customRangeStart: customRange.customRangeStart,
+    customRangeEnd: customRange.customRangeEnd,
   };
 }
 
@@ -452,18 +501,18 @@ export function buildPerformanceHref(
 }
 
 export function readInventoryRouteState(searchParams: URLSearchParams): InventoryRouteState {
-  const customColumns = searchParams.get('columns')?.split(',')
-    .map((value) => value.trim())
-    .filter(Boolean) ?? [];
+  const customColumns = readCustomColumnsValue(searchParams);
+  const customRange = readCustomRangeValue(searchParams);
+  const range = readEnumValue(searchParams, 'range', inventoryRangeValues, '30d');
   return {
     customColumns,
-    customRangeStart: searchParams.get('customStart')?.trim() || null,
-    customRangeEnd: searchParams.get('customEnd')?.trim() || null,
+    customRangeStart: customRange.customRangeStart,
+    customRangeEnd: customRange.customRangeEnd,
     projectionHorizon: readEnumValue(searchParams, 'projection', inventoryProjectionHorizonValues, '14d'),
-    range: readEnumValue(searchParams, 'range', inventoryRangeValues, '30d'),
+    range: range === 'custom' && !customRange.customRangeStart ? '30d' : range,
     rowSet: readEnumValue(searchParams, 'rows', inventoryRowSetValues, 'focus'),
     scope: readEnumValue(searchParams, 'scope', inventoryScopeValues, 'skus'),
-    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
     viewPreset: readEnumValue(searchParams, 'preset', inventoryViewPresetValues, 'health'),
   };
 }
@@ -511,13 +560,15 @@ export function buildInventoryHref(
 }
 
 export function readFinancialsRouteState(searchParams: URLSearchParams): FinancialsRouteState {
+  const customRange = readCustomRangeValue(searchParams);
+  const range = readEnumValue(searchParams, 'range', financialsRangeValues, '1d');
   return {
     compare: readBooleanValue(searchParams, 'compare', false),
-    range: readEnumValue(searchParams, 'range', financialsRangeValues, '1d'),
+    range: range === 'custom' && !customRange.customRangeStart ? '1d' : range,
     scope: readEnumValue(searchParams, 'scope', financialsScopeValues, 'all'),
-    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
-    customRangeStart: searchParams.get('customStart')?.trim() || null,
-    customRangeEnd: searchParams.get('customEnd')?.trim() || null,
+    supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
+    customRangeStart: customRange.customRangeStart,
+    customRangeEnd: customRange.customRangeEnd,
   };
 }
 
@@ -552,10 +603,10 @@ export function readAutomationRouteState(searchParams: URLSearchParams): Automat
     exposure: readEnumValue(searchParams, 'exposure', automationExposureValues, 'all'),
     intakeFilter: readEnumValue(searchParams, 'filter', automationIntakeFilterValues, 'all'),
     health: readEnumValue(searchParams, 'health', automationHealthValues, 'all'),
-    q: searchParams.get('q')?.trim() ? searchParams.get('q')!.trim() : null,
-    conversationId: searchParams.get('conversation')?.trim() ? searchParams.get('conversation')!.trim() : null,
-    intakeId: searchParams.get('intake')?.trim() ? searchParams.get('intake')!.trim() : null,
-    ticketId: searchParams.get('ticket')?.trim() ? searchParams.get('ticket')!.trim() : null,
+    q: readOptionalTrimmedValue(searchParams, 'q'),
+    conversationId: readOptionalTrimmedValue(searchParams, 'conversation'),
+    intakeId: readOptionalTrimmedValue(searchParams, 'intake'),
+    ticketId: readOptionalTrimmedValue(searchParams, 'ticket'),
   };
 }
 
@@ -600,7 +651,7 @@ export function buildAutomationHref(
 export function readOperationsRouteState(searchParams: URLSearchParams): OperationsRouteState {
   return {
     scope: readEnumValue(searchParams, 'scope', operationsScopeValues, 'all'),
-    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
     view: readEnumValue(searchParams, 'view', operationsViewValues, 'heatmap'),
   };
 }
@@ -638,8 +689,8 @@ export function buildHistoryHref(
 
 export function readArchiveRouteState(searchParams: URLSearchParams): ArchiveRouteState {
   return {
-    q: searchParams.get('q')?.trim() ? searchParams.get('q')!.trim() : null,
-    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    q: readOptionalTrimmedValue(searchParams, 'q'),
+    supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
     view: readEnumValue(searchParams, 'view', archiveViewValues, 'all'),
   };
 }
@@ -677,10 +728,10 @@ export function readCatalogView(searchParams: URLSearchParams): CatalogViewValue
 
 export function readCatalogRouteState(searchParams: URLSearchParams): CatalogRouteState {
   return {
-    q: searchParams.get('q')?.trim() ? searchParams.get('q')!.trim() : null,
+    q: readOptionalTrimmedValue(searchParams, 'q'),
     section: readEnumValue(searchParams, 'section', catalogSectionValues, 'items'),
     status: readEnumValue(searchParams, 'status', catalogStatusValues, 'active'),
-    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
     view: readCatalogView(searchParams),
   };
 }
@@ -824,9 +875,17 @@ export function readServiceAction(searchParams: URLSearchParams): ServiceActionV
 }
 
 export function buildSkuDetailHref(skuId: string) {
-  return `/catalog/skus/${skuId}`;
+  return `/catalog/skus/${encodeURIComponent(skuId)}`;
+}
+
+export function buildSkuEditHref(skuId: string) {
+  return `${buildSkuDetailHref(skuId)}/edit`;
 }
 
 export function buildServiceDetailHref(serviceId: string) {
-  return `/catalog/services/${serviceId}`;
+  return `/catalog/services/${encodeURIComponent(serviceId)}`;
+}
+
+export function buildServiceEditHref(serviceId: string) {
+  return `${buildServiceDetailHref(serviceId)}/edit`;
 }

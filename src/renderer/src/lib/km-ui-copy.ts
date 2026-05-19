@@ -1923,6 +1923,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
   overviewDrawerSubmitOrderCanceled: 'រក្សាទុកការលុបចោល',
   overviewDrawerSubmitNotOrdered: 'រក្សាទុកកំណត់ចំណាំ',
   overviewDrawerSubmitDefault: 'រក្សាទុក ហើយផ្ទុកឡើងវិញ',
+  overviewDrawerObservedAtRequired: 'ជ្រើសថ្ងៃ/ម៉ោងសង្កេតដែលត្រឹមត្រូវ មុនពេលរក្សាទុក។',
   overviewDrawerSaveFailed: 'កខ មិនអាចរក្សាទុកការអាប់ដេតនេះបានទេ។ សូមព្យាយាមម្ដងទៀត។',
 };
 
@@ -2098,6 +2099,9 @@ const exactValueTranslations: Record<string, string> = {
   'កខ removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.':
     'កខ ដកប្រព័ន្ធអាប់ដេតជាបាច់ចាស់ចេញ ហើយប្រើប្រព័ន្ធសំបុត្រការងារ។ ជ្រើសលំហូរស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ដែលត្រូវនឹងការងារ។',
   'Stock Count': 'រាប់ស្តុក',
+  'Products Update': 'កែប្រែផលិតផល',
+  'Add returned stock in Products Update': 'បន្ថែមស្តុកដែលបានត្រឡប់ក្នុងការកែប្រែផលិតផល',
+  'Handle later in Products Update': 'ដោះស្រាយពេលក្រោយក្នុងការកែប្រែផលិតផល',
   'Count what is physically on hand and reconcile mistakes.':
     'រាប់អ្វីដែលមាននៅក្នុងដៃពិតប្រាកដ ហើយកែសម្រួលកំហុស។',
   'Customer Order': 'ការបញ្ជាទិញអតិថិជន',
@@ -2553,6 +2557,7 @@ const exactValueTranslations: Record<string, string> = {
   'Record Immediate sale': 'កត់ត្រាការលក់ភ្លាមៗ',
   Record: 'កត់ត្រា',
   'Updated Price': 'តម្លៃបានអាប់ដេត',
+  'Updated price': 'តម្លៃបានអាប់ដេត',
   'Log order': 'កត់ត្រាការបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
   'Log receipt': 'កត់ត្រាការបញ្ជាទិញអតិថិជន',
   'Update price': 'អាប់ដេតតម្លៃ',
@@ -3107,6 +3112,9 @@ const exactValueTranslations: Record<string, string> = {
     'Open service': 'បើកសេវាកម្ម',
     'Open SKU': 'បើក SKU',
     'Open bottleneck SKU': 'បើក SKU ដែលជាចំណុចរារាំង',
+    'Open bottleneck SKU?': 'បើក SKU ដែលជាចំណុចរារាំងឬ?',
+    'This will leave the service detail page and open the linked bottleneck SKU.':
+      'វានឹងចាកចេញពីទំព័រលម្អិតសេវាកម្ម ហើយបើក SKU ដែលជាចំណុចរារាំងដែលបានភ្ជាប់។',
     'Edit service': 'កែសេវាកម្ម',
     Push: 'ជំរុញ',
     Recover: 'ស្តារឡើងវិញ',
@@ -3485,7 +3493,7 @@ const exactValueTranslations: Record<string, string> = {
   'Discount type': 'ប្រភេទបញ្ចុះតម្លៃ',
   'Discount amount': 'ចំនួនបញ្ចុះតម្លៃ',
   'Discount percent': 'ភាគរយបញ្ចុះតម្លៃ',
-  'Dicount Percent (%)': 'ភាគរយបញ្ចុះតម្លៃ (%)',
+  'Discount Percent (%)': 'ភាគរយបញ្ចុះតម្លៃ (%)',
   'Select discount type': 'ជ្រើសប្រភេទបញ្ចុះតម្លៃ',
   'Review the Telegram messages attached to one specific intake order.':
     'ពិនិត្យសារតេលេក្រាមដែលភ្ជាប់នឹងការទទួលសំណើជាក់លាក់មួយ។',
@@ -3938,6 +3946,8 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Telegram stays an ingress channel. Pricing, ticket truth, and fulfillment still belong to កខ.':
     'តេលេក្រាមនៅតែជាឆានែលទទួលសំណើ។ តម្លៃ សំបុត្រការងារពិត និងការបំពេញការបញ្ជាទិញ នៅតែជារបស់កខ។',
   'Bot display name': 'ឈ្មោះបង្ហាញបូត',
+  'Bot username': 'ឈ្មោះប្រើបូត',
+  'Telegram bot link': 'តំណបូតតេលេក្រាម',
   'Telegram bot token': 'ថូខិនបូតតេលេក្រាម',
   '@bot_username': 'ឈ្មោះប្រើបូតតេលេក្រាម',
   'https://t.me/your_bot': 'តំណបូតតេលេក្រាម',

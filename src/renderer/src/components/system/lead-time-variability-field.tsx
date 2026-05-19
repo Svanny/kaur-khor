@@ -12,6 +12,7 @@ import {
   leadTimeVariabilityPlaceholderValue,
   shouldShowLeadTimeVariabilityPlaceholder,
 } from '@/lib/lead-time-variability-select';
+import { parseEditableNumberWithCommas } from '@/lib/format';
 import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
@@ -36,8 +37,10 @@ export function etaVariationPartsFromDays(days: number | null) {
 }
 
 export function etaVariationDaysFromParts(wholeDaysDraft: string, hoursDraft: string) {
-  const wholeDays = wholeDaysDraft.trim() ? Math.max(0, Math.floor(Number(wholeDaysDraft))) : 0;
-  const hours = hoursDraft.trim() ? Math.max(0, Number(hoursDraft)) : 0;
+  const wholeDays = wholeDaysDraft.trim()
+    ? Math.max(0, Math.floor(parseEditableNumberWithCommas(wholeDaysDraft)))
+    : 0;
+  const hours = hoursDraft.trim() ? Math.max(0, parseEditableNumberWithCommas(hoursDraft)) : 0;
   if (!Number.isFinite(wholeDays) || !Number.isFinite(hours)) {
     return null;
   }
@@ -106,7 +109,7 @@ export function LeadTimeVariabilityField({
   const [customWholeDays, setCustomWholeDays] = useState('');
   const [customHours, setCustomHours] = useState('');
   useEffect(() => {
-    const customParts = etaVariationPartsFromDays(customStdDays.trim() ? Number(customStdDays) : null);
+    const customParts = etaVariationPartsFromDays(customStdDays.trim() ? parseEditableNumberWithCommas(customStdDays) : null);
     setCustomWholeDays(customParts ? String(customParts.wholeDays) : '');
     setCustomHours(customParts ? formatHours(customParts.hours) : '');
   }, [customStdDays]);
@@ -115,7 +118,7 @@ export function LeadTimeVariabilityField({
     setCustomHours(nextHours);
     if (
       (!nextWholeDays.trim() && !nextHours.trim()) ||
-      (Number(nextWholeDays) === 0 && !nextHours.trim())
+      (parseEditableNumberWithCommas(nextWholeDays) === 0 && !nextHours.trim())
     ) {
       onCustomStdDaysChange('');
       return;

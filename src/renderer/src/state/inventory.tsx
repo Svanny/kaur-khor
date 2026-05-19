@@ -386,11 +386,44 @@ function deriveProjectedReports(observations: SenaObservationRecord[]) {
   return projectStockReportsFromSena(observations);
 }
 
+function normalizeObservationPageRequestForCache(
+  payload?: SenaObservationPageRequest,
+): SenaObservationPageRequest | undefined {
+  if (payload == null) {
+    return undefined;
+  }
+  return {
+    beforeObservedAt: payload.beforeObservedAt?.trim() || null,
+    beforeObservationId: payload.beforeObservationId?.trim() || null,
+    limit: payload.limit ?? 100,
+  };
+}
+
+function isInitialObservationPageRequest(payload?: SenaObservationPageRequest) {
+  return !payload?.beforeObservedAt && !payload?.beforeObservationId;
+}
+
+function normalizeOrderLookupPayloadForCache(payload?: SenaOrderLookupPayload): SenaOrderLookupPayload | undefined {
+  if (payload == null) {
+    return undefined;
+  }
+  const normalized = {
+    batchOrderId: payload.batchOrderId?.trim() || undefined,
+    childOrderId: payload.childOrderId?.trim() || undefined,
+    skuId: payload.skuId?.trim() || undefined,
+    supplierName: payload.supplierName?.trim() || undefined,
+    status: payload.status,
+  };
+  return Object.values(normalized).some((value) => value != null) ? normalized : undefined;
+}
+
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => emptyState());
   const stateRef = useRef(state);
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
   const inflightRef = useRef<Map<string, Promise<ReadCacheValue>>>(new Map());
+  const readCacheGenerationRef = useRef(0);
+  const reloadRequestSeqRef = useRef(0);
   const activeDetailFreshnessFingerprintRef = useRef<string | null>(null);
   const savingDepthRef = useRef(0);
   const workspacePreparationDepthRef = useRef(0);
@@ -415,6 +448,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const invalidateSenaReads = useCallback(() => {
+    readCacheGenerationRef.current += 1;
     for (const key of readCacheRef.current.keys()) {
       if (isSenaCacheKey(key)) {
         readCacheRef.current.delete(key);
@@ -486,9 +520,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     if (inflight) {
       return (await inflight) as T;
     }
+    const generation = readCacheGenerationRef.current;
     const request = loader()
       .then((value) => {
-        readCacheRef.current.set(key, value);
+        if (readCacheGenerationRef.current === generation) {
+          readCacheRef.current.set(key, value);
+        }
         inflightRef.current.delete(key);
         return value;
       })
@@ -516,13 +553,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       return cached as TPage | null;
     }
 
+    const generation = readCacheGenerationRef.current;
     const persisted = readPersisted();
     if (persisted) {
       readCacheRef.current.set(key, persisted);
       if (!inflightRef.current.has(key)) {
         const request = loadFresh()
           .then((value) => {
-            readCacheRef.current.set(key, value);
+            if (readCacheGenerationRef.current === generation) {
+              readCacheRef.current.set(key, value);
+            }
             inflightRef.current.delete(key);
             return value;
           })
@@ -543,7 +583,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
     const request = loadFresh()
       .then((value) => {
-        readCacheRef.current.set(key, value);
+        if (readCacheGenerationRef.current === generation) {
+          readCacheRef.current.set(key, value);
+        }
         inflightRef.current.delete(key);
         return value;
       })
@@ -585,11 +627,17 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   }, [state.workspaceSummary, syncPersistentSenaDetailCache]);
 
   const reload = useCallback(async () => {
+    const requestId = reloadRequestSeqRef.current + 1;
+    reloadRequestSeqRef.current = requestId;
+    readCacheGenerationRef.current += 1;
     setState((current) => ({ ...current, error: null, isLoading: true }));
     try {
       readCacheRef.current.clear();
       inflightRef.current.clear();
       const startupWorkspace = await window.kaurKhorDesktop.sena.getStartupWorkspace();
+      if (requestId !== reloadRequestSeqRef.current) {
+        return;
+      }
       const catalog = normalizeSenaCatalog(startupWorkspace.catalog);
       const workspaceSummary = startupWorkspace.workspaceSummary;
       const latestRun = startupWorkspace.latestRun;
@@ -622,6 +670,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         workspaceSummary,
       });
     } catch (error) {
+      if (requestId !== reloadRequestSeqRef.current) {
+        return;
+      }
       setState((current) => ({
         ...current,
         error: error instanceof Error ? error.message : 'Failed to load inventory workspace.',
@@ -1053,9 +1104,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           });
         }),
       listSenaObservationPage: async (payload) => {
-        const key = `sena:observation-page:${JSON.stringify(payload ?? {})}`;
-        const page = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listObservationPage(payload));
-        if (!payload?.beforeObservedAt && !payload?.beforeObservationId) {
+        const pagePayload = normalizeObservationPageRequestForCache(payload);
+        const key = `sena:observation-page:${JSON.stringify(pagePayload ?? {})}`;
+        const page = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listObservationPage(pagePayload));
+        if (isInitialObservationPageRequest(pagePayload)) {
           const reports = deriveProjectedReports(page.observations);
           const snapshot = deriveProjectedSnapshot(
             stateRef.current.catalog,
@@ -1144,17 +1196,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return observations;
       },
       listSenaOrderBatches: async (payload) => {
-        const key = `sena:order-batches:${JSON.stringify(payload ?? {})}`;
-        const orderBatches = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listOrderBatches(payload));
-        if (!payload || Object.keys(payload).length === 0) {
+        const orderPayload = normalizeOrderLookupPayloadForCache(payload);
+        const key = `sena:order-batches:${JSON.stringify(orderPayload ?? {})}`;
+        const orderBatches = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listOrderBatches(orderPayload));
+        if (!orderPayload) {
           setStatePartial({ orderBatches });
         }
         return orderBatches;
       },
       loadSenaOrderBatches: async (payload) => {
-        const key = `sena:order-batches:${JSON.stringify(payload ?? {})}`;
-        const orderBatches = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listOrderBatches(payload));
-        if (!payload || Object.keys(payload).length === 0) {
+        const orderPayload = normalizeOrderLookupPayloadForCache(payload);
+        const key = `sena:order-batches:${JSON.stringify(orderPayload ?? {})}`;
+        const orderBatches = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listOrderBatches(orderPayload));
+        if (!orderPayload) {
           setStatePartial({ orderBatches });
         }
         return orderBatches;
@@ -1282,10 +1336,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const strategy = options?.strategy ?? 'cache-first';
         const key = `sena:sku:${skuId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
         const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(stateRef.current.workspaceSummary);
+        const generation = readCacheGenerationRef.current;
         const loadFresh = async () => {
           const page = normalizeSkuDetailPage(await window.kaurKhorDesktop.sena.getSkuDetail({ skuId, beforeIntervalIndex, limit }), limit);
           const storage = optionalLocalStorage();
-          if (storage) {
+          if (storage && readCacheGenerationRef.current === generation) {
             writePersistedSenaDetailPage({
               beforeIntervalIndex,
               entityId: skuId,
@@ -1300,7 +1355,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         };
         if (strategy === 'network-only') {
           const page = await loadFresh();
-          readCacheRef.current.set(key, page);
+          if (readCacheGenerationRef.current === generation) {
+            readCacheRef.current.set(key, page);
+          }
           return page;
         }
         return loadSenaDetailPage({
@@ -1327,10 +1384,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const strategy = options?.strategy ?? 'cache-first';
         const key = `sena:service:${serviceId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
         const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(stateRef.current.workspaceSummary);
+        const generation = readCacheGenerationRef.current;
         const loadFresh = async () => {
           const page = normalizeServiceDetailPage(await window.kaurKhorDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }), limit);
           const storage = optionalLocalStorage();
-          if (storage) {
+          if (storage && readCacheGenerationRef.current === generation) {
             writePersistedSenaDetailPage({
               beforeIntervalIndex,
               entityId: serviceId,
@@ -1345,7 +1403,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         };
         if (strategy === 'network-only') {
           const page = await loadFresh();
-          readCacheRef.current.set(key, page);
+          if (readCacheGenerationRef.current === generation) {
+            readCacheRef.current.set(key, page);
+          }
           return page;
         }
         return loadSenaDetailPage({

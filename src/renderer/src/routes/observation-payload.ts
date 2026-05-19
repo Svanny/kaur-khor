@@ -61,10 +61,10 @@ export function createEmptyObservationInput({
 
 export function observationSignalCounts(input: SenaObservationInput): ObservationSignalCounts {
   const commercialEvents = input.commercialEvents ?? [];
-  const customerPending = commercialEvents.filter((event) => event.party === 'customer' && event.stage === 'pending').length;
-  const customerCompleted = commercialEvents.filter((event) => event.party === 'customer' && event.stage === 'realized').length;
-  const supplierPending = commercialEvents.filter((event) => event.party === 'supplier' && event.stage === 'pending').length;
-  const supplierReceipts = commercialEvents.filter((event) => event.party === 'supplier' && event.stage === 'realized').length;
+  const customerPending = commercialEvents.filter((event) => event.party === 'customer' && event.stage === 'pending' && event.quantityDelta > 0).length;
+  const customerCompleted = commercialEvents.filter((event) => event.party === 'customer' && event.stage === 'realized' && event.quantityDelta > 0).length;
+  const supplierPending = commercialEvents.filter((event) => event.party === 'supplier' && event.stage === 'pending' && event.quantityDelta > 0).length;
+  const supplierReceipts = commercialEvents.filter((event) => event.party === 'supplier' && event.stage === 'realized' && event.quantityDelta > 0).length;
 
   return {
     stockSnapshot: input.stockSnapshot.length,

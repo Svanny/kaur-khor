@@ -70,6 +70,15 @@ function customerTicket(overrides: Partial<SenaTicketSummary> = {}): SenaTicketS
   };
 }
 
+function localDateKey(value: string) {
+  const date = new Date(value);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 describe('buildCustomerOverviewModel', () => {
   test('keeps aggregate customer rows open when completed work lands alongside pending quantity', () => {
     const model = buildCustomerOverviewModel({
@@ -186,6 +195,71 @@ describe('buildCustomerOverviewModel', () => {
     expect(task?.href).not.toBe('/work/capture/immediate-sale');
   });
 
+  test('ignores non-finite legacy customer event quantities in today aggregates', () => {
+    const model = buildCustomerOverviewModel({
+      catalog: {
+        ...emptyCatalog,
+        skus: [
+          {
+            skuId: 'sku-1',
+            name: 'Cotton pads',
+            description: '',
+            costPerUnit: 2,
+            soldAsProduct: true,
+            productPrice: 5,
+          },
+        ],
+        services: [
+          {
+            serviceId: 'service-1',
+            name: 'Hair wash',
+            description: '',
+            price: 8,
+          },
+        ],
+      } as never,
+      language: 'en',
+      observations: [
+        {
+          observationId: 'obs-today',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-03T10:00:00.000Z',
+            stockSnapshot: [],
+            serviceRankings: [],
+            retailRankings: [],
+            serviceStockouts: [],
+            retailStockouts: [],
+            orderSignals: [],
+            servicePrices: [],
+            retailPrices: [],
+            leadTimeHints: [],
+            commercialEvents: [
+              {
+                party: 'customer',
+                entityType: 'sku',
+                entityId: 'sku-1',
+                stage: 'realized',
+                quantityDelta: Number.POSITIVE_INFINITY,
+              },
+              {
+                party: 'customer',
+                entityType: 'service',
+                entityId: 'service-1',
+                stage: 'pending',
+                quantityDelta: Number.NEGATIVE_INFINITY,
+              },
+            ],
+            notes: null,
+          },
+        },
+      ] as never,
+    });
+
+    expect(model.tasks).toHaveLength(0);
+    expect(model.signals.map((signal) => signal.text).join(' ')).not.toMatch(/Infinity|NaN|∞/);
+  });
+
   test('keeps closed customer rows out of the default queue but visible in Closed', () => {
     const model = buildCustomerOverviewModel({
       catalog: {
@@ -235,6 +309,41 @@ describe('buildCustomerOverviewModel', () => {
     expect(task).toMatchObject({ state: 'closed' });
     expect(task && shouldShowCustomerTask(task, 'all')).toBe(false);
     expect(task && shouldShowCustomerTask(task, 'closed')).toBe(true);
+  });
+
+  test('does not render Invalid Date for dirty customer ticket timing metadata', () => {
+    const model = buildCustomerOverviewModel({
+      catalog: {
+        ...emptyCatalog,
+        skus: [
+          {
+            skuId: 'sku-1',
+            name: 'Cotton pads',
+            description: '',
+            costPerUnit: 2,
+            soldAsProduct: true,
+            productPrice: 5,
+          },
+        ],
+      } as never,
+      language: 'en',
+      observations: [],
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([
+        customerTicket({
+          lines: [{
+            entityType: 'sku',
+            entityId: 'sku-1',
+            quantityDelta: 2,
+            expectedArrivalAt: 'not-a-date',
+          }],
+          note: 'Operator will confirm timing.',
+          nextTouchAt: 'also-not-a-date',
+        }),
+      ]),
+    });
+
+    expect(model.tasks[0]?.requestDetail).toBe('Operator will confirm timing.');
+    expect(model.tasks[0]?.requestDetail).not.toContain('Invalid Date');
   });
 
   test('sorts aggregate customer queue rows by oldest open order first', () => {
@@ -375,6 +484,99 @@ describe('buildCustomerOverviewModel', () => {
     });
     expect(model.tasks[0]?.contactDetail).toContain('Phnom Penh');
     expect(model.tasks[0]?.requestDetail).toContain('ETA');
+  });
+
+  test('contains dirty customer ticket quantities before rendering queue totals', () => {
+    const model = buildCustomerOverviewModel({
+      catalog: {
+        ...emptyCatalog,
+        skus: [
+          {
+            skuId: 'sku-1',
+            name: 'Cotton pads',
+            description: '',
+            costPerUnit: 2,
+            soldAsProduct: true,
+            productPrice: 5,
+          },
+        ],
+      } as never,
+      language: 'en',
+      observations: [],
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([
+        customerTicket({
+          lines: [
+            { entityType: 'sku', entityId: 'sku-1', quantityDelta: Number.NaN },
+            { entityType: 'sku', entityId: 'sku-1', quantityDelta: 0 },
+          ],
+        }),
+      ]),
+    });
+
+    expect(model.tasks[0]).toMatchObject({
+      pendingQuantity: 0,
+      requestSummary: '0 x Cotton pads, 0 x Cotton pads',
+    });
+    expect(model.tasks[0]?.requestSummary).not.toContain('NaN');
+  });
+
+  test('assigns customer ticket display ids after valid timestamps before dirty dates', () => {
+    const model = buildCustomerOverviewModel({
+      catalog: {
+        ...emptyCatalog,
+        skus: [
+          {
+            skuId: 'sku-1',
+            name: 'Cotton pads',
+            description: '',
+            costPerUnit: 2,
+            soldAsProduct: true,
+            productPrice: 5,
+          },
+        ],
+      } as never,
+      language: 'en',
+      observations: [],
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([
+        customerTicket({
+          ticketId: 'ticket-dirty',
+          occurredAt: 'not-a-date',
+        }),
+        customerTicket({
+          ticketId: 'ticket-valid',
+          occurredAt: '2026-04-01T09:00:00.000Z',
+        }),
+      ]),
+    });
+
+    expect(model.tasks.map((task) => [task.ticketId, task.displayTicketId])).toEqual([
+      ['ticket-valid', '2026-04-01-#1'],
+      ['ticket-dirty', 'not-a-date-#1'],
+    ]);
+  });
+
+  test('assigns customer ticket display ids by local calendar date', () => {
+    const occurredAt = '2026-04-21T17:30:00.000Z';
+    const model = buildCustomerOverviewModel({
+      catalog: {
+        ...emptyCatalog,
+        skus: [{
+          skuId: 'sku-1',
+          name: 'Cotton pads',
+          description: '',
+          costPerUnit: 2,
+          soldAsProduct: true,
+          productPrice: 5,
+        }],
+      } as never,
+      language: 'en',
+      observations: [],
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([
+        customerTicket({ occurredAt, ticketId: 'ticket-local-date' }),
+      ]),
+    });
+
+    expect(model.tasks[0]?.displayTicketId).toBe(`${localDateKey(occurredAt)}-#1`);
   });
 
   test('keeps resolved and canceled customer tickets from today and hides matching legacy aggregates', () => {

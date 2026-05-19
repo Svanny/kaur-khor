@@ -41,7 +41,7 @@ async function assertGeneratedRoute(page: Page, route: `/${string}`, hasObservat
     return;
   }
   if (route === '/work/capture') {
-    await expect(page.getByRole('link', { name: 'Stock Count' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Products Update' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Supplier Order' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Customer Order' })).toBeVisible();
     return;

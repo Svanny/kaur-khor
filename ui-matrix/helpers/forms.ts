@@ -61,7 +61,14 @@ export async function createSkuThroughUi(page: Page, options?: {
   await page.getByRole('textbox', { name: 'Customer Selling Price' }).fill(options?.price ?? '12.50');
   await page.getByTestId('sku-lead-time-mean-days-input').fill('7');
   await page.getByRole('combobox', { name: 'ETA variation' }).click();
-  await page.getByRole('option', { name: /Normal/ }).click();
+  const normalOption = page.getByRole('option', { name: /Normal/ });
+  if (await normalOption.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await normalOption.click();
+  } else {
+    await page.keyboard.press('Escape');
+    await page.getByRole('textbox', { name: 'Custom ETA variation days' }).fill('1');
+    await page.getByRole('textbox', { name: 'Custom ETA variation hours' }).fill('0');
+  }
   if (options?.pasteImage) {
     await pasteCatalogImageFromPage(page, 'ui-matrix-new-sku.png');
   }
@@ -120,8 +127,15 @@ export async function editSkuCostAndPriceThroughUi(page: Page, skuId: string, op
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
   await page.getByRole('button', { name: 'Details', exact: true }).click();
   const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
-  if (await discardDialog.isVisible().catch(() => false)) {
+  const navigatedWithoutDialog = await page.waitForFunction(
+    (id) => window.location.hash === `#/catalog/skus/${id}`,
+    skuId,
+    { timeout: 2_000 },
+  ).then(() => true).catch(() => false);
+  if (!navigatedWithoutDialog) {
+    await discardDialog.waitFor({ state: 'visible', timeout: 30_000 });
     await discardDialog.getByRole('button', { name: 'Save changes' }).click();
+    await expect(discardDialog).toBeHidden();
   }
   await page.waitForFunction(
     (id) => window.location.hash === `#/catalog/skus/${id}`,
@@ -169,14 +183,15 @@ export async function correctLatestObservationNotesThroughUi(page: Page, note: s
   });
   expect(beforeState.latestObservationId, 'latest observation should be available for correction').toBeTruthy();
 
-  await page.evaluate(() => window.localStorage.setItem('kaur-khor:record-update:view:v1', 'form'));
   await navigateHashRoute(page, '/settings/history?view=all');
   await page.getByRole('button', { name: 'Edit report' }).first().click();
   await page.waitForFunction(() => window.location.hash.startsWith('#/work/capture/stock-count'));
-  await page.getByRole('button', { name: /Report notes/i }).click();
-  await page.getByRole('textbox', { name: 'Report notes' }).fill(note);
-  await page.getByRole('button', { name: /Review update/i }).click();
-  await page.getByRole('button', { name: 'Save update', exact: true }).click();
+  await page.getByRole('button', { name: /^Notes\b/i }).click();
+  await page.getByRole('dialog', { name: 'Report notes' }).getByRole('textbox', { name: 'Report notes' }).fill(note);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Report notes' })).toBeHidden();
+  await page.getByRole('button', { name: /^Done$/ }).last().click();
+  await page.getByRole('dialog', { name: 'Review update' }).getByRole('button', { name: 'Confirm save' }).click();
   await page.waitForFunction(
     ({ count, latestObservationId, note: expectedNote }) =>
       window.kaurKhorDesktop.sena.listObservations().then((observations) =>
@@ -327,19 +342,12 @@ export async function saveSupplierReceiptThroughUi(page: Page, options: {
   const previousObservationCount = await page.evaluate(() =>
     window.kaurKhorDesktop.sena.listObservations().then((observations) => observations.length)
   );
-  await page.evaluate(() => window.localStorage.setItem('kaur-khor:record-update:view:v1', 'form'));
   await navigateHashRoute(
     page,
-    `/work/capture/supplier-order?ticketMode=edit&ticketId=${encodeURIComponent(options.ticketId)}`,
+    `/work/capture/supplier-receipt?ticketMode=edit&ticketId=${encodeURIComponent(options.ticketId)}&skus=${encodeURIComponent(options.skuId)}&flashTargets=supplier-receipt%3A${encodeURIComponent(options.skuId)}`,
   );
-  await page.getByRole('button', { name: 'Next' }).click();
-  await page.getByRole('button', { name: 'Next' }).click();
-  await page.getByRole('button', { name: 'Next' }).click();
-  await page.getByRole('textbox', { name: `Current receipt for ${options.skuName}` }).fill(options.quantity ?? '2');
-  await page.getByRole('button', { name: 'Next' }).click();
-  await page.getByRole('button', { name: 'No', exact: true }).click();
-  await page.getByRole('button', { name: 'Next' }).click();
-  await page.getByRole('button', { name: 'Save update', exact: true }).click();
+  await addPosLineThroughUi(page, options.skuName, options.quantity ?? '2');
+  await confirmPosMutationThroughUi(page);
   await page.waitForFunction(
     (count) => window.kaurKhorDesktop.sena.listObservations().then((observations) => observations.length > count),
     previousObservationCount,

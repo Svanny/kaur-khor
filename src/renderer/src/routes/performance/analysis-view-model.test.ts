@@ -252,6 +252,30 @@ describe('deriveAnalysisViewModel', () => {
     expect(model.settings.latestObservedAt).toContain('Apr 10');
   });
 
+  test('drops malformed observation dates from analysis evidence', () => {
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics,
+      language: 'en',
+      observations: [
+        {
+          ...observations[0],
+          input: { ...observations[0].input, observedAt: 'not-a-date' },
+          observationId: 'dirty',
+        },
+        ...observations,
+      ],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    expect(model.evidenceRows.map((row) => row.id)).not.toContain('dirty');
+    expect(model.settings.observationsUsed).toBe('2');
+  });
+
   test('preserves all hydrated intervals instead of truncating to the latest ten', () => {
     const longDiagnostics: SenaDiagnostics = {
       ...diagnostics,
@@ -453,6 +477,137 @@ describe('deriveAnalysisViewModel', () => {
       highDays: 8,
       variabilityClass: 'wide',
     });
+  });
+
+  test('normalizes non-finite SENA detail values before building analysis rows', () => {
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics: {
+        ...diagnostics,
+        changePointProbability: Number.POSITIVE_INFINITY,
+        coverageEstimate: Number.NaN,
+        effectiveSampleSizeMean: Number.POSITIVE_INFINITY,
+        posteriorPredictiveErrorMean: Number.NaN,
+      },
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: {
+        'service-haircut': {
+          ...serviceDetailsById['service-haircut']!,
+          activityMean: Number.POSITIVE_INFINITY,
+          bottleneckProbability: Number.NaN,
+          contributors: [{ bottleneckProbability: Number.POSITIVE_INFINITY, skuId: 'sku-razor', usageProbability: Number.NaN }],
+        },
+      },
+      skuDetailsById: {
+        'sku-razor': {
+          ...skuDetailsById['sku-razor']!,
+          demandPosterior: [
+            {
+              ...skuDetailsById['sku-razor']!.demandPosterior[0]!,
+              adjustmentsMean: Number.NaN,
+              realizedConsumptionMean: Number.POSITIVE_INFINITY,
+              receiptsMean: Number.POSITIVE_INFINITY,
+              retailDemandMean: Number.NaN,
+              serviceDemandMean: Number.POSITIVE_INFINITY,
+            },
+          ],
+          inventoryPosterior: [
+            { at: '2026-03-05T08:00:00.000Z', high: Number.NaN, low: Number.POSITIVE_INFINITY, mean: Number.POSITIVE_INFINITY },
+          ],
+          leadTimePosterior: [
+            {
+              ...skuDetailsById['sku-razor']!.leadTimePosterior[0]!,
+              meanDays: Number.POSITIVE_INFINITY,
+              stdDays: Number.NaN,
+            },
+          ],
+          pipelinePosterior: [
+            {
+              ...skuDetailsById['sku-razor']!.pipelinePosterior[0]!,
+              ageDaysMean: Number.POSITIVE_INFINITY,
+              inTransitMean: Number.POSITIVE_INFINITY,
+              orderProbability: Number.POSITIVE_INFINITY,
+              orderQuantityMean: Number.NaN,
+              receiptQuantityMean: Number.POSITIVE_INFINITY,
+            },
+          ],
+          summary: {
+            ...workspaceSummary.skuSummaries[0]!,
+            demandPerDayMean: Number.POSITIVE_INFINITY,
+            latestPosteriorUnits: Number.POSITIVE_INFINITY,
+            leadTimeMeanDays: Number.NaN,
+            leadTimeStdDays: Number.POSITIVE_INFINITY,
+            reorderTriggerProbability: Number.POSITIVE_INFINITY,
+            stockoutRisk: Number.NaN,
+          },
+        },
+      },
+      workspaceSummary: {
+        ...workspaceSummary,
+        pendingReorderCount: Number.POSITIVE_INFINITY,
+        skuSummaries: [
+          {
+            ...workspaceSummary.skuSummaries[0]!,
+            demandPerDayMean: Number.POSITIVE_INFINITY,
+            latestPosteriorUnits: Number.POSITIVE_INFINITY,
+            leadTimeMeanDays: Number.NaN,
+            leadTimeStdDays: Number.POSITIVE_INFINITY,
+            reorderTriggerProbability: Number.POSITIVE_INFINITY,
+            stockoutRisk: Number.NaN,
+          },
+        ],
+      },
+    });
+
+    const displayText = [
+      ...model.diagnostics.flatMap((row) => [row.value, row.detail]),
+      ...model.intervals.flatMap((row) => [
+        row.serviceDemandLabel,
+        row.retailDemandLabel,
+        row.receiptsLabel,
+        row.adjustmentsLabel,
+        row.inventoryLabel,
+        row.inTransitLabel,
+        row.orderProbabilityLabel,
+        row.leadTimeMeanLabel,
+        row.leadTimeSpreadLabel,
+      ]),
+      ...model.entityRows.flatMap((row) => [
+        row.pressureScoreLabel,
+        row.summary,
+        row.activityLabel,
+        row.posteriorUnitsLabel,
+        row.demandPerDayLabel,
+        row.reorderTriggerLabel,
+        row.inTransitExposureLabel,
+        row.leadTimeMeanLabel,
+        row.leadTimeSpreadLabel,
+      ]),
+      ...model.fragilityRows.flatMap((row) => row.cells.flatMap((cell) => [cell.usageLabel, cell.bottleneckLabel, cell.pressureLabel])),
+      model.settings.effectiveSampleSize,
+      model.settings.predictiveError,
+      model.settings.coverageEstimate,
+    ].join(' ');
+
+    expect(displayText).not.toMatch(/NaN|Infinity|∞/);
+    expect(model.workbench.inventoryDemandLane.points.every((point) => (
+      Number.isFinite(point.inventoryMean) &&
+      Number.isFinite(point.serviceDemandMean) &&
+      Number.isFinite(point.receiptsMean)
+    ))).toBe(true);
+    expect(model.workbench.pipelineLane.spans.every((span) => (
+      Number.isFinite(span.startPosition) &&
+      Number.isFinite(span.endPosition) &&
+      Number.isFinite(span.inTransitMean)
+    ))).toBe(true);
+    expect(model.workbench.leadTimeLane.points.every((point) => (
+      Number.isFinite(point.meanDays) &&
+      Number.isFinite(point.lowDays) &&
+      Number.isFinite(point.highDays)
+    ))).toBe(true);
   });
 
   test('keeps inspector interval rows aligned with the lane data', () => {

@@ -12,16 +12,26 @@ export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
 
   React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    const mql = typeof window.matchMedia === 'function'
+      ? window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+      : null
     const onChange = () => {
       setIsMobile(readEffectiveViewportWidth() < MOBILE_BREAKPOINT)
     }
-    mql.addEventListener("change", onChange)
+    if (mql?.addEventListener) {
+      mql.addEventListener("change", onChange)
+    } else {
+      mql?.addListener(onChange)
+    }
     window.addEventListener("resize", onChange)
     document.documentElement.addEventListener(EMBEDDED_VIEWPORT_CHANGE_EVENT, onChange)
     setIsMobile(readEffectiveViewportWidth() < MOBILE_BREAKPOINT)
     return () => {
-      mql.removeEventListener("change", onChange)
+      if (mql?.removeEventListener) {
+        mql.removeEventListener("change", onChange)
+      } else {
+        mql?.removeListener(onChange)
+      }
       window.removeEventListener("resize", onChange)
       document.documentElement.removeEventListener(EMBEDDED_VIEWPORT_CHANGE_EVENT, onChange)
     }

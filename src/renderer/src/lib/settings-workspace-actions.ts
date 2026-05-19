@@ -3,6 +3,7 @@ import type {
   DesktopBackupSnapshotResult,
 } from '@shared/ipc';
 import type { TranslationKey } from '@/lib/translations';
+import { sanitizeSpreadsheetFormulaText, serializeExportCell, stringifyExportJson } from '@/lib/export-serialization';
 import { createWorkbook } from '@/lib/xlsx';
 
 export const SETTINGS_EXPORT_FORMATS = ['excel', 'csv', 'json'] as const;
@@ -43,21 +44,11 @@ function downloadFile(filename: string, content: BlobPart, mimeType: string) {
     return;
   }
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function serializeCell(value: unknown) {
-  if (value == null) {
-    return '';
-  }
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  return JSON.stringify(value);
-}
-
-function sanitizeCsvCellText(value: string) {
-  return /^[\s\x00-\x1f\x7f]*[=+\-@]/.test(value) ? `'${value}` : value;
+  return serializeExportCell(value);
 }
 
 function toCsv(rows: Array<Record<string, unknown>>) {
@@ -65,13 +56,16 @@ function toCsv(rows: Array<Record<string, unknown>>) {
     return '';
   }
   const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
-  const escapeCsvCell = (value: unknown) => {
-    const serialized = serializeCell(value);
-    const text = sanitizeCsvCellText(serialized);
+  const escapeCsvText = (value: string) => {
+    const text = sanitizeSpreadsheetFormulaText(value);
     return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
+  const escapeCsvCell = (value: unknown) => {
+    const serialized = serializeCell(value);
+    return escapeCsvText(serialized);
+  };
   return [
-    headers.join(','),
+    headers.map(escapeCsvText).join(','),
     ...rows.map((row) => headers.map((header) => escapeCsvCell(row[header])).join(',')),
   ].join('\n');
 }
@@ -164,7 +158,7 @@ export async function exportLogsAction(format: SettingsExportFormat, t: Translat
     const filename = `Kaur Khor-logs-${formatExportTimestamp()}.${exportFileExtension(format)}`;
     const content =
       format === 'json'
-        ? JSON.stringify({ exportedAt: new Date().toISOString(), observations }, null, 2)
+        ? stringifyExportJson({ exportedAt: new Date().toISOString(), observations }, 2)
         : format === 'excel'
           ? createWorkbook([{ name: 'Logs', rows }])
           : toCsv(rows);
@@ -200,7 +194,7 @@ export async function exportPlanningDataAction(format: SettingsExportFormat, t: 
     ] as const;
     const content =
       format === 'json'
-        ? JSON.stringify(
+        ? stringifyExportJson(
           {
             exportedAt: new Date().toISOString(),
             catalog,
@@ -209,7 +203,6 @@ export async function exportPlanningDataAction(format: SettingsExportFormat, t: 
             diagnostics,
             latestRun,
           },
-          null,
           2,
         )
         : format === 'excel'

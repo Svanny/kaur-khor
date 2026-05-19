@@ -10,6 +10,7 @@ import { EditorField } from './editor-form-primitives';
 
 const SUPPORTED_INGEST_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const SUPPORTED_INGEST_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const MAX_INGEST_IMAGE_BYTES = 20 * 1024 * 1024;
 const activeCatalogImagePasteOwners: symbol[] = [];
 
 function isSupportedImageType(type: string): boolean {
@@ -76,6 +77,10 @@ export function CatalogImageField({
   const [error, setError] = useState<string | null>(null);
 
   const storeImageFile = useCallback(async (imageFile: File) => {
+    if (imageFile.size > MAX_INGEST_IMAGE_BYTES) {
+      setError(translateUiLiteral(language, 'Images must be 20 MB or smaller.'));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {

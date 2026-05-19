@@ -12,6 +12,7 @@ import type {
 } from '@shared/sena';
 import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { deriveLeadTimeVariabilityClass } from '@shared/sena-lead-time';
+import { formatLocalDateInputValue } from '@/lib/date-input-utils';
 import { formatWholeNumber } from '@/lib/format';
 import { translateRegimeLabel } from '@/lib/localized-display';
 import {
@@ -378,6 +379,18 @@ function timestampSortValue(value: string | null | undefined) {
   return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
 }
 
+function safeNonNegativeNumber(value: number | null | undefined, fallback = 0): number {
+  return value != null && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function safeOptionalNonNegativeNumber(value: number | null | undefined): number | null {
+  return value != null && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function safeProbability(value: number | null | undefined, fallback = 0): number {
+  return value != null && Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback;
+}
+
 function summarizeObservations(observations: SenaObservationRecord[], skuId: string): ObservationSkuSignals {
   const sorted = [...observations].sort(
     (left, right) =>
@@ -556,8 +569,13 @@ function latestVariabilityClass(summary: SenaSkuSummary, detail: SenaSkuDetail |
   if (latestLeadTime?.observedVariabilityClass) {
     return latestLeadTime.observedVariabilityClass;
   }
-  const rangeLow = Math.max(summary.leadTimeMeanDays - summary.leadTimeStdDays, 0.5);
-  const rangeHigh = Math.max(summary.leadTimeMeanDays + summary.leadTimeStdDays, rangeLow);
+  const meanDays = safeOptionalNonNegativeNumber(latestLeadTime?.meanDays ?? summary.leadTimeMeanDays);
+  const stdDays = safeOptionalNonNegativeNumber(latestLeadTime?.stdDays ?? summary.leadTimeStdDays);
+  if (meanDays == null || stdDays == null) {
+    return null;
+  }
+  const rangeLow = Math.max(meanDays - stdDays, 0.5);
+  const rangeHigh = Math.max(meanDays + stdDays, rangeLow);
   return deriveLeadTimeVariabilityClass({
     lowDays: rangeLow,
     highDays: rangeHigh,
@@ -600,8 +618,8 @@ function receiptWindowSummary({
     return null;
   }
 
-  const meanDays = latestLeadTime?.meanDays ?? summary.leadTimeMeanDays;
-  const stdDays = latestLeadTime?.stdDays ?? summary.leadTimeStdDays;
+  const meanDays = safeOptionalNonNegativeNumber(latestLeadTime?.meanDays ?? summary.leadTimeMeanDays);
+  const stdDays = safeOptionalNonNegativeNumber(latestLeadTime?.stdDays ?? summary.leadTimeStdDays);
   const baseDate = latestOrderAt;
 
   if (meanDays == null || stdDays == null || !baseDate) {
@@ -674,9 +692,13 @@ function taskStateLabel(value: Exclude<OverviewTaskFilter, 'all'>, language: App
 }
 
 function fallbackRecommendedOrderQuantity(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
-  const inTransit = detail?.pipelinePosterior.at(-1)?.inTransitMean ?? 0;
-  const lowGap = summary.reorderPoint - summary.credibleIntervalHigh - inTransit;
-  const highGap = summary.reorderPoint + summary.safetyStock - summary.credibleIntervalLow - inTransit;
+  const inTransit = safeNonNegativeNumber(detail?.pipelinePosterior.at(-1)?.inTransitMean);
+  const reorderPoint = safeNonNegativeNumber(summary.reorderPoint);
+  const credibleIntervalLow = safeNonNegativeNumber(summary.credibleIntervalLow);
+  const credibleIntervalHigh = safeNonNegativeNumber(summary.credibleIntervalHigh);
+  const safetyStock = safeNonNegativeNumber(summary.safetyStock);
+  const lowGap = reorderPoint - credibleIntervalHigh - inTransit;
+  const highGap = reorderPoint + safetyStock - credibleIntervalLow - inTransit;
   return Math.max(0, Math.ceil(Math.max(lowGap, highGap)));
 }
 
@@ -749,19 +771,27 @@ function ticketSkuSummaryLabel(children: OverviewSkuTask[], language: AppLanguag
 
 function ticketDisplayDate(value: string | null | undefined) {
   if (!value) {
-    return new Date().toISOString().slice(0, 10);
+    return formatLocalDateInputValue(new Date());
   }
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) {
     return value.slice(0, 10);
   }
-  return date.toISOString().slice(0, 10);
+  return formatLocalDateInputValue(date);
 }
 
 function compareSupplierTicketsByDisplayOrder(left: SenaTicketSummary, right: SenaTicketSummary) {
-  return ticketDisplayDate(left.occurredAt).localeCompare(ticketDisplayDate(right.occurredAt)) ||
-    left.occurredAt.localeCompare(right.occurredAt) ||
+  return ticketDisplaySortValue(left.occurredAt) - ticketDisplaySortValue(right.occurredAt) ||
+    ticketDisplayDate(left.occurredAt).localeCompare(ticketDisplayDate(right.occurredAt)) ||
     left.ticketId.localeCompare(right.ticketId);
+}
+
+function ticketDisplaySortValue(value: string | null | undefined) {
+  if (!value) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
 }
 
 function compareSupplierTicketsByFreshness(left: SenaTicketSummary, right: SenaTicketSummary) {
@@ -1025,6 +1055,9 @@ function taskNarrative({
   summary: SenaSkuSummary;
   taskState: Exclude<OverviewTaskFilter, 'all'>;
 }) {
+  const stockoutRisk = safeProbability(summary.stockoutRisk);
+  const daysOfCover = safeOptionalNonNegativeNumber(summary.daysOfCover);
+  const reorderTriggerProbability = safeProbability(summary.reorderTriggerProbability);
   switch (taskState) {
     case 'to_order':
       return {
@@ -1033,12 +1066,12 @@ function taskNarrative({
         defaultDrawerMode: (orderCanceled ? 'order_canceled' : 'not_ordered') as OverviewTaskDrawerMode,
         statusTone: 'danger' as const,
         whyNow:
-          summary.stockoutRisk >= 0.7 && linkedServiceNames.length > 0
+          stockoutRisk >= 0.7 && linkedServiceNames.length > 0
             ? translate(language, 'overviewTaskWhyOrderBlocksService')
             : translate(language, 'overviewTaskWhyOrderSoon'),
         whyDetail: translate(language, 'overviewTaskWhyDetailOrder', {
-          cover: summary.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—',
-          probability: formatSenaPercent(summary.reorderTriggerProbability, language),
+          cover: daysOfCover != null ? formatSenaDays(daysOfCover, language) : '—',
+          probability: formatSenaPercent(reorderTriggerProbability, language),
         }),
       };
     case 'awaiting_receipt':
@@ -1091,13 +1124,15 @@ function deriveTaskState({
   receiptWindow: ReceiptWindowSummary | null;
   summary: SenaSkuSummary;
 }): Exclude<OverviewTaskFilter, 'all'> | null {
+  const latestOrderTimestamp = timestampSortValue(latestOrderAt);
+  const latestReceiptTimestamp = timestampSortValue(latestReceiptAt);
   const hasOpenOrder =
     latestOrderAt != null &&
-    (latestReceiptAt == null || new Date(latestOrderAt).getTime() > new Date(latestReceiptAt).getTime());
+    (latestReceiptAt == null || latestOrderTimestamp > latestReceiptTimestamp);
   const receiptLoggedToday =
     latestReceiptAt != null &&
     isSameLocalDay(latestReceiptAt) &&
-    (latestOrderAt == null || new Date(latestReceiptAt).getTime() >= new Date(latestOrderAt).getTime());
+    (latestOrderAt == null || latestReceiptTimestamp >= latestOrderTimestamp);
 
   if (receiptLoggedToday) {
     return 'received_today';
@@ -1117,10 +1152,11 @@ function deriveTaskState({
     return 'awaiting_receipt';
   }
 
+  const daysOfCover = safeOptionalNonNegativeNumber(summary.daysOfCover);
   if (
-    summary.reorderTriggerProbability >= 0.55 ||
-    summary.stockoutRisk >= 0.65 ||
-    (summary.daysOfCover != null && summary.daysOfCover <= 2.5)
+    safeProbability(summary.reorderTriggerProbability) >= 0.55 ||
+    safeProbability(summary.stockoutRisk) >= 0.65 ||
+    (daysOfCover != null && daysOfCover <= 2.5)
   ) {
     return 'to_order';
   }
@@ -1203,6 +1239,16 @@ function buildTask({
   }
 
   const linkedServiceNames = enabledLinkedServices(catalog, summary.skuId);
+  const currentStock = safeNonNegativeNumber(summary.latestPosteriorUnits);
+  const credibleIntervalLow = safeNonNegativeNumber(summary.credibleIntervalLow, currentStock);
+  const credibleIntervalHigh = safeNonNegativeNumber(summary.credibleIntervalHigh, currentStock);
+  const daysOfCover = safeOptionalNonNegativeNumber(summary.daysOfCover);
+  const stockoutRisk = safeProbability(summary.stockoutRisk);
+  const reorderTriggerProbability = safeProbability(summary.reorderTriggerProbability);
+  const leadTimeMeanDays = safeOptionalNonNegativeNumber(detail?.leadTimePosterior.at(-1)?.meanDays ?? summary.leadTimeMeanDays);
+  const leadTimeStdDays = safeOptionalNonNegativeNumber(detail?.leadTimePosterior.at(-1)?.stdDays ?? summary.leadTimeStdDays);
+  const recentOrderQuantity = safeOptionalNonNegativeNumber(orderContext?.effective.orderedQuantity ?? observationSignals.latestOrderQuantity);
+  const recentReceiptQuantity = safeOptionalNonNegativeNumber(orderContext?.effective.receivedQuantity ?? observationSignals.latestReceiptQuantity);
   const fallbackOrderQuantity = fallbackRecommendedOrderQuantity(summary, detail);
   const reorderRecommendation = formatSenaReorderQuantity(
     summary.reorderQuantity,
@@ -1265,7 +1311,7 @@ function buildTask({
       language,
       linkedServiceNames,
       state,
-      stockoutRisk: summary.stockoutRisk,
+      stockoutRisk,
     }),
     whyNow: narrative.whyNow,
     whyDetail: narrative.whyDetail,
@@ -1273,23 +1319,23 @@ function buildTask({
     etaDetail,
     confidenceCue:
       state === 'to_order' || state === 'received_today'
-        ? summary.stockoutRisk >= 0.7
+        ? stockoutRisk >= 0.7
           ? translate(language, 'overviewTaskConfidencePriority')
           : translate(language, 'overviewTaskConfidenceWatch')
         : (receiptWindow?.confidenceCue ?? confidenceCue(variabilityClass, false, language)),
     heartbeat: [
       translate(language, 'overviewTaskHeartbeatOnHand', {
-        low: formatSenaUnits(summary.credibleIntervalLow, language),
-        high: formatSenaUnits(summary.credibleIntervalHigh, language),
+        low: formatSenaUnits(credibleIntervalLow, language),
+        high: formatSenaUnits(credibleIntervalHigh, language),
       }),
       translate(language, 'overviewTaskHeartbeatCover', {
-        cover: summary.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—',
+        cover: daysOfCover != null ? formatSenaDays(daysOfCover, language) : '—',
       }),
       translate(language, 'overviewTaskHeartbeatReorder', {
-        probability: formatSenaPercent(summary.reorderTriggerProbability, language),
+        probability: formatSenaPercent(reorderTriggerProbability, language),
       }),
       linkedServiceNames.length > 0
-        ? serviceImpactLine({ language, linkedServiceNames, state, stockoutRisk: summary.stockoutRisk })
+        ? serviceImpactLine({ language, linkedServiceNames, state, stockoutRisk })
         : translate(language, 'overviewTaskHeartbeatNoServiceExposure'),
       observationSignals.latestPriceAt
         ? translate(language, 'overviewTaskHeartbeatRecentPrice', {
@@ -1307,29 +1353,29 @@ function buildTask({
       state,
     }),
     linkedServiceNames,
-    currentStock: summary.latestPosteriorUnits,
-    costPerUnit: sku.costPerUnit,
-    productPrice: sku.productPrice,
+    currentStock,
+    costPerUnit: safeNonNegativeNumber(sku.costPerUnit),
+    productPrice: safeOptionalNonNegativeNumber(sku.productPrice),
     soldAsProduct: sku.soldAsProduct,
     expectedArrivalDate: receiptWindow?.expectedArrivalDate ?? null,
     arrivalWindowStart: receiptWindow?.arrivalWindowStart ?? null,
     arrivalWindowEnd: receiptWindow?.arrivalWindowEnd ?? null,
-    leadTimeMeanDays: detail?.leadTimePosterior.at(-1)?.meanDays ?? summary.leadTimeMeanDays,
-    leadTimeStdDays: detail?.leadTimePosterior.at(-1)?.stdDays ?? summary.leadTimeStdDays,
+    leadTimeMeanDays,
+    leadTimeStdDays,
     variabilityClass,
     suggestedOrderQuantity: reorderRecommendation.recommendedUnits,
-    recentOrderQuantity: orderContext?.effective.orderedQuantity ?? observationSignals.latestOrderQuantity,
-    recentReceiptQuantity: orderContext?.effective.receivedQuantity ?? observationSignals.latestReceiptQuantity,
+    recentOrderQuantity,
+    recentReceiptQuantity,
     latestObservationAt: observationSignals.latestObservationAt,
     latestOrderAt,
     latestReceiptAt,
     hasRecentPriceSignal: Boolean(observationSignals.latestPriceAt),
     regimeKey: dominantRegime,
     regimeLabel: translateRegimeLabel(language, dominantRegime),
-    stockoutRisk: summary.stockoutRisk,
-    reorderTriggerProbability: summary.reorderTriggerProbability,
+    stockoutRisk,
+    reorderTriggerProbability,
     reorderRecommendation,
-    daysOfCover: summary.daysOfCover,
+    daysOfCover,
   } satisfies OverviewSkuTask;
 }
 
@@ -1529,7 +1575,7 @@ export function buildOverviewModel({
 
   const recentReceipts = skuTasks
     .filter((task) => task.latestReceiptAt)
-    .sort((left, right) => new Date(right.latestReceiptAt ?? '').getTime() - new Date(left.latestReceiptAt ?? '').getTime())
+    .sort((left, right) => timestampSortValue(right.latestReceiptAt) - timestampSortValue(left.latestReceiptAt))
     .map((task) => ({
       id: `receipt:${task.skuId}`,
       skuId: task.skuId,

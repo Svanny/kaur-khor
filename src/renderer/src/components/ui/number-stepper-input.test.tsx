@@ -92,6 +92,14 @@ describe('NumberStepperInput', () => {
     expect(values.at(-1)).toBe('4010');
   });
 
+  test('falls back to a finite step when the step prop is dirty', () => {
+    const { values } = renderStepper({ step: 'Infinity', value: '2' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Increment Units in stock' }));
+
+    expect(values.at(-1)).toBe('3');
+  });
+
   test('disables buttons when the input is disabled or read only', () => {
     renderStepper({ disabled: true });
     expect(screen.getByRole('button', { name: 'Increment Units in stock' })).toBeDisabled();
