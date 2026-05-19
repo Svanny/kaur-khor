@@ -671,4 +671,14 @@ describe('RecordUpdateHubRoute', () => {
       expect(card.querySelector('[data-slot="centered-tile-card-draft"]')).toBeInTheDocument();
     }
   });
+
+  it('omits the liquid card layer in embedded compact mode', () => {
+    render(
+      <MemoryRouter>
+        <RecordUpdateHubRoute embedded />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Products Update' }).querySelector('.liquid-grid-card-glass')).not.toBeInTheDocument();
+  });
 });

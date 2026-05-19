@@ -18,6 +18,7 @@ import {
   observationCommercialSummary,
 } from '@/lib/commercial-flow';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
+import { timestampSortValue } from '@/lib/timestamp-sort';
 import { translateUiLiteral } from '@/lib/translations';
 import { getTranslation } from '@/lib/translations';
 import { buildServiceDetailHref, buildSkuDetailHref } from '@/lib/navigation-state';
@@ -59,14 +60,6 @@ interface ReceiptSignal {
   remainingDays: number | null;
   state: 'on_the_way' | 'overdue' | 'partial_received' | 'due_soon';
   stateLabel: string;
-}
-
-function timestampSortValue(value: string | null | undefined, invalidFallback = Number.NEGATIVE_INFINITY) {
-  if (!value) {
-    return invalidFallback;
-  }
-  const time = new Date(value).getTime();
-  return Number.isFinite(time) ? time : invalidFallback;
 }
 
 interface SkuBusinessRow {
@@ -1009,14 +1002,14 @@ function toBoardRow(
 function latestObservationObservedAt(observations: SenaObservationRecord[]) {
   return observations.reduce<string | null>((latest, observation) => {
     const observedAt = observation.input.observedAt;
-    const observedTime = new Date(observedAt).getTime();
+    const observedTime = timestampSortValue(observedAt);
     if (!Number.isFinite(observedTime)) {
       return latest;
     }
     if (!latest) {
       return observedAt;
     }
-    return observedTime > new Date(latest).getTime() ? observedAt : latest;
+    return observedTime > timestampSortValue(latest) ? observedAt : latest;
   }, null);
 }
 

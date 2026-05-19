@@ -12,9 +12,11 @@ const interfaceViewCardCopy: Record<AppLanguage, Record<InterfaceViewMode, {
   label: string;
 }> & {
   groupLabel: string;
+  showLabel: (label: string) => string;
 }> = {
   en: {
     groupLabel: 'Display view mode',
+    showLabel: (label) => `Show ${label}`,
     default: {
       description: 'Guidance, floating actions, and status signals stay visible.',
       label: 'Default View',
@@ -34,6 +36,7 @@ const interfaceViewCardCopy: Record<AppLanguage, Record<InterfaceViewMode, {
   },
   km: {
     groupLabel: 'របៀបទិដ្ឋភាពបង្ហាញ',
+    showLabel: (label) => `បង្ហាញ ${label}`,
     default: {
       description: 'រក្សាការណែនាំ សកម្មភាពអណ្តែត និងសញ្ញាស្ថានភាពឱ្យមើលឃើញ។',
       label: 'ទិដ្ឋភាពលំនាំដើម',
@@ -407,7 +410,7 @@ export function InterfaceViewModeCards({
             <button
               key={mode}
               aria-current={index === carouselModeIndex ? 'true' : undefined}
-              aria-label={`Show ${copy[mode].label}`}
+              aria-label={copy.showLabel(copy[mode].label)}
               className={`size-2.5 rounded-full transition-colors ${index === carouselModeIndex ? 'bg-primary' : 'bg-muted-foreground/25'}`}
               type="button"
               onClick={() => onDisplayViewModeChange(mode)}

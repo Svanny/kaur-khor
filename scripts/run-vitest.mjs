@@ -16,6 +16,8 @@ const serialTestFiles = [
   'src/renderer/src/routes/stock-update-session.test.tsx',
   'src/renderer/src/routes/web/index.test.tsx',
 ];
+const posixTestPath = (value) => normalize(value).replace(/^\.\//, '').replace(/\\/g, '/');
+const serialTestFileSet = new Set(serialTestFiles.map(posixTestPath));
 const serialFlags = new Set(['--serial', '--no-file-parallelism']);
 const forwardedArgs = userArgs.filter((arg) => !serialFlags.has(arg));
 const hasExplicitSerialFlag =
@@ -27,7 +29,7 @@ function hasFileFilter(args) {
 }
 
 function shouldRunFocusedSerial(args) {
-  return args.some((arg) => serialTestFiles.includes(normalize(arg).replace(/^\.\//, '')));
+  return args.some((arg) => serialTestFileSet.has(posixTestPath(arg)));
 }
 
 function hasWorkerLimit(args) {

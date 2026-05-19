@@ -105,7 +105,7 @@ describe('AutomationIntakeDrawer', () => {
     await waitFor(() => expect(screen.getByText('Dara')).toBeInTheDocument());
     const content = document.querySelector('[data-slot="sheet-content"]');
     expect(content?.className).toContain('data-[state=open]:slide-in-from-bottom');
-    expect(content).toHaveClass('rounded-t-[1.4rem]', 'h-[var(--kaur-khor-effective-viewport-height,100dvh)]', 'max-h-[var(--kaur-khor-effective-viewport-height,100dvh)]');
+    expect(content).toHaveClass('rounded-t-[1.4rem]', 'h-(--kaur-khor-effective-viewport-height)', 'max-h-(--kaur-khor-effective-viewport-height)');
     expect(content?.className).not.toContain('data-[state=open]:slide-in-from-right');
     expect(screen.queryByText('This intake can promote into a customer ticket.')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Close' }).at(-1)).toHaveClass('flex-1', 'min-w-0');
