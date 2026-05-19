@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import { BrowserRouter, HashRouter } from 'react-router-dom';
 import App from './App';
 import { isBenchmarkRendererMode } from './lib/benchmark-mode';
@@ -38,7 +39,11 @@ async function renderApp() {
       ? webLandingApp
       : desktopApp;
 
-  ReactDOM.createRoot(document.getElementById('root')!).render(
+  const rootElement = document.getElementById('root')! as HTMLElement & { __kaurKhorRoot?: Root };
+  const root = rootElement.__kaurKhorRoot ?? ReactDOM.createRoot(rootElement);
+  rootElement.__kaurKhorRoot = root;
+
+  root.render(
     embeddedMode || webLandingMount ? <React.Suspense fallback={null}>{app}</React.Suspense> : isBenchmarkRendererMode() ? app : (
       <React.StrictMode>
         {app}

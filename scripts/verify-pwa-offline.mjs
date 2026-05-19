@@ -223,16 +223,24 @@ async function verifyPhoneShell(page) {
   }
 
   await phoneNav.getByRole('link', { name: 'Capture' }).click();
-  await expectVisible(page, '[data-slot="phone-capture-menu"]', 'phone Capture route');
+  await expectVisible(page, '[data-slot="phone-capture-page"]', 'phone Capture route');
   const stockCountLink = page.getByRole('link', { name: 'Stock Count' });
   if (await stockCountLink.isVisible().catch(() => false)) {
     await stockCountLink.click();
-    await expectVisible(page, '[data-slot="phone-capture-lane-summary"]', 'phone stock-count capture surface');
+    await Promise.race([
+      page.locator('[data-slot="phone-capture-session-header"]').waitFor({ state: 'visible', timeout: 15_000 }),
+      page.locator('[data-slot="phone-capture-lane-summary"]').waitFor({ state: 'visible', timeout: 15_000 }),
+    ]);
   } else {
     await page.getByText('Create a SKU or service before recording updates.').waitFor({ state: 'visible', timeout: 15_000 });
     await page.getByRole('link', { name: 'Open products' }).waitFor({ state: 'visible', timeout: 15_000 });
   }
 
+  await page.evaluate(() => {
+    window.location.hash = '#/';
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+  await expectVisible(page, '[data-slot="phone-today-page"]', 'phone Today route');
   await page.getByRole('button', { name: 'Workspace safety' }).click();
   await page.getByRole('link', { name: 'Open settings' }).click();
   await expectVisible(page, '[data-slot="phone-more-page"]', 'phone More route');

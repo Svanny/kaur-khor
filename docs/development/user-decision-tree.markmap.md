@@ -54,7 +54,7 @@ markmap:
 - Save stock, demand, supply, or correction evidence
 - Workflow
   - Choose update lane
-  - Stock Count
+  - Products Update
     - Count physical stock
     - Reconcile facts
     - Save update
@@ -421,7 +421,7 @@ markmap:
 
 ### Capture
 
-- Stock count
+- Products update
 - Customer order
 - Immediate sale
 - Supplier order

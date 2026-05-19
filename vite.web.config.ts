@@ -6,6 +6,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: '/kaur-khor/',
   build: {
+    chunkSizeWarningLimit: 1200,
     outDir: 'out/web',
     emptyOutDir: true,
     rollupOptions: {
@@ -20,7 +21,7 @@ export default defineConfig({
   preview: {
     host: true,
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [react({ babel: { compact: false } }), tailwindcss()],
   resolve: {
     alias: {
       '@icons': resolve(__dirname, 'src/icons'),

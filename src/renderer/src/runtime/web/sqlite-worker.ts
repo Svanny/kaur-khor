@@ -1,7 +1,12 @@
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
-import { detectBrowserStorageCapability } from './capability';
+import { detectBrowserStorageCapability, isKaurKhorBrowserDatabaseName } from './capability';
 import { KAUR_KHOR_BROWSER_PREFERRED_VFS, KAUR_KHOR_BROWSER_SCHEMA_VERSION, type KaurKhorBrowserDatabaseName } from './constants';
-import { createBrowserStorageBackup, validateBrowserStorageBackup, type BrowserStorageDocumentRecord } from './backup';
+import {
+  createBrowserStorageBackup,
+  validateBrowserStorageBackup,
+  validateBrowserStorageDocumentRecords,
+  type BrowserStorageDocumentRecord,
+} from './backup';
 import { BROWSER_STORAGE_SCHEMA_SQL } from './schema';
 import type {
   BrowserStorageInitResult,
@@ -28,6 +33,50 @@ let db: SqliteDatabase | null = null;
 let databaseName: KaurKhorBrowserDatabaseName | null = null;
 let sqliteVersion = '';
 
+function readWorkerEnvelopeId(value: unknown): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const id = (value as { id?: unknown }).id;
+  return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+function isWorkerRequest(value: unknown): value is BrowserStorageWorkerRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const request = value as { backup?: unknown; collection?: unknown; databaseName?: unknown; records?: unknown; state?: unknown; type?: unknown };
+  switch (request.type) {
+    case 'init':
+      return typeof request.databaseName === 'string' && isKaurKhorBrowserDatabaseName(request.databaseName);
+    case 'listDocuments':
+      return request.collection == null || typeof request.collection === 'string';
+    case 'putDocuments':
+      return Array.isArray(request.records);
+    case 'persistSenaState':
+      return Boolean(request.state) && typeof request.state === 'object' && !Array.isArray(request.state);
+    case 'importBackup':
+      return Boolean(request.backup) && typeof request.backup === 'object' && !Array.isArray(request.backup);
+    case 'exportBackup':
+    case 'clear':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function readWorkerEnvelope(value: unknown): BrowserStorageWorkerEnvelope | null {
+  const id = readWorkerEnvelopeId(value);
+  if (id == null || !value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const request = (value as { request?: unknown }).request;
+  return isWorkerRequest(request) ? { id, request } : null;
+}
+
 function post(response: BrowserStorageWorkerResponse) {
   self.postMessage(response);
 }
@@ -47,14 +96,25 @@ function jsonStringify(value: unknown) {
   return JSON.stringify(value);
 }
 
+function parseStoredDocumentJson(record: { collection: string; id: string; json: string }) {
+  try {
+    return JSON.parse(record.json) as unknown;
+  } catch {
+    throw new Error(`Stored browser document ${record.collection}/${record.id} contains invalid JSON.`);
+  }
+}
+
 async function initStorage(name: KaurKhorBrowserDatabaseName): Promise<BrowserStorageInitResult> {
   const capability = detectBrowserStorageCapability(globalThis, { requireWorker: false });
   if (capability.status !== 'supported') {
     throw new Error(capability.reasons.join(' '));
   }
   if (db) {
+    if (databaseName !== name) {
+      throw new Error(`Browser storage is already initialized for ${databaseName}, not ${name}.`);
+    }
     return {
-      databaseName: name,
+      databaseName,
       filename: db.filename,
       sqliteVersion,
       vfs: KAUR_KHOR_BROWSER_PREFERRED_VFS,
@@ -93,20 +153,29 @@ function listDocuments(collection?: string): BrowserStorageDocumentRecord[] {
     returnValue: 'resultRows',
     resultRows: rows,
   });
-  return rows.map((row) => {
+  const records = rows.map((row) => {
     const record = row as { collection: string; id: string; json: string; updatedAt: string };
     return {
       collection: record.collection,
       id: record.id,
-      json: JSON.parse(record.json),
+      json: parseStoredDocumentJson(record),
       updatedAt: record.updatedAt,
     };
   });
+  const validation = validateBrowserStorageDocumentRecords(records);
+  if (!validation.ok) {
+    throw new Error(validation.errors.join(' '));
+  }
+  return validation.records;
 }
 
 function putDocuments(records: BrowserStorageDocumentRecord[]) {
+  const validation = validateBrowserStorageDocumentRecords(records);
+  if (!validation.ok) {
+    throw new Error(validation.errors.join(' '));
+  }
   const storage = assertDb();
-  return runStorageTransaction(storage, () => insertDocumentsUnlocked(storage, records));
+  return runStorageTransaction(storage, () => insertDocumentsUnlocked(storage, validation.records));
 }
 
 function insertDocumentsUnlocked(storage: SqliteDatabase, records: BrowserStorageDocumentRecord[]) {
@@ -350,14 +419,27 @@ async function handle(request: BrowserStorageWorkerRequest): Promise<BrowserStor
     case 'clear':
       clearDocuments();
       return { type: 'clear', result: { cleared: true } };
+    default:
+      throw new Error('Unsupported browser storage request.');
   }
 }
 
-self.addEventListener('message', (event: MessageEvent<BrowserStorageWorkerEnvelope>) => {
-  void handle(event.data.request)
-    .then((response) => post({ id: event.data.id, ok: true, response }))
+self.addEventListener('message', (event: MessageEvent<unknown>) => {
+  const id = readWorkerEnvelopeId(event.data);
+  if (id == null) {
+    return;
+  }
+
+  const envelope = readWorkerEnvelope(event.data);
+  if (!envelope) {
+    post({ id, ok: false, error: 'Malformed browser storage request.' });
+    return;
+  }
+
+  void handle(envelope.request)
+    .then((response) => post({ id: envelope.id, ok: true, response }))
     .catch((error: unknown) => post({
-      id: event.data.id,
+      id: envelope.id,
       ok: false,
       error: error instanceof Error ? error.message : String(error),
       capability: detectBrowserStorageCapability(globalThis, { requireWorker: false }),

@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { embeddedModeForPath } from '@/routes/web/embedded-entry';
 import { WebRoutes } from '@/routes/web/landing';
@@ -33,12 +34,21 @@ const app = embeddedMode
   );
 
 const loadingFallback = (
-  <div className="grid min-h-svh place-items-center bg-background p-6 text-center text-sm font-semibold text-foreground">
-    Loading Kaur Khor...
+  <div className="grid min-h-svh place-items-center bg-background px-6 text-center text-foreground">
+    <div>
+      <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
+      <h1 className="mt-3 text-3xl font-semibold tracking-normal">
+        Loading preferences…
+      </h1>
+    </div>
   </div>
 );
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root')! as HTMLElement & { __kaurKhorRoot?: Root };
+const root = rootElement.__kaurKhorRoot ?? ReactDOM.createRoot(rootElement);
+rootElement.__kaurKhorRoot = root;
+
+root.render(
   embeddedMode
     ? <React.Suspense fallback={loadingFallback}>{app}</React.Suspense>
     : (

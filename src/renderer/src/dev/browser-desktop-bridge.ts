@@ -1,8 +1,16 @@
 import {
+  DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
   DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
   DEFAULT_SENA_ENGINE_PARAMETERS,
+  DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+  normalizeDesktopPreferenceTimestamp,
+  normalizeDesktopSeenUnlockedNavItems,
+  normalizeDesktopTaskBatchUpdatePreferences,
+  normalizeDesktopWorkbenchTileOrderByLane,
+  normalizeSenaEngineParameters,
 } from '@shared/ipc';
 import { SENA_SCHEMA_VERSION } from '@shared/sena';
+import { normalizeInterfaceViewMode } from '@shared/interface-view';
 import {
   browserSenaObservationFingerprint,
   browserSenaObservationPage,
@@ -21,7 +29,7 @@ import type {
   AutomationWorkspace,
   PromoteAutomationIntakeResult,
 } from '@shared/automation';
-import { normalizePhoneLookupKey } from '@shared/phone';
+import { normalizePhoneLookupKey, normalizePhoneNumber } from '@shared/phone';
 import type {
   AutomationConnectionPatch,
   AutomationExposurePatch,
@@ -39,6 +47,8 @@ import type {
   SenaRunLookupPayload,
   SenaTriggerRunPayload,
 } from '@shared/ipc';
+import { isAutomationEligibleExposureRow } from '@shared/automation-sellables';
+import { normalizeTicketLookupValue } from '@/lib/ticketing';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
@@ -49,6 +59,8 @@ import type {
   SenaOrderFieldValues,
   SenaObservationPageRequest,
   SenaObservationRecord,
+  SenaOrderBatchStatus,
+  SenaOrderChildStatus,
   SenaServiceDetail,
   SenaSkuDetail,
   SenaWorkspaceSummary,
@@ -65,6 +77,79 @@ const demoCatalogImages = import.meta.glob<string>('../assets/dev-catalog/*.webp
 function demoCatalogImagePath(fileName: string) {
   const entry = Object.entries(demoCatalogImages).find(([path]) => path.endsWith(`/${fileName}`));
   return entry?.[1];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeBrowserBooleanPreference(value: unknown, fallback: boolean) {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function normalizeBrowserUsdToKhrExchangeRate(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : fallback;
+}
+
+export function normalizeBrowserDesktopPreferences(
+  value: unknown,
+  fallback: DesktopPreferences,
+): DesktopPreferences {
+  const source = isRecord(value) ? value : {};
+  const language = source.language === 'km' ? 'km' : 'en';
+  const currency = source.currency === 'KHR' ? 'KHR' : 'USD';
+  const itemImageMode =
+    source.itemImageMode === 'off' ||
+    source.itemImageMode === 'thumbnail' ||
+    source.itemImageMode === 'small' ||
+    source.itemImageMode === 'medium'
+      ? source.itemImageMode
+      : fallback.itemImageMode ?? DEFAULT_DESKTOP_ITEM_IMAGE_MODE;
+  const displayViewMode = normalizeInterfaceViewMode(source.displayViewMode) ?? fallback.displayViewMode;
+  const showAnalysisPage = true;
+
+  return {
+    language,
+    currency,
+    usdToKhrExchangeRate: normalizeBrowserUsdToKhrExchangeRate(
+      source.usdToKhrExchangeRate,
+      fallback.usdToKhrExchangeRate ?? DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+    ),
+    displayViewMode,
+    itemImageMode,
+    dimChartsWhileLoading: normalizeBrowserBooleanPreference(source.dimChartsWhileLoading, fallback.dimChartsWhileLoading),
+    showExplanatoryTooltips: normalizeBrowserBooleanPreference(source.showExplanatoryTooltips, fallback.showExplanatoryTooltips),
+    showFloatingTitleActions: normalizeBrowserBooleanPreference(source.showFloatingTitleActions, fallback.showFloatingTitleActions),
+    showRightRailCards: normalizeBrowserBooleanPreference(source.showRightRailCards, fallback.showRightRailCards),
+    showOverviewTaskTabs: normalizeBrowserBooleanPreference(source.showOverviewTaskTabs, fallback.showOverviewTaskTabs),
+    showAutomationsPage: normalizeBrowserBooleanPreference(source.showAutomationsPage, fallback.showAutomationsPage),
+    showAnalysisPage,
+    showPerformanceCompareToggle: normalizeBrowserBooleanPreference(source.showPerformanceCompareToggle, fallback.showPerformanceCompareToggle),
+    showPerformanceTimelineCard: normalizeBrowserBooleanPreference(source.showPerformanceTimelineCard, fallback.showPerformanceTimelineCard),
+    showLogsViewToggle: normalizeBrowserBooleanPreference(source.showLogsViewToggle, fallback.showLogsViewToggle),
+    showHeartbeatRibbons: normalizeBrowserBooleanPreference(source.showHeartbeatRibbons, fallback.showHeartbeatRibbons),
+    taskBatchUpdatePreferences: normalizeDesktopTaskBatchUpdatePreferences(
+      source.taskBatchUpdatePreferences as Parameters<typeof normalizeDesktopTaskBatchUpdatePreferences>[0],
+      source.taskBatchUpdateMode as Parameters<typeof normalizeDesktopTaskBatchUpdatePreferences>[1],
+    ),
+    customShowExplanatoryTooltips: normalizeBrowserBooleanPreference(source.customShowExplanatoryTooltips, fallback.customShowExplanatoryTooltips),
+    customShowFloatingTitleActions: normalizeBrowserBooleanPreference(source.customShowFloatingTitleActions, fallback.customShowFloatingTitleActions),
+    customShowRightRailCards: normalizeBrowserBooleanPreference(source.customShowRightRailCards, fallback.customShowRightRailCards),
+    customShowOverviewTaskTabs: normalizeBrowserBooleanPreference(source.customShowOverviewTaskTabs, fallback.customShowOverviewTaskTabs),
+    customShowAutomationsPage: normalizeBrowserBooleanPreference(source.customShowAutomationsPage, fallback.customShowAutomationsPage),
+    customShowAnalysisPage: showAnalysisPage,
+    customShowPerformanceCompareToggle: normalizeBrowserBooleanPreference(source.customShowPerformanceCompareToggle, fallback.customShowPerformanceCompareToggle),
+    customShowPerformanceTimelineCard: normalizeBrowserBooleanPreference(source.customShowPerformanceTimelineCard, fallback.customShowPerformanceTimelineCard),
+    customShowLogsViewToggle: normalizeBrowserBooleanPreference(source.customShowLogsViewToggle, fallback.customShowLogsViewToggle),
+    customShowHeartbeatRibbons: normalizeBrowserBooleanPreference(source.customShowHeartbeatRibbons, fallback.customShowHeartbeatRibbons),
+    senaEngineParameters: normalizeSenaEngineParameters(source.senaEngineParameters as Parameters<typeof normalizeSenaEngineParameters>[0]),
+    overviewStaleUpdateReminderSnoozeUntil: normalizeDesktopPreferenceTimestamp(source.overviewStaleUpdateReminderSnoozeUntil as Parameters<typeof normalizeDesktopPreferenceTimestamp>[0]),
+    onboardingCompletedAt: normalizeDesktopPreferenceTimestamp(source.onboardingCompletedAt as Parameters<typeof normalizeDesktopPreferenceTimestamp>[0]),
+    seenUnlockedNavItems: normalizeDesktopSeenUnlockedNavItems(source.seenUnlockedNavItems as Parameters<typeof normalizeDesktopSeenUnlockedNavItems>[0]),
+    workbenchTileOrderByLane: normalizeDesktopWorkbenchTileOrderByLane(source.workbenchTileOrderByLane as Parameters<typeof normalizeDesktopWorkbenchTileOrderByLane>[0]),
+  };
 }
 
 function clone<T>(value: T): T {
@@ -137,10 +222,106 @@ function orderBatchMatchesLookup(
   return true;
 }
 
+function readOptionalPositiveInteger(value: unknown, message: string) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(message);
+  }
+  return value;
+}
+
+function readOptionalTrimmedString(value: unknown, message: string) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== 'string') {
+    throw new Error(message);
+  }
+  return value.trim() || undefined;
+}
+
+const SENA_ORDER_BATCH_STATUSES: readonly SenaOrderBatchStatus[] = [
+  'open',
+  'awaiting_receipt',
+  'follow_up',
+  'partial_receipt',
+  'received',
+  'reviewed',
+];
+
+const SENA_ORDER_CHILD_STATUSES: readonly SenaOrderChildStatus[] = [
+  'open',
+  'awaiting_receipt',
+  'follow_up',
+  'received',
+  'reviewed',
+];
+
+const SENA_ISO_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?Z$/;
+
+function assertBrowserIsoTimestamp(value: string, message: string) {
+  const match = SENA_ISO_TIMESTAMP_PATTERN.exec(value);
+  if (!match) {
+    throw new Error(message);
+  }
+  const normalizedValue = match[7] == null ? value.replace('Z', '.000Z') : value;
+  const timestamp = Date.parse(normalizedValue);
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== normalizedValue) {
+    throw new Error(message);
+  }
+}
+
+function normalizeBrowserObservationPageRequest(payload?: SenaObservationPageRequest): SenaObservationPageRequest | undefined {
+  if (payload == null) {
+    return undefined;
+  }
+  if (typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('SENA observation page request must be an object.');
+  }
+  const beforeObservedAt = readOptionalTrimmedString(payload.beforeObservedAt, 'SENA observation page cursor timestamp must be a string or null.') ?? null;
+  if (beforeObservedAt !== null) {
+    assertBrowserIsoTimestamp(beforeObservedAt, 'SENA observation page cursor timestamp must be an ISO timestamp or null.');
+  }
+  return {
+    beforeObservedAt,
+    beforeObservationId: readOptionalTrimmedString(payload.beforeObservationId, 'SENA observation page cursor id must be a string or null.') ?? null,
+    limit: readOptionalPositiveInteger(payload.limit, 'SENA observation page limit must be a positive finite number.') ?? 100,
+  };
+}
+
+function normalizeBrowserOrderLookupPayload(payload?: {
+  batchOrderId?: string;
+  childOrderId?: string;
+  skuId?: string;
+  supplierName?: string;
+  status?: string;
+}) {
+  if (payload == null) {
+    return undefined;
+  }
+  if (typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('SENA order lookup must be an object.');
+  }
+  if (payload.status != null && !SENA_ORDER_BATCH_STATUSES.includes(payload.status as SenaOrderBatchStatus)) {
+    throw new Error('SENA order lookup requires a supported status.');
+  }
+  return {
+    batchOrderId: readOptionalTrimmedString(payload.batchOrderId, 'SENA order lookup batch id must be a string or null.'),
+    childOrderId: readOptionalTrimmedString(payload.childOrderId, 'SENA order lookup child id must be a string or null.'),
+    skuId: readOptionalTrimmedString(payload.skuId, 'SENA order lookup SKU id must be a string or null.'),
+    supplierName: readOptionalTrimmedString(payload.supplierName, 'SENA order lookup supplier name must be a string or null.'),
+    status: payload.status as SenaOrderBatchStatus | undefined,
+  };
+}
+
 function syncMockWorkspaceSummary(state: BrowserMockState) {
   const latestObservedAt = [...state.observations]
     .map((observation) => observation.input.observedAt)
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+    .filter((observedAt) => browserAutomationTimestampMs(observedAt) != null)
+    .sort((left, right) => browserAutomationTimestampMs(right)! - browserAutomationTimestampMs(left)!)[0] ?? null;
   state.workspaceSummary.latestObservedAt = latestObservedAt;
   state.workspaceSummary.intervalCount = state.observations.length;
   state.latestRun = {
@@ -932,6 +1113,76 @@ function browserTelegramHandle(update: BrowserTelegramUpdate) {
   return username ? `@${username.replace(/^@/, '')}` : null;
 }
 
+function countAutomationExposedSellables(exposures: AutomationExposureRow[]) {
+  return exposures.filter((row) => row.exposed && isAutomationEligibleExposureRow(row)).length;
+}
+
+function browserAutomationTodayFloorIso() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+}
+
+function browserAutomationTimestampMs(value: string | null | undefined) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function browserAutomationMetrics(workspace: AutomationWorkspace) {
+  const todayFloor = browserAutomationTodayFloorIso();
+  const todayFloorMs = browserAutomationTimestampMs(todayFloor) ?? 0;
+  const isTodayOrLater = (value: string | null | undefined) => {
+    const timestamp = browserAutomationTimestampMs(value);
+    return timestamp != null && timestamp >= todayFloorMs;
+  };
+  const todayIntakes = workspace.intakes.filter((intake) => isTodayOrLater(intake.createdAt));
+  return {
+    ordersToday: todayIntakes.length,
+    needsReview: workspace.intakes.filter((intake) => intake.status === 'needs_review' || intake.status === 'failed').length,
+    quotedToday: todayIntakes.filter((intake) => intake.status === 'quoted').length,
+    ticketedToday: workspace.intakes.filter((intake) => intake.status === 'ticketed' && isTodayOrLater(intake.updatedAt)).length,
+    completedToday: workspace.intakes.filter((intake) => intake.status === 'completed' && isTodayOrLater(intake.updatedAt)).length,
+    exposedSellables: countAutomationExposedSellables(workspace.exposures),
+  };
+}
+
+function browserAutomationLinePromotable(line: AutomationOrderIntake['lines'][number]) {
+  return line.entityId != null &&
+    typeof line.quantity === 'number' &&
+    Number.isFinite(line.quantity) &&
+    line.quantity > 0 &&
+    typeof line.unitPrice === 'number' &&
+    Number.isFinite(line.unitPrice) &&
+    line.unitPrice >= 0 &&
+    typeof line.lineTotal === 'number' &&
+    Number.isFinite(line.lineTotal) &&
+    line.lineTotal >= 0;
+}
+
+function assertBrowserAutomationIntakePromotable(intake: AutomationOrderIntake, payload: PromoteAutomationIntakePayload) {
+  if (intake.promotedTicketId || intake.status === 'ticketed' || intake.status === 'completed') {
+    throw new Error('Automation intake has already been promoted to a customer ticket.');
+  }
+  if (intake.status !== 'quoted') {
+    throw new Error('Only quoted automation intakes can be promoted to customer tickets.');
+  }
+  if (!intake.lines.every(browserAutomationLinePromotable)) {
+    throw new Error('All Telegram intake lines must resolve to priced entities before promotion.');
+  }
+  if (payload.mode === 'append_ticket' && !payload.ticketId?.trim()) {
+    throw new Error('Appending Telegram intake requires a target customer ticket.');
+  }
+}
+
+function cloneAutomationWorkspace(workspace: AutomationWorkspace) {
+  return clone({
+    ...workspace,
+    metrics: browserAutomationMetrics(workspace),
+  });
+}
+
 function markBrowserTelegramError(message: string) {
   browserMockState.automation.connection = {
     ...browserMockState.automation.connection,
@@ -1290,7 +1541,7 @@ export function createMockAutomationWorkspace(): AutomationWorkspace {
       quotedToday: 0,
       ticketedToday: 0,
       completedToday: 0,
-      exposedSellables: exposures.filter((row) => row.exposed).length,
+      exposedSellables: countAutomationExposedSellables(exposures),
     },
     exposures,
     conversations,
@@ -1305,7 +1556,7 @@ function installBrowserDesktopBridge() {
 
   const bridge: DesktopBridge = {
     automation: {
-      getWorkspace: async () => clone(browserMockState.automation),
+      getWorkspace: async () => cloneAutomationWorkspace(browserMockState.automation),
       getConnection: async () => clone(browserMockState.automation.connection),
       saveConnection: async (payload: AutomationConnectionPatch) => {
         if (payload.botToken !== undefined) {
@@ -1334,7 +1585,7 @@ function installBrowserDesktopBridge() {
         row.exposed = payload.exposed ?? row.exposed;
         row.alias = payload.alias === undefined ? row.alias : payload.alias;
         row.sortOrder = payload.sortOrder ?? row.sortOrder;
-        browserMockState.automation.metrics.exposedSellables = browserMockState.automation.exposures.filter((entry) => entry.exposed).length;
+        browserMockState.automation.metrics.exposedSellables = countAutomationExposedSellables(browserMockState.automation.exposures);
         return clone(row);
       },
       listConversations: async () => clone(browserMockState.automation.conversations),
@@ -1435,11 +1686,15 @@ function installBrowserDesktopBridge() {
         }
         return clone(intake);
       },
-      promoteIntake: async ({ customerMessage, intakeId, mode, ticketId }: PromoteAutomationIntakePayload) => {
+      promoteIntake: async (payload: PromoteAutomationIntakePayload) => {
+        const { customerMessage, intakeId, mode, ticketId } = payload;
         const intake = browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId);
         if (!intake) {
           throw new Error('Automation intake not found.');
         }
+        assertBrowserAutomationIntakePromotable(intake, payload);
+        const customerName = payload.customerIdentityOverride?.customerName?.trim() || intake.customerDisplayName;
+        const phone = normalizePhoneNumber(payload.customerIdentityOverride?.phone || intake.phone) || null;
         intake.status = 'ticketed';
         intake.promotedTicketId = ticketId ?? `ticket:customer:browser:${automationTicketCounter++}`;
         intake.updatedAt = nowIso();
@@ -1473,26 +1728,26 @@ function installBrowserDesktopBridge() {
               role: 'customer',
               channelKey: 'telegram',
               channelLabel: 'Telegram',
-              customerName: intake.customerDisplayName,
-              customerNameKey: intake.customerDisplayName?.toLowerCase() ?? null,
-              phone: intake.phone,
-              phoneKey: normalizePhoneLookupKey(intake.phone),
+              customerName,
+              customerNameKey: customerName ? normalizeTicketLookupValue(customerName) : null,
+              phone,
+              phoneKey: phone ? normalizePhoneLookupKey(phone) : null,
               supplierName: null,
             },
-            lines: intake.lines.filter((line) => line.entityId != null).map((line) => ({
+            lines: intake.lines.filter(browserAutomationLinePromotable).map((line) => ({
               entityType: line.entityType,
               entityId: line.entityId!,
-              quantityDelta: line.quantity,
+              quantityDelta: line.quantity!,
               note: line.requestedLabel,
             })),
             note: intake.notes,
           },
-          commercialEvents: intake.lines.filter((line) => line.entityId != null).map((line) => ({
+          commercialEvents: intake.lines.filter(browserAutomationLinePromotable).map((line) => ({
             party: 'customer',
             entityType: line.entityType,
             entityId: line.entityId!,
             stage: 'pending',
-            quantityDelta: line.quantity ?? 0,
+            quantityDelta: line.quantity!,
             flow: 'scheduled',
             reason: 'browser_mock',
             note: intake.notes,
@@ -1561,10 +1816,10 @@ function installBrowserDesktopBridge() {
     preferences: {
       get: async () => clone(browserMockState.preferences),
       save: async (payload) => {
-        browserMockState.preferences = {
+        browserMockState.preferences = normalizeBrowserDesktopPreferences({
           ...browserMockState.preferences,
-          ...payload,
-        };
+          ...(isRecord(payload) ? payload : {}),
+        }, browserMockState.preferences);
         window.dispatchEvent(new Event('kaur-khor-browser-state-changed'));
         return clone(browserMockState.preferences);
       },
@@ -1580,10 +1835,14 @@ function installBrowserDesktopBridge() {
         observationFingerprint: browserSenaObservationFingerprint(browserMockState.observations),
       }),
       listObservationPage: async (payload?: SenaObservationPageRequest) =>
-        browserSenaObservationPage(browserMockState.observations, payload),
+        browserSenaObservationPage(browserMockState.observations, normalizeBrowserObservationPageRequest(payload)),
       listObservations: async () => clone(browserMockState.observations),
       listOrderBatches: async (payload) =>
-        clone(browserMockState.orderBatches.filter((batch) => orderBatchMatchesLookup(batch, payload))),
+        clone(
+          browserMockState.orderBatches.filter((batch) =>
+            orderBatchMatchesLookup(batch, normalizeBrowserOrderLookupPayload(payload)),
+          ),
+        ),
       upsertCatalog: async (payload) => {
         browserMockState.catalog = clone(payload);
         return clone(browserMockState.catalog);
@@ -1648,6 +1907,9 @@ function installBrowserDesktopBridge() {
         return clone(batch);
       },
       updateOrderBatch: async (payload) => {
+        if (payload.status != null && !SENA_ORDER_BATCH_STATUSES.includes(payload.status)) {
+          throw new Error('SENA order batch update requires a supported status.');
+        }
         const index = browserMockState.orderBatches.findIndex((batch) => batch.batchOrderId === payload.batchOrderId);
         if (index < 0) {
           throw new Error('Order batch not found');
@@ -1671,6 +1933,9 @@ function installBrowserDesktopBridge() {
         return clone(updated);
       },
       updateOrderChild: async (payload) => {
+        if (payload.status != null && !SENA_ORDER_CHILD_STATUSES.includes(payload.status)) {
+          throw new Error('SENA order child update requires a supported status.');
+        }
         const batchIndex = browserMockState.orderBatches.findIndex((batch) =>
           batch.children.some((child) => child.childOrderId === payload.childOrderId),
         );

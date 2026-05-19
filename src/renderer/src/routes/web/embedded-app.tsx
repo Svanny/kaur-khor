@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { HashRouter, useLocation } from 'react-router-dom';
 import App from '@/App';
@@ -7,6 +7,7 @@ import {
   createMockState,
   getBrowserDesktopBridgeMockState,
   installBrowserDesktopBridge,
+  normalizeBrowserDesktopPreferences,
   setBrowserDesktopBridgeMockState,
   type BrowserMockState,
 } from '@/dev/browser-desktop-bridge';
@@ -25,7 +26,6 @@ import { translateUiLiteral } from '@/lib/translations';
 import {
   KAUR_KHOR_BROWSER_APP_DATABASE,
   KAUR_KHOR_BROWSER_DEMO_DATABASE,
-  createBrowserStorageBackup,
   openBrowserStorage,
   parseBrowserStorageBackupJson,
   type KaurKhorBrowserDatabaseName,
@@ -35,11 +35,22 @@ import {
 } from '@/runtime/web';
 import type { AppLanguage } from '@shared/inventory';
 import type { DesktopBridge } from '@shared/ipc';
+import { SENA_SCHEMA_VERSION, type SenaCatalog, type SenaServiceDetail, type SenaSkuDetail } from '@shared/sena';
+import type { AutomationMessageRecord } from '@shared/automation';
 import { EmbeddedAutoZoomViewport, useEmbeddedPhonePortraitViewport } from './embedded-viewport';
-import { EmbeddedPhoneApp } from './phone-shell';
+
+const LazyEmbeddedPhoneApp = lazy(() =>
+  import('./phone-shell').then((module) => ({ default: module.EmbeddedPhoneApp })),
+);
 
 type EmbeddedMode = 'app' | 'demo';
 type PersistenceStatus = 'loading' | 'ready' | 'unsupported' | 'error';
+type WebPersistenceBridge = DesktopBridge & {
+  __kaurKhorWebPersistenceContext?: {
+    persist: () => Promise<void>;
+  };
+  __kaurKhorWebPersistenceWrapped?: boolean;
+};
 
 type StorageUiState = {
   status: PersistenceStatus;
@@ -114,15 +125,135 @@ export function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
   return state;
 }
 
-function normalizeBrowserStateForMode(mode: EmbeddedMode, state: BrowserMockState): BrowserMockState {
+function objectOrFallback<T extends object>(value: unknown, fallback: T): T {
+  return isObjectRecord(value) ? { ...fallback, ...value } as T : fallback;
+}
+
+function arrayOrFallback<T>(value: unknown, fallback: T[]): T[] {
+  return Array.isArray(value) ? value as T[] : fallback;
+}
+
+function objectArrayOrFallback<T extends object>(value: unknown, fallback: T[]): T[] {
+  return Array.isArray(value) ? value.filter(isObjectRecord) as T[] : fallback;
+}
+
+function isAutomationMessageRecord(value: unknown): value is AutomationMessageRecord {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.messageId === 'string' &&
+    typeof value.conversationId === 'string' &&
+    typeof value.externalMessageKey === 'string' &&
+    (value.direction === 'inbound' || value.direction === 'outbound') &&
+    typeof value.sentAt === 'string' &&
+    typeof value.rawText === 'string' &&
+    (typeof value.normalizedText === 'string' || value.normalizedText === null) &&
+    (value.parseConfidence === 'high' || value.parseConfidence === 'medium' || value.parseConfidence === 'low' || value.parseConfidence === null)
+  );
+}
+
+function normalizeBrowserAutomationMessages(
+  value: unknown,
+  fallback: BrowserMockState['automationMessages'],
+): BrowserMockState['automationMessages'] {
+  if (!isObjectRecord(value)) {
+    return fallback;
+  }
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([conversationId, messages]) =>
+      Array.isArray(messages)
+        ? [[conversationId, messages.filter(isAutomationMessageRecord)]]
+        : [],
+    ),
+  );
+}
+
+function isBrowserSkuDetail(value: unknown): value is SenaSkuDetail {
+  return isObjectRecord(value) &&
+    Array.isArray(value.demandPosterior) &&
+    Array.isArray(value.inventoryPosterior) &&
+    Array.isArray(value.leadTimePosterior) &&
+    Array.isArray(value.pipelinePosterior) &&
+    isObjectRecord(value.summary);
+}
+
+function isBrowserServiceDetail(value: unknown): value is SenaServiceDetail {
+  return isObjectRecord(value) &&
+    typeof value.serviceId === 'string' &&
+    Array.isArray(value.contributors) &&
+    Array.isArray(value.regimeTimeline);
+}
+
+function normalizeBrowserDetailMap<T>(
+  value: unknown,
+  fallback: Record<string, T>,
+  isDetail: (detail: unknown) => detail is T,
+): Record<string, T> {
+  if (!isObjectRecord(value)) {
+    return fallback;
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, T] => isDetail(entry[1])),
+  );
+}
+
+function normalizeBrowserCatalog(value: unknown, fallback: SenaCatalog): SenaCatalog {
+  const source = isObjectRecord(value) ? value : {};
+  return {
+    ...fallback,
+    ...source,
+    schemaVersion: typeof source.schemaVersion === 'number' && Number.isFinite(source.schemaVersion)
+      ? source.schemaVersion
+      : SENA_SCHEMA_VERSION,
+    bundles: objectArrayOrFallback(source.bundles, fallback.bundles),
+    services: objectArrayOrFallback(source.services, fallback.services),
+    sharingMask: objectArrayOrFallback(source.sharingMask, fallback.sharingMask),
+    skus: objectArrayOrFallback(source.skus, fallback.skus),
+  };
+}
+
+export function normalizeBrowserStateForMode(mode: EmbeddedMode, state: Partial<BrowserMockState>): BrowserMockState {
+  const fallback = fallbackStateForMode(mode);
+  const normalized: BrowserMockState = {
+    ...fallback,
+    ...state,
+    appContext: objectOrFallback(state.appContext, fallback.appContext),
+    automation: objectOrFallback(state.automation, fallback.automation),
+    automationMessages: normalizeBrowserAutomationMessages(state.automationMessages, fallback.automationMessages),
+    browserTelegramToken: typeof state.browserTelegramToken === 'string' ? state.browserTelegramToken : null,
+    browserTelegramUpdateOffset: typeof state.browserTelegramUpdateOffset === 'number' && Number.isFinite(state.browserTelegramUpdateOffset)
+      ? state.browserTelegramUpdateOffset
+      : null,
+    catalog: normalizeBrowserCatalog(state.catalog, fallback.catalog),
+    diagnostics: objectOrFallback(state.diagnostics, fallback.diagnostics),
+    latestRun: objectOrFallback(state.latestRun, fallback.latestRun),
+    localDataInfo: objectOrFallback(state.localDataInfo, fallback.localDataInfo),
+    observations: objectArrayOrFallback(state.observations, fallback.observations),
+    orderBatches: objectArrayOrFallback(state.orderBatches, fallback.orderBatches),
+    preferences: normalizeBrowserDesktopPreferences(state.preferences, fallback.preferences),
+    serviceDetails: normalizeBrowserDetailMap(state.serviceDetails, fallback.serviceDetails, isBrowserServiceDetail),
+    skuDetails: normalizeBrowserDetailMap(state.skuDetails, fallback.skuDetails, isBrowserSkuDetail),
+    workspaceSummary: objectOrFallback(state.workspaceSummary, fallback.workspaceSummary),
+  };
+
+  normalized.automation = {
+    ...fallback.automation,
+    ...normalized.automation,
+    conversations: objectArrayOrFallback(normalized.automation.conversations, fallback.automation.conversations),
+    exposures: objectArrayOrFallback(normalized.automation.exposures, fallback.automation.exposures),
+    intakes: objectArrayOrFallback(normalized.automation.intakes, fallback.automation.intakes),
+    metrics: objectOrFallback(normalized.automation.metrics, fallback.automation.metrics),
+  };
+
   if (mode !== 'demo') {
-    return state;
+    return normalized;
   }
 
   return {
-    ...state,
+    ...normalized,
     preferences: {
-      ...state.preferences,
+      ...normalized.preferences,
       showAutomationsPage: true,
       customShowAutomationsPage: true,
     },
@@ -146,33 +277,25 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isBrowserMockStateRecord(value: unknown): value is BrowserMockState {
+function isRecoverableBrowserMockStateRecord(value: unknown): value is Partial<BrowserMockState> {
   if (!isObjectRecord(value)) {
     return false;
   }
 
   return (
     isObjectRecord(value.appContext) &&
-    isObjectRecord(value.automation) &&
     isObjectRecord(value.catalog) &&
-    isObjectRecord(value.diagnostics) &&
-    isObjectRecord(value.latestRun) &&
-    isObjectRecord(value.localDataInfo) &&
     isObjectRecord(value.preferences) &&
-    isObjectRecord(value.serviceDetails) &&
-    isObjectRecord(value.skuDetails) &&
-    isObjectRecord(value.workspaceSummary) &&
-    Array.isArray(value.observations) &&
-    Array.isArray(value.orderBatches)
+    Array.isArray(value.observations)
   );
 }
 
-function readStateRecord(records: BrowserStorageDocumentRecord[], databaseName: KaurKhorBrowserDatabaseName): BrowserMockState | null {
+function readStateRecord(records: BrowserStorageDocumentRecord[], databaseName: KaurKhorBrowserDatabaseName, mode: EmbeddedMode): BrowserMockState | null {
   const record = records.find((entry) => entry.collection === 'browser_state' && entry.id === databaseName);
-  if (!record || !isBrowserMockStateRecord(record.json)) {
+  if (!record || !isRecoverableBrowserMockStateRecord(record.json)) {
     return null;
   }
-  return record.json;
+  return normalizeBrowserStateForMode(mode, record.json);
 }
 
 async function persistCurrentState(handle: BrowserStorageSupportedHandle, databaseName: KaurKhorBrowserDatabaseName) {
@@ -206,33 +329,36 @@ function installPersistenceHooks(
   databaseName: KaurKhorBrowserDatabaseName,
   mode: EmbeddedMode,
 ) {
-  const bridge = window.kaurKhorDesktop as DesktopBridge & { __kaurKhorWebPersistenceWrapped?: boolean };
-  if (bridge.__kaurKhorWebPersistenceWrapped) {
-    return;
-  }
-  bridge.__kaurKhorWebPersistenceWrapped = true;
-  const persist = () => persistCurrentState(handle, databaseName);
+  const bridge = window.kaurKhorDesktop as WebPersistenceBridge;
+  bridge.__kaurKhorWebPersistenceContext = {
+    persist: () => persistCurrentState(handle, databaseName),
+  };
 
-  wrapMutation(bridge.preferences, 'save', persist);
-  wrapMutation(bridge.sena, 'upsertCatalog', persist);
-  wrapMutation(bridge.sena, 'ingestObservation', persist);
-  wrapMutation(bridge.sena, 'updateObservation', persist);
-  wrapMutation(bridge.sena, 'deleteObservation', persist);
-  wrapMutation(bridge.sena, 'createOrderBatch', persist);
-  wrapMutation(bridge.sena, 'updateOrderBatch', persist);
-  wrapMutation(bridge.sena, 'updateOrderChild', persist);
-  wrapMutation(bridge.sena, 'splitOrderChild', persist);
-  wrapMutation(bridge.sena, 'triggerRun', persist);
-  wrapMutation(bridge.sena, 'retryRun', persist);
-  wrapMutation(bridge.automation, 'saveConnection', persist);
-  wrapMutation(bridge.automation, 'patchExposureRow', persist);
-  wrapMutation(bridge.automation, 'resolveIntake', persist);
-  wrapMutation(bridge.automation, 'promoteIntake', persist);
-  wrapMutation(bridge.automation, 'testTelegramConnection', persist);
+  if (!bridge.__kaurKhorWebPersistenceWrapped) {
+    bridge.__kaurKhorWebPersistenceWrapped = true;
+    const persist = () => bridge.__kaurKhorWebPersistenceContext?.persist() ?? Promise.resolve();
+
+    wrapMutation(bridge.preferences, 'save', persist);
+    wrapMutation(bridge.sena, 'upsertCatalog', persist);
+    wrapMutation(bridge.sena, 'ingestObservation', persist);
+    wrapMutation(bridge.sena, 'updateObservation', persist);
+    wrapMutation(bridge.sena, 'deleteObservation', persist);
+    wrapMutation(bridge.sena, 'createOrderBatch', persist);
+    wrapMutation(bridge.sena, 'updateOrderBatch', persist);
+    wrapMutation(bridge.sena, 'updateOrderChild', persist);
+    wrapMutation(bridge.sena, 'splitOrderChild', persist);
+    wrapMutation(bridge.sena, 'triggerRun', persist);
+    wrapMutation(bridge.sena, 'retryRun', persist);
+    wrapMutation(bridge.automation, 'saveConnection', persist);
+    wrapMutation(bridge.automation, 'patchExposureRow', persist);
+    wrapMutation(bridge.automation, 'resolveIntake', persist);
+    wrapMutation(bridge.automation, 'promoteIntake', persist);
+    wrapMutation(bridge.automation, 'testTelegramConnection', persist);
+  }
 
   bridge.system.clearCurrentData = async () => {
     setBrowserDesktopBridgeMockState(fallbackStateForMode(mode));
-    await persist();
+    await persistCurrentState(handle, databaseName);
     window.dispatchEvent(new Event('kaur-khor-browser-state-changed'));
     return {
       clearedFileCount: 1,
@@ -275,7 +401,7 @@ function downloadJson(filename: string, value: unknown) {
   link.href = url;
   link.download = filename;
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function formatBrowserStorageErrorMessage(message: string) {
@@ -765,6 +891,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
 
   useEffect(() => {
     let mounted = true;
+    let activeHandle: BrowserStorageSupportedHandle | null = null;
     const fallbackState = fallbackStateForMode(mode);
     setBrowserDesktopBridgeMockState(fallbackState);
     installBrowserDesktopBridge();
@@ -775,6 +902,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
           handle.status === 'supported' && handle.close();
           return;
         }
+        activeHandle = handle.status === 'supported' ? handle : null;
 
         const persistence = await requestPersistentStorage();
         if (handle.status === 'unsupported') {
@@ -791,7 +919,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
         }
 
         const stateRecords = await handle.listDocuments('browser_state');
-        const restoredState = readStateRecord(stateRecords, databaseName);
+        const restoredState = readStateRecord(stateRecords, databaseName, mode);
         const nextState = normalizeBrowserStateForMode(mode, restoredState ?? fallbackState);
         setBrowserDesktopBridgeMockState(nextState);
         await persistCurrentState(handle, databaseName);
@@ -827,6 +955,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
 
     return () => {
       mounted = false;
+      activeHandle?.close();
     };
   }, [databaseName, mode]);
 
@@ -864,10 +993,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
       }
       try {
         await persistCurrentState(storage.handle, databaseName);
-        const backup = createBrowserStorageBackup(
-          databaseName,
-          [stateRecord(databaseName, getBrowserDesktopBridgeMockState())],
-        );
+        const backup = await storage.handle.exportBackup();
         downloadJson(`kaur-khor-${mode}-backup-${new Date().toISOString().slice(0, 10)}.kaur-khor-backup.json`, backup);
         setStorage((current) => ({
           ...current,
@@ -900,7 +1026,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
           ));
           return;
         }
-        const restoredState = readStateRecord(validation.backup.records, databaseName);
+        const restoredState = readStateRecord(validation.backup.records, databaseName, mode);
         if (!restoredState) {
           setStorage((current) => storageStateWithActionableError(current, 'Backup did not contain a browser workspace state.'));
           return;
@@ -1013,13 +1139,24 @@ function EmbeddedAppContent({
 
   if (hiddenPhoneOperator || isPhonePortrait) {
     return (
-      <EmbeddedPhoneApp
-        mode={mode}
-        storage={storage}
-        onExport={onExport}
-        onImport={onImport}
-        onReset={onReset}
-      />
+      <Suspense
+        fallback={(
+          <div className="grid min-h-full place-items-center px-4 text-center" data-slot="embedded-phone-loading">
+            <div>
+              <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
+              <p className="mt-2 text-sm text-muted-foreground">Preparing phone workspace...</p>
+            </div>
+          </div>
+        )}
+      >
+        <LazyEmbeddedPhoneApp
+          mode={mode}
+          storage={storage}
+          onExport={onExport}
+          onImport={onImport}
+          onReset={onReset}
+        />
+      </Suspense>
     );
   }
 

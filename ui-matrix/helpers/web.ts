@@ -1,4 +1,4 @@
-import { expect, type Download, type Page } from '@playwright/test';
+import { expect, type Download, type Page, type TestInfo } from '@playwright/test';
 import {
   assertNoBrokenNumericText,
   assertNoDocumentOverflow,
@@ -66,6 +66,13 @@ export async function exportEmbeddedBackup(page: Page): Promise<Download> {
   const download = await downloadPromise;
   expect(download.suggestedFilename(), 'browser backup export should use the Kaur Khor backup filename').toMatch(/kaur-khor-.*backup.*\.json$/);
   return download;
+}
+
+export async function exportEmbeddedBackupPath(page: Page, testInfo: TestInfo, name: string) {
+  const download = await exportEmbeddedBackup(page);
+  const path = testInfo.outputPath(`${name}.json`);
+  await download.saveAs(path);
+  return path;
 }
 
 export async function importEmbeddedBackup(page: Page, path: string) {

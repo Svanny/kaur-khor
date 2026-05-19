@@ -58,15 +58,60 @@ function finite(value: number | null | undefined, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function elapsedDaysBetween(endAt: string, startAt: string, fallback = 1) {
+  const end = Date.parse(endAt);
+  const start = Date.parse(startAt);
+  if (!Number.isFinite(end) || !Number.isFinite(start) || end <= start) {
+    return fallback;
+  }
+  return Math.max(1 / 24, (end - start) / MS_PER_DAY);
+}
+
+function elapsedDaysSince(endAt: string, startAt: string | null | undefined, fallback = 0) {
+  if (!startAt) {
+    return fallback;
+  }
+  const end = Date.parse(endAt);
+  const start = Date.parse(startAt);
+  if (!Number.isFinite(end) || !Number.isFinite(start) || end <= start) {
+    return fallback;
+  }
+  return Math.max(0, (end - start) / MS_PER_DAY);
+}
+
 function sortedObservations(observations: SenaObservationRecord[], direction: 'asc' | 'desc' = 'asc') {
   const multiplier = direction === 'asc' ? 1 : -1;
   return [...observations].sort((left, right) => {
-    const timeDelta = left.input.observedAt.localeCompare(right.input.observedAt);
+    const normalizedLeftTime = observationSortTime(left.input.observedAt);
+    const normalizedRightTime = observationSortTime(right.input.observedAt);
+    const timeDelta = normalizedLeftTime - normalizedRightTime;
     if (timeDelta !== 0) {
       return timeDelta * multiplier;
     }
     return left.observationId.localeCompare(right.observationId) * multiplier;
   });
+}
+
+function observationSortTime(observedAt: string) {
+  const observedTime = Date.parse(observedAt);
+  return Number.isFinite(observedTime) ? observedTime : Number.NEGATIVE_INFINITY;
+}
+
+function compareTimestampDesc(leftAt: string, rightAt: string) {
+  return observationSortTime(rightAt) - observationSortTime(leftAt);
+}
+
+function observationIsBeforeCursor(
+  observation: SenaObservationRecord,
+  cursorObservedAt: string,
+  cursorObservationId: string | null | undefined,
+) {
+  const observationTime = observationSortTime(observation.input.observedAt);
+  const cursorTime = observationSortTime(cursorObservedAt);
+  if (observationTime !== cursorTime) {
+    return observationTime < cursorTime;
+  }
+  return cursorObservationId != null && observation.observationId < cursorObservationId;
 }
 
 export function browserSenaObservationFingerprint(
@@ -233,7 +278,7 @@ export function browserSenaRecordUpdateContext(
   const openTicketSummaries = Object.values(latestTicketsById)
     .map((anchor) => anchor.value)
     .filter((ticket) => ticket.lifecycle === 'open')
-    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt) || right.ticketId.localeCompare(left.ticketId));
+    .sort((left, right) => compareTimestampDesc(left.occurredAt, right.occurredAt) || right.ticketId.localeCompare(left.ticketId));
   return {
     observationFingerprint: fingerprint,
     latestObservedAt: fingerprint.latestObservedAt,
@@ -249,7 +294,7 @@ export function browserSenaRecordUpdateContext(
     latestTicketsById,
     latestDeliveryFeeByBucket,
     recentActivity: recentActivity
-      .sort((left, right) => right.observedAt.localeCompare(left.observedAt) || right.activityId.localeCompare(left.activityId))
+      .sort((left, right) => compareTimestampDesc(left.observedAt, right.observedAt) || right.activityId.localeCompare(left.activityId))
       .slice(0, 24),
   };
 }
@@ -262,12 +307,7 @@ export function browserSenaObservationPage(
   const sorted = sortedObservations(observations, 'desc');
   const filtered = request?.beforeObservedAt
     ? sorted.filter((observation) => {
-        if (observation.input.observedAt < request.beforeObservedAt!) {
-          return true;
-        }
-        return observation.input.observedAt === request.beforeObservedAt
-          && request.beforeObservationId != null
-          && observation.observationId < request.beforeObservationId;
+        return observationIsBeforeCursor(observation, request.beforeObservedAt!, request.beforeObservationId);
       })
     : sorted;
   const rows = filtered.slice(0, limit + 1);
@@ -288,8 +328,9 @@ function elapsedDays(observations: SenaObservationRecord[]) {
   if (observations.length < 2) {
     return Math.max(1, observations.length);
   }
-  const first = Date.parse(observations[0]!.input.observedAt);
-  const last = Date.parse(observations[observations.length - 1]!.input.observedAt);
+  const sorted = sortedObservations(observations, 'asc');
+  const first = Date.parse(sorted[0]!.input.observedAt);
+  const last = Date.parse(sorted[sorted.length - 1]!.input.observedAt);
   if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) {
     return Math.max(1, observations.length - 1);
   }
@@ -343,7 +384,15 @@ function serviceSkuUsage(catalog: SenaCatalog, serviceId: string, skuId: string)
   const mask = catalog.sharingMask.find((entry) =>
     entry.enabled && entry.serviceId === serviceId && entry.skuId === skuId
   );
-  return mask?.usageProbability ?? 0;
+  if (!mask) {
+    return 0;
+  }
+  return typeof mask.usageProbability === 'number' &&
+    Number.isFinite(mask.usageProbability) &&
+    mask.usageProbability >= 0 &&
+    mask.usageProbability <= 1
+    ? mask.usageProbability
+    : 0.85;
 }
 
 function skuDemandForObservation(catalog: SenaCatalog, observation: SenaObservationRecord, skuId: string) {
@@ -425,10 +474,20 @@ export function pageBrowserSenaSkuDetail(
 ) {
   const demand = detailWindow(detail.demandPosterior, beforeIntervalIndex, limit, (item) => item.intervalIndex);
   const indexes = new Set(demand.page.map((item) => item.intervalIndex));
+  const firstDemand = demand.page[0];
+  const lastDemand = demand.page.at(-1);
+  const startMs = Date.parse(firstDemand?.startAt ?? firstDemand?.endAt ?? '');
+  const endMs = Date.parse(lastDemand?.endAt ?? lastDemand?.startAt ?? '');
+  const hasTimeWindow = Number.isFinite(startMs) && Number.isFinite(endMs);
   return {
     detail: {
       ...detail,
-      inventoryPosterior: detail.inventoryPosterior.filter((_, index) => indexes.has(index)),
+      inventoryPosterior: hasTimeWindow
+        ? detail.inventoryPosterior.filter((point) => {
+            const atMs = Date.parse(point.at);
+            return Number.isFinite(atMs) && atMs >= startMs && atMs <= endMs;
+          })
+        : detail.inventoryPosterior,
       demandPosterior: demand.page,
       pipelinePosterior: detail.pipelinePosterior.filter((item) => indexes.has(item.intervalIndex)),
       leadTimePosterior: detail.leadTimePosterior.filter((item) => indexes.has(item.intervalIndex)),
@@ -488,7 +547,7 @@ export function runBrowserSenaAnalysis(input: BrowserSenaAnalysisInput): Browser
     const daysOfCover = demandPerDayMean > 0 ? latestUnits / demandPerDayMean : null;
     const reorderTriggerProbability = stockoutRisk;
     const reorder = reorderQuantity(reorderPoint - latestUnits, reorderTriggerProbability, parameters);
-    const latestRegime = regimeForObservation(observations.at(-1) ?? {
+    const latestRegime = regimeForObservation(sortedObservations(observations, 'desc')[0] ?? {
       observationId: 'empty',
       ownerSub,
       input: {
@@ -532,7 +591,7 @@ export function runBrowserSenaAnalysis(input: BrowserSenaAnalysisInput): Browser
       const signal = orderSignalForObservation(observation, sku.skuId);
       const previous = observations[index - 1];
       const deltaDays = previous
-        ? Math.max(1 / 24, (Date.parse(observation.input.observedAt) - Date.parse(previous.input.observedAt)) / MS_PER_DAY)
+        ? elapsedDaysBetween(observation.input.observedAt, previous.input.observedAt)
         : 1;
       const intervalRegime = regimeForObservation(observation, stockoutRisk);
       const probabilities = regimeProbabilities(intervalRegime, stockoutRisk);
@@ -565,9 +624,7 @@ export function runBrowserSenaAnalysis(input: BrowserSenaAnalysisInput): Browser
         orderProbability: signal?.orderPlaced ? 1 : 0,
         orderQuantityMean: finite(signal?.approximateOrderQuantity),
         receiptQuantityMean: finite(signal?.approximateReceiptQuantity),
-        ageDaysMean: signal?.placementTimestamp
-          ? Math.max(0, (Date.parse(observation.input.observedAt) - Date.parse(signal.placementTimestamp)) / MS_PER_DAY)
-          : 0,
+        ageDaysMean: elapsedDaysSince(observation.input.observedAt, signal?.placementTimestamp),
       });
       leadTimePosterior.push({
         intervalIndex: index,
@@ -630,7 +687,7 @@ export function runBrowserSenaAnalysis(input: BrowserSenaAnalysisInput): Browser
         const summary = skuSummaries.find((skuSummary) => skuSummary.skuId === entry.skuId);
         return {
           skuId: entry.skuId,
-          usageProbability: entry.usageProbability ?? 1,
+          usageProbability: serviceSkuUsage(input.catalog, service.serviceId, entry.skuId),
           bottleneckProbability: summary?.stockoutRisk ?? 0,
           reorderQuantity: summary?.reorderQuantity ?? null,
         };

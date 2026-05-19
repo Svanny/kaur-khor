@@ -26,7 +26,7 @@ sequenceDiagram
       else no meaningful draft or editable ticket
         Hub->>Wizard: open New ticket mode directly
       end
-    else stock count lane
+    else products update lane
       Hub->>Wizard: open lane directly
     end
     Wizard->>Provider: get record update context and catalog state
@@ -39,11 +39,11 @@ sequenceDiagram
     Bench->>Hub: return to hub
   end
 
-  Bench->>Wizard: open stock count lane
+  Bench->>Wizard: open products update lane
   Wizard->>Workbench: open first workbench tile
   Workbench->>Workbench: edit units in stock
   Workbench->>Review: open Review update dialog
-  Review->>Preload: save stock count mutation
+  Review->>Preload: save product update mutation
   Preload->>Main: IPC mutation
   Main->>Core: route mutation to writer
   Core->>Store: write ticket event and updated hot summaries

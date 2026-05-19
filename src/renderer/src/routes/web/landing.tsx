@@ -57,15 +57,21 @@ const sourceUrl = 'https://github.com/Svanny/kaur-khor';
 const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/kaur-khor/releases/latest';
 const shellSourceBuildCommands = [
   'curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz -o kaur-khor-latest-source-build.tar.gz',
+  'curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz.sha256 -o kaur-khor-latest-source-build.tar.gz.sha256',
+  'if command -v sha256sum >/dev/null 2>&1; then sha256sum -c kaur-khor-latest-source-build.tar.gz.sha256; else shasum -a 256 -c kaur-khor-latest-source-build.tar.gz.sha256; fi',
+  'while IFS= read -r entry; do case "$entry" in /*|[A-Za-z]:/*|[A-Za-z]:\\\\*) echo "Refusing unsafe archive path: $entry" >&2; exit 1 ;; esac; if [[ "$entry" != */* || "$entry" == ../* || "$entry" == */../* || "$entry" == */.. || "$entry" == *//* ]]; then echo "Refusing unsafe archive path: $entry" >&2; exit 1; fi; done < <(tar -tzf kaur-khor-latest-source-build.tar.gz)',
   'tar -xzf kaur-khor-latest-source-build.tar.gz',
-  'rm kaur-khor-latest-source-build.tar.gz',
+  'rm kaur-khor-latest-source-build.tar.gz kaur-khor-latest-source-build.tar.gz.sha256',
   'cd kaur-khor-*-source-build',
   './scripts/build-from-source.sh --update',
 ] as const;
 const powershellSourceBuildCommands = [
   'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz" -OutFile "kaur-khor-latest-source-build.tar.gz"',
+  'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz.sha256" -OutFile "kaur-khor-latest-source-build.tar.gz.sha256"',
+  '$expectedHash = (Get-Content "kaur-khor-latest-source-build.tar.gz.sha256").Trim().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant(); $actualHash = (Get-FileHash -Algorithm SHA256 -Path "kaur-khor-latest-source-build.tar.gz").Hash.ToLowerInvariant(); if ($actualHash -ne $expectedHash) { throw "SHA-256 mismatch for Kaur Khor source-build archive." }',
+  '$entries = tar -tf "kaur-khor-latest-source-build.tar.gz"; foreach ($entry in $entries) { if ($entry -match \'^(\\/|[A-Za-z]:[\\\\/])\' -or $entry -notmatch \'[\\\\/]\' -or $entry -match \'(^|[\\\\/])\\.\\.($|[\\\\/])\' -or $entry -match \'[\\\\/]{2,}\') { throw "Refusing unsafe archive path: $entry" } }',
   'tar -xzf "kaur-khor-latest-source-build.tar.gz"',
-  'Remove-Item -Path "kaur-khor-latest-source-build.tar.gz"',
+  'Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"',
   'Set-Location "kaur-khor-*-source-build"',
   '.\\scripts\\build-from-source.ps1 --update',
 ] as const;
@@ -551,7 +557,53 @@ async function fetchLatestRelease(signal?: AbortSignal): Promise<GitHubLatestRel
   if (!response.ok) {
     throw new Error(`GitHub latest release request failed with ${response.status}`);
   }
-  return await response.json() as GitHubLatestRelease;
+  return parseGitHubLatestRelease(await response.json());
+}
+
+function parseGitHubLatestRelease(value: unknown): GitHubLatestRelease {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  const record = value as Record<string, unknown>;
+  const assets = Array.isArray(record.assets)
+    ? record.assets.flatMap((asset) => parseGitHubReleaseAsset(asset))
+    : [];
+
+  return {
+    assets,
+    tag_name: typeof record.tag_name === 'string' ? record.tag_name : undefined,
+  };
+}
+
+function parseGitHubReleaseAsset(value: unknown): GitHubReleaseAsset[] {
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.name !== 'string' || typeof record.browser_download_url !== 'string') {
+    return [];
+  }
+
+  let url: URL;
+  try {
+    url = new URL(record.browser_download_url);
+  } catch {
+    return [];
+  }
+  if (
+    url.protocol !== 'https:'
+    || url.hostname !== 'github.com'
+    || !url.pathname.startsWith('/Svanny/kaur-khor/releases/download/')
+  ) {
+    return [];
+  }
+
+  return [{
+    browser_download_url: url.href,
+    name: record.name,
+  }];
 }
 
 async function detectDownloadPlatform(): Promise<DetectedPlatform> {
@@ -821,8 +873,13 @@ function usePrefersReducedMotion() {
 
     const handleChange = () => setPrefersReducedMotion(mediaQuery.matches);
     handleChange();
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
   }, []);
 
   return prefersReducedMotion;
@@ -1408,7 +1465,14 @@ function SourceBuildSnippet({
   shellLabel: string;
 }) {
   const codeRef = useRef<HTMLElement | null>(null);
+  const copyStatusResetTimerRef = useRef<number | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  useEffect(() => () => {
+    if (copyStatusResetTimerRef.current != null) {
+      window.clearTimeout(copyStatusResetTimerRef.current);
+    }
+  }, []);
 
   async function copyCommands() {
     if (await writeClipboardText(commands.join('\n'))) {
@@ -1417,7 +1481,13 @@ function SourceBuildSnippet({
       selectElementText(codeRef.current);
       setCopyStatus('failed');
     }
-    window.setTimeout(() => setCopyStatus('idle'), 2200);
+    if (copyStatusResetTimerRef.current != null) {
+      window.clearTimeout(copyStatusResetTimerRef.current);
+    }
+    copyStatusResetTimerRef.current = window.setTimeout(() => {
+      setCopyStatus('idle');
+      copyStatusResetTimerRef.current = null;
+    }, 2200);
   }
 
   const copyLabel = landingText(

@@ -98,7 +98,7 @@ On Windows PowerShell, use `$env:ALLOW_UNSIGNED_PACKAGING="1"; pnpm package:win:
 - [Overview flowchart](development/overview-flowchart.mmd): overview benchmark control/data flow for workflow toggles, drawers, model builders, and summary targets
 - [Automations architecture](development/automations-architecture.mmd): automation seed, connection, products exposure, live intake, drawer, exceptions, and target metrics
 - [Automations flowchart](development/automations-flowchart.mmd): automations benchmark control/data flow across tabs, intake drawer reads, and queue metrics
-- [Capture architecture](development/record-update-architecture.mmd): hub lane navigation, ticket-backed prompts, stock count save, supplier receipt save, and ticket mutations
+- [Capture architecture](development/record-update-architecture.mmd): hub lane navigation, ticket-backed prompts, product update save, supplier receipt save, and ticket mutations
 - [Capture flowchart](development/record-update-flowchart.mmd): capture benchmark control/data flow for lane opens, saves, Work readiness, and memory snapshots
 - [Detail pages architecture](development/detail-pages-architecture.mmd): products target selection, SKU/service first and repeat detail loads, cache behavior, and memory metrics
 - [Detail pages flowchart](development/detail-pages-flowchart.mmd): detail-pages benchmark control/data flow for products, SKU, service, repeat loads, and cache reads

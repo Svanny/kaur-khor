@@ -31,7 +31,7 @@ export default defineConfig({
         '@shared': resolve(__dirname, 'src/shared'),
       },
     },
-    plugins: [react(), tailwindcss()],
+    plugins: [react({ babel: { compact: false } }), tailwindcss()],
     server: {
       host: true,
     },
