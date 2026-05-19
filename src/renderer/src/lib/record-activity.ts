@@ -171,8 +171,9 @@ export function buildCustomerLinkDirectoryFromContext(
   context: SenaRecordUpdateContext | null,
   fallbackObservations: SenaObservationRecord[] = [],
 ): CustomerLinkDirectory {
-  const ticketSources = context
-    ? Object.values(context.latestTicketsById).map((anchor) => anchor.value)
+  const activeContext = context?.observationFingerprint.count === 0 ? null : context;
+  const ticketSources = activeContext
+    ? Object.values(activeContext.latestTicketsById).map((anchor) => anchor.value)
     : fallbackObservations.flatMap((observation) => observation.input.ticketEvents ?? []);
 
   return buildCustomerLinkDirectoryFromParties(

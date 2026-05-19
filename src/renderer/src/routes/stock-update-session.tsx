@@ -85,6 +85,7 @@ import type {
   SenaOrderChildRecord,
   SenaRecordUpdateContext,
   SenaObservationRegimeHint,
+  SenaServicePriceObservation,
   SenaStockSnapshot,
   SenaTicketEvent,
   SenaTicketEventType,
@@ -166,7 +167,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { buildCommercialEntitySnapshots } from '@/lib/commercial-flow';
-import { displayMoneyFromUsd, formatCompactQuantityPill, formatCurrency, formatDurationAuto, parseEditableNumberWithCommas, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { displayMoneyFromUsd, formatCompactQuantityPill, formatCurrency, formatDurationAuto, formatWholeNumber, parseEditableNumberWithCommas, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { stockSnapshotForTicketInventoryDeltas } from '@/lib/ticket-inventory-reconciliation';
 import {
   calendarDaysBetweenObservedAndDateInput,
   clampDateInputToObservedDate,
@@ -399,6 +401,7 @@ interface PosWorkbenchTile {
   stepId: StockUpdateStepId;
   typeLabel: string;
   metaLabel: string;
+  stockSubtitle?: string | null;
   supplierName?: string | null;
   currentQuantity: number;
   baselineQuantity: number;
@@ -652,6 +655,17 @@ function formatEtaVariationAmount(days: number | null, language: AppLanguage) {
   });
 }
 
+function formatWorkbenchStockSubtitle(unitsInStock: number | null | undefined, language: AppLanguage) {
+  const safeUnits = typeof unitsInStock === 'number' && Number.isFinite(unitsInStock)
+    ? Math.max(0, unitsInStock)
+    : 0;
+  const roundedUnits = Math.round(safeUnits);
+  return translateUiLiteral(language, '({count} {unit} left in stock)', {
+    count: formatWholeNumber(roundedUnits, language),
+    unit: roundedUnits === 1 ? 'unit' : 'units',
+  });
+}
+
 function matchingLeadTimeVariabilityClass(meanDays: number | null, stdDays: number | null) {
   if (meanDays == null || stdDays == null || !Number.isFinite(meanDays) || !Number.isFinite(stdDays)) {
     return null;
@@ -667,6 +681,7 @@ function WorkbenchTileCard({
 }: {
   tile: PosWorkbenchTile;
 }) {
+  const darkened = tile.touched && tile.kind !== 'supplier-order';
   return (
     <>
       <div className="flex min-h-0 w-full flex-1 items-center justify-center">
@@ -685,7 +700,7 @@ function WorkbenchTileCard({
         <p
           className={cn(
             'mx-auto max-w-[12rem] text-balance text-center text-lg font-semibold tracking-[-0.03em]',
-            tile.touched ? 'text-background' : 'text-foreground',
+            darkened ? 'text-background' : 'text-foreground',
             CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashTextClassName,
           )}
         >
@@ -696,11 +711,23 @@ function WorkbenchTileCard({
           )}
           <span>{tile.title}</span>
         </p>
+        {tile.stockSubtitle ? (
+          <p
+            className={cn(
+              'max-w-[12rem] text-center text-sm font-normal leading-snug',
+              darkened ? 'text-background/75' : 'text-muted-foreground',
+              CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashTextClassName,
+            )}
+            data-slot="workbench-stock-subtitle"
+          >
+            {tile.stockSubtitle}
+          </p>
+        ) : null}
         {tile.kind === 'supplier-order' ? (
           <SupplierBadge
             className={cn(
               'max-w-full justify-center truncate rounded-full px-2.5',
-              tile.touched && 'border-background/35 bg-background/15 text-background',
+              darkened && 'border-background/35 bg-background/15 text-background',
               CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashBadgeClassName,
             )}
             showEmpty
@@ -804,6 +831,7 @@ function WorkbenchTileVisual({
   tile: PosWorkbenchTile;
 }) {
   const shouldJiggle = reorderMode && (!isDragging || jiggleWhileDragging);
+  const darkened = tile.touched && tile.kind !== 'supplier-order';
   const jiggleStyle: CSSProperties | undefined = shouldJiggle && jiggleStyleOverride
     ? jiggleStyleOverride
     : shouldJiggle && jigglePhaseMs > 0
@@ -817,7 +845,7 @@ function WorkbenchTileVisual({
       <div
         className={cn(
           'relative flex min-w-0 items-center gap-3 rounded-[1rem] border px-3 py-3 text-left transition-colors',
-          tile.touched
+          darkened
             ? 'border-foreground/70 bg-foreground text-background shadow-[0_12px_32px_rgba(48,31,20,0.12)]'
             : 'border-border/70 bg-white text-foreground hover:border-foreground/30 hover:shadow-[0_10px_28px_rgba(48,31,20,0.08)]',
           shouldJiggle && !jiggleStyleOverride && (
@@ -834,7 +862,7 @@ function WorkbenchTileVisual({
         <ItemAvatar
           className={cn(
             'size-12 rounded-[0.8rem] border-border/60 bg-white text-muted-foreground shadow-sm',
-            tile.touched && 'bg-background/10 text-background',
+            darkened && 'bg-background/10 text-background',
             CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashMediaClassName,
           )}
           imagePath={tile.imagePath}
@@ -852,12 +880,24 @@ function WorkbenchTileVisual({
             <Icon aria-hidden="true" className="size-4 shrink-0" data-icon="inline-start" />
             <span className="min-w-0 truncate">{tile.title}</span>
           </p>
+          {tile.stockSubtitle ? (
+            <p
+              className={cn(
+                'mt-1 truncate text-sm font-normal leading-snug',
+                darkened ? 'text-background/75' : 'text-muted-foreground',
+                CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashTextClassName,
+              )}
+              data-slot="workbench-stock-subtitle"
+            >
+              {tile.stockSubtitle}
+            </p>
+          ) : null}
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
             {tile.kind === 'supplier-order' ? (
               <SupplierBadge
                 className={cn(
                   'max-w-full justify-center truncate rounded-full px-2.5',
-                  tile.touched && 'border-background/35 bg-background/15 text-background',
+                  darkened && 'border-background/35 bg-background/15 text-background',
                   CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashBadgeClassName,
                 )}
                 showEmpty
@@ -867,7 +907,7 @@ function WorkbenchTileVisual({
               <span
                 className={cn(
                   'truncate text-muted-foreground',
-                  tile.touched && 'text-background/75',
+                  darkened && 'text-background/75',
                   CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashTextClassName,
                 )}
               >
@@ -880,7 +920,7 @@ function WorkbenchTileVisual({
           <span
             className={cn(
               'shrink-0 rounded-full border px-2.5 py-1 text-sm font-semibold tabular-nums',
-              tile.touched ? 'border-background/35 bg-background/15 text-background' : 'border-border/70 bg-background text-foreground',
+              darkened ? 'border-background/35 bg-background/15 text-background' : 'border-border/70 bg-background text-foreground',
               CAPTURE_TARGET_CONTENT_FADE_ENABLED && tile.flash && captureTargetFlashBadgeClassName,
             )}
           >
@@ -894,7 +934,7 @@ function WorkbenchTileVisual({
   return (
     <div
       className={cn(
-        workbenchTileShellClassName({ flash: tile.flash, isDragging, reorderMode: reorderMode && !jiggleWhileDragging, touched: tile.touched }),
+        workbenchTileShellClassName({ flash: tile.flash, isDragging, reorderMode: reorderMode && !jiggleWhileDragging, touched: darkened }),
         jiggleWhileDragging && shouldJiggle && !jiggleStyleOverride && 'motion-safe:animate-[kaur-khor-workbench-jiggle_120ms_cubic-bezier(0.36,0,0.22,1)_infinite_alternate]',
       )}
       data-slot="workbench-tile-visual"
@@ -1192,6 +1232,7 @@ interface StockUpdateSessionDraft {
   savedObservationRetryId?: string | null;
   customSelectedLaneIds: BaseRecordUpdateLaneId[];
   touchedPosMetadataPopupIds?: PosMetadataPopupId[];
+  posTouchedLineKeys: string[];
   currentStepId: StockUpdateStepId;
   unlockedStepCount: number;
   observedAt: string;
@@ -1242,6 +1283,7 @@ interface StockUpdateDraftState {
   savedObservationRetryId?: string | null;
   customSelectedLaneIds: BaseRecordUpdateLaneId[];
   touchedPosMetadataPopupIds: PosMetadataPopupId[];
+  posTouchedLineKeys: string[];
   currentStepId: StockUpdateStepId;
   initialObservedAt: string;
   notes: string;
@@ -2399,6 +2441,28 @@ function sanitizeStockStepChoices(value: unknown) {
   } satisfies Record<OptionalStockStepId, OptionalStockStepChoice>;
 }
 
+function sanitizePosTouchedLineKeys(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seenKeys = new Set<string>();
+  return value.filter((key): key is string => {
+    const separatorIndex = typeof key === 'string' ? key.indexOf(':') : -1;
+    const prefix = separatorIndex >= 0 ? key.slice(0, separatorIndex) : '';
+    const entityId = separatorIndex >= 0 ? key.slice(separatorIndex + 1) : '';
+    if (
+      typeof key !== 'string' ||
+      !['stock', 'retail', 'service', 'service-price', 'supplier-order', 'supplier-receipt'].includes(prefix) ||
+      entityId.length === 0 ||
+      seenKeys.has(key)
+    ) {
+      return false;
+    }
+    seenKeys.add(key);
+    return true;
+  });
+}
+
 function sanitizeDraftRanking(value: unknown, allowedIds: Set<string>) {
   if (!Array.isArray(value)) {
     return [];
@@ -2451,11 +2515,15 @@ function hydrateStockUpdateDraft({
   baselineRows,
   catalog,
   draft,
+  laneId,
+  stockBySku,
   stepOrder,
 }: {
   baselineRows: StockRow[];
   catalog: SenaCatalog;
   draft: unknown;
+  laneId: ReturnType<typeof getRecordUpdateLane>['id'];
+  stockBySku: Map<string, SenaStockSnapshot>;
   stepOrder: StockUpdateStepId[];
 }): StockUpdateSessionDraft | null {
   if (!isObjectRecord(draft) || draft.version !== 1) {
@@ -2470,6 +2538,23 @@ function hydrateStockUpdateDraft({
       .filter((row): row is Record<string, unknown> => isObjectRecord(row) && typeof row.skuId === 'string')
       .map((row) => [row.skuId as string, row]),
   );
+  const explicitPosTouchedLineKeys = sanitizePosTouchedLineKeys(draft.posTouchedLineKeys);
+  const touchedStockDraftRowKeys = baselineRows.flatMap((baselineRow) => {
+    const draftRow = sanitizeStockRow(draftRowsBySku.get(baselineRow.skuId), baselineRow);
+    if (!draftRowsBySku.has(baselineRow.skuId)) {
+      return [];
+    }
+    const hasHistory = stockBySku.has(baselineRow.skuId);
+    const changedFromBaseline =
+      draftRow.unitsInStock !== baselineRow.unitsInStock ||
+      draftRow.costPerUnit !== baselineRow.costPerUnit ||
+      draftRow.productPrice !== baselineRow.productPrice;
+    return !hasHistory || changedFromBaseline ? [`stock:${baselineRow.skuId}`] : [];
+  });
+  const posTouchedLineKeys =
+    explicitPosTouchedLineKeys.length > 0 || laneId !== 'stock-count'
+      ? explicitPosTouchedLineKeys
+      : touchedStockDraftRowKeys;
   const stockStepChoices = sanitizeStockStepChoices(draft.stockStepChoices);
   const retailSalesChoice = isOptionalStockStepChoice(draft.retailSalesChoice) ? draft.retailSalesChoice : 'unset';
   const serviceSalesChoice = isOptionalStockStepChoice(draft.serviceSalesChoice) ? draft.serviceSalesChoice : 'unset';
@@ -2480,6 +2565,7 @@ function hydrateStockUpdateDraft({
     savedObservationRetryId: typeof draft.savedObservationRetryId === 'string' ? draft.savedObservationRetryId : null,
     customSelectedLaneIds: sanitizeCustomSelectedLaneIds(draft.customSelectedLaneIds),
     touchedPosMetadataPopupIds: sanitizeTouchedPosMetadataPopupIds(draft.touchedPosMetadataPopupIds),
+    posTouchedLineKeys,
     currentStepId: normalizeStepIdForOrder(
       isStockUpdateStepId(draft.currentStepId) ? draft.currentStepId : 'stock',
       stepOrder,
@@ -2579,11 +2665,13 @@ function hasMeaningfulStockUpdateChanges({
   customerIdentity,
   refundStockReturnDrafts,
   touchedPosMetadataPopupIds,
+  posTouchedLineKeys,
   usdToKhrExchangeRate,
 }: StockUpdateDraftState) {
   return (
     rows.some((row) => stockRowChanged(catalog, stockBySku, row)) ||
     touchedPosMetadataPopupIds.length > 0 ||
+    posTouchedLineKeys.length > 0 ||
     customerOrderExpectedArrivalDate.trim() !== '' ||
     customerOrderLeadTimeStdDays.trim() !== '' ||
     customerOrderLeadTimeVariability !== '' ||
@@ -2625,6 +2713,7 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     savedObservationRetryId: state.savedObservationRetryId ?? null,
     customSelectedLaneIds: state.customSelectedLaneIds,
     touchedPosMetadataPopupIds: state.touchedPosMetadataPopupIds,
+    posTouchedLineKeys: state.posTouchedLineKeys,
     currentStepId: state.currentStepId,
     unlockedStepCount: state.unlockedStepCount,
     observedAt: state.observedAt,
@@ -3199,6 +3288,10 @@ function buildDraftsFromObservationInput({
       input.notes?.trim() ? 'notes' : null,
       input.regimeHint ? 'context' : null,
     ]),
+    posTouchedLineKeys: [
+      ...input.stockSnapshot.map((snapshot) => `stock:${snapshot.skuId}`),
+      ...(input.servicePrices ?? []).map((price) => `service-price:${price.serviceId}`),
+    ],
     currentStepId: (
       stepOrder.includes('stock')
         ? 'stock'
@@ -6831,6 +6924,7 @@ export function StockUpdateSessionRoute() {
   const draftHydrationCheckedRef = useRef(false);
   const latestDraftStateRef = useRef<StockUpdateDraftState | null>(null);
   const skipNextDraftPersistRef = useRef(false);
+  const finalSaveStartedRef = useRef(false);
   const replayingNavigationAnchorClickRef = useRef(false);
   const savedObservationRetryIdRef = useRef<string | null>(null);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
@@ -7472,6 +7566,20 @@ export function StockUpdateSessionRoute() {
   const isSupplierPendingLane = selectedBaseLaneIds.includes('supplier-order-pending');
   const isSupplierReceiptLane = selectedBaseLaneIds.includes('supplier-receipt');
   const isCustomerTicketLane = isCustomerPendingLane || isCustomerCompletedLane;
+  const originalProductsUpdateEditStockBySku = useMemo(
+    () =>
+      lane.id === 'stock-count' && editSession
+        ? new Map(editSession.input.stockSnapshot.map((snapshot) => [snapshot.skuId, snapshot]))
+        : new Map<string, SenaStockSnapshot>(),
+    [editSession, lane.id],
+  );
+  const originalProductsUpdateEditServicePriceById = useMemo(
+    () =>
+      lane.id === 'stock-count' && editSession
+        ? new Map((editSession.input.servicePrices ?? []).map((price) => [price.serviceId, price]))
+        : new Map<string, SenaServicePriceObservation>(),
+    [editSession, lane.id],
+  );
   const deliveryFeeBucket = useMemo(
     () =>
       deliveryFeeBucketForWorkflow({
@@ -7788,6 +7896,7 @@ export function StockUpdateSessionRoute() {
       savedObservationRetryId: savedObservationRetryIdRef.current,
       customSelectedLaneIds,
       touchedPosMetadataPopupIds: [...touchedPosMetadataPopupIds],
+      posTouchedLineKeys,
       currentStepId,
       initialObservedAt: initialObservedAtRef.current,
       notes,
@@ -7844,6 +7953,7 @@ export function StockUpdateSessionRoute() {
       currency,
       customSelectedLaneIds,
       touchedPosMetadataPopupIds,
+      posTouchedLineKeys,
       currentStepId,
       notes,
       observedAt,
@@ -7941,6 +8051,7 @@ export function StockUpdateSessionRoute() {
     setEditSession(nextEditSession);
     setCustomSelectedLaneIds(hydratedState.customSelectedLaneIds ?? []);
     setTouchedPosMetadataPopupIds(new Set(touchedMetadataIds));
+    setPosTouchedLineKeys(hydratedState.posTouchedLineKeys);
     setCurrentStepId(hydratedState.currentStepId);
     setUnlockedStepCount(hydratedState.unlockedStepCount);
     setObservedAt(hydratedState.observedAt);
@@ -8105,6 +8216,8 @@ export function StockUpdateSessionRoute() {
         baselineRows,
         catalog: workingCatalog,
         draft: readStockUpdateDraft(draftStorageKey),
+        laneId: lane.id,
+        stockBySku,
         stepOrder: activeStepOrder,
       });
 
@@ -8120,6 +8233,7 @@ export function StockUpdateSessionRoute() {
             : routeCustomSelectedLaneIds,
         );
         setTouchedPosMetadataPopupIds(new Set(touchedMetadataIds));
+        setPosTouchedLineKeys(hydratedDraft.posTouchedLineKeys);
         setCurrentStepId(hydratedDraft.currentStepId);
         setUnlockedStepCount(hydratedDraft.unlockedStepCount);
         setObservedAt(hydratedDraft.observedAt);
@@ -8527,6 +8641,9 @@ export function StockUpdateSessionRoute() {
 
   useEffect(() => {
     function persistLatestDraft() {
+      if (finalSaveStartedRef.current) {
+        return;
+      }
       if (skipNextDraftPersistRef.current) {
         skipNextDraftPersistRef.current = false;
         return;
@@ -8694,6 +8811,62 @@ export function StockUpdateSessionRoute() {
       return value.slice(0, 10) || null;
     }
     return new Date(time).toISOString().slice(0, 10);
+  }
+
+  function supplierReceiptCompletesSelectedTicket() {
+    if (!selectedSupplierTicket) {
+      return false;
+    }
+
+    const orderedQuantities = new Map<string, number>();
+    for (const line of selectedSupplierTicket.lines) {
+      if (line.entityType !== 'sku') {
+        continue;
+      }
+      const orderedQuantity = line.orderedQuantity ?? (line.quantityDelta != null ? Math.abs(line.quantityDelta) : null);
+      if (orderedQuantity != null && Number.isFinite(orderedQuantity) && orderedQuantity > 0) {
+        orderedQuantities.set(line.entityId, (orderedQuantities.get(line.entityId) ?? 0) + orderedQuantity);
+      }
+    }
+    if (orderedQuantities.size === 0) {
+      return false;
+    }
+
+    const receivedQuantities = new Map<string, number>();
+    for (const [skuId, draft] of Object.entries(skuSignalDrafts)) {
+      const receivedQuantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+      if (receivedQuantity != null) {
+        receivedQuantities.set(skuId, (receivedQuantities.get(skuId) ?? 0) + receivedQuantity);
+      }
+    }
+
+    return [...orderedQuantities].every(([skuId, orderedQuantity]) => (receivedQuantities.get(skuId) ?? 0) >= orderedQuantity);
+  }
+
+  function stockFallbacksForSkuIds(skuIds: Iterable<string>) {
+    return new Map(
+      [...new Set(skuIds)].flatMap((skuId) => {
+        const current = stockBySku.get(skuId);
+        const sku = workingCatalog?.skus.find((entry) => entry.skuId === skuId) ?? null;
+        if (!current && !sku) {
+          return [];
+        }
+        return [[skuId, {
+          costPerUnit: current?.costPerUnit ?? sku?.costPerUnit ?? null,
+          productPrice: current?.productPrice ?? sku?.productPrice ?? null,
+          unitsInStock: current?.unitsInStock ?? null,
+        }]];
+      }),
+    );
+  }
+
+  function stockSnapshotsForTicketDeltas(deltasBySkuId: Map<string, number>) {
+    return stockSnapshotForTicketInventoryDeltas({
+      catalog: workingCatalog,
+      deltasBySkuId,
+      fallbacksBySkuId: stockFallbacksForSkuIds(deltasBySkuId.keys()),
+      recordUpdateContext,
+    });
   }
 
   function normalizedTicketMetadata(value: unknown) {
@@ -8872,11 +9045,12 @@ export function StockUpdateSessionRoute() {
       const lines = commercialLines.length > 0 ? commercialLines : signalLines.length > 0 ? signalLines : metadataOnlyEdit ? selectedSupplierTicket.lines : [];
       if (lines.length > 0) {
         const hasReceipt = payload.orderSignals.some((signal) => signal.receiptArrived);
+        const receiptCompletesSelectedTicket = hasReceipt && supplierReceiptCompletesSelectedTicket();
         const eventType: SenaTicketEventType =
           supplierPendingMode === 'cancel_supplier_order' || supplierTicketUpdateAction === 'canceled'
             ? 'canceled'
             : hasReceipt
-              ? supplierTicketUpdateAction === 'fully_received'
+              ? supplierTicketUpdateAction === 'fully_received' || receiptCompletesSelectedTicket
                 ? 'fully_received'
                 : 'partial_received'
               : supplierTicketUpdateAction === 'revise_eta'
@@ -9028,6 +9202,13 @@ export function StockUpdateSessionRoute() {
         if (customerCompletedMode !== 'refund_reversal') {
           payload.retailSalesSnapshot = retailSalesSnapshot;
           payload.serviceSalesSnapshot = serviceSalesSnapshot;
+          if (!editSession) {
+            payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+              retailSalesSnapshot
+                .filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold > 0)
+                .map((entry) => [entry.skuId, -entry.unitsSold] as const),
+            ));
+          }
         }
         payload.retailRankings = retailSalesChoice === 'yes' ? derivedRetailRankings : retailRankings;
         payload.serviceRankings = serviceSalesChoice === 'yes' ? derivedServiceRankings : serviceRankings;
@@ -9177,6 +9358,13 @@ export function StockUpdateSessionRoute() {
                 return signals;
               })),
         );
+        if (!editSession) {
+          payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+            payload.orderSignals
+              .filter((signal) => signal.receiptArrived && signal.approximateReceiptQuantity != null)
+              .map((signal) => [signal.skuId, signal.approximateReceiptQuantity!] as const),
+          ));
+        }
         payload.leadTimeHints.push(
           ...(supplierPendingMode === 'cancel_supplier_order'
             ? []
@@ -9272,6 +9460,17 @@ export function StockUpdateSessionRoute() {
                 }];
               })),
         );
+        if (!editSession) {
+          payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+            Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+              const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+              if (quantity == null) {
+                return [];
+              }
+              return [[skuId, supplierReceiptMode === 'return_receipt_reversal' ? -quantity : quantity] as const];
+            }),
+          ));
+        }
         (payload.commercialEvents ??= []).push(
           ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
             const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
@@ -9464,6 +9663,13 @@ export function StockUpdateSessionRoute() {
       if (customerCompletedMode !== 'refund_reversal') {
         payload.retailSalesSnapshot = retailSalesSnapshot;
         payload.serviceSalesSnapshot = serviceSalesSnapshot;
+        if (!editSession) {
+          payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+            retailSalesSnapshot
+              .filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold > 0)
+              .map((entry) => [entry.skuId, -entry.unitsSold] as const),
+          ));
+        }
       }
       payload.retailRankings = retailSalesChoice === 'yes' ? derivedRetailRankings : retailRankings;
       payload.serviceRankings = serviceSalesChoice === 'yes' ? derivedServiceRankings : serviceRankings;
@@ -9616,6 +9822,13 @@ export function StockUpdateSessionRoute() {
         }
         return signals;
       });
+      if (!editSession) {
+        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+          payload.orderSignals
+            .filter((signal) => signal.receiptArrived && signal.approximateReceiptQuantity != null)
+            .map((signal) => [signal.skuId, signal.approximateReceiptQuantity!] as const),
+        ));
+      }
       payload.leadTimeHints = supplierPendingMode === 'cancel_supplier_order' ? [] : orderedEntries.flatMap(([skuId]) => {
         const variabilityClass =
           recordOrderLeadTimeVariability ||
@@ -9709,6 +9922,17 @@ export function StockUpdateSessionRoute() {
           receiptTimestamp: dateInputToIso(recordReceiptReceivedDate),
         }];
       });
+      if (!editSession) {
+        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+          Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+            const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+            if (quantity == null) {
+              return [];
+            }
+            return [[skuId, supplierReceiptMode === 'return_receipt_reversal' ? -quantity : quantity] as const];
+          }),
+        ));
+      }
       payload.commercialEvents = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
         const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
         if (quantity == null) {
@@ -10189,6 +10413,7 @@ export function StockUpdateSessionRoute() {
 
   function clearCurrentSession() {
     skipNextDraftPersistRef.current = true;
+    finalSaveStartedRef.current = false;
     removeStockUpdateDraft(draftStorageKey);
     setHasSavedDraft(false);
     setDraftWasRestored(false);
@@ -10374,7 +10599,8 @@ export function StockUpdateSessionRoute() {
     } else {
       const observation = await ingestSenaObservation(payload);
       savedObservationRetryIdRef.current = observation.observationId;
-      if (draftSnapshot) {
+      const needsObservationRetryDraft = lane.id === 'supplier-order-pending' || lane.id === 'supplier-receipt';
+      if (needsObservationRetryDraft && draftSnapshot) {
         writeStockUpdateDraft({
           ...draftSnapshot,
           savedObservationRetryId: observation.observationId,
@@ -10405,6 +10631,10 @@ export function StockUpdateSessionRoute() {
     }
     const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
     const draftSnapshot = latestDraftStateRef.current;
+    finalSaveStartedRef.current = true;
+    removeStockUpdateDraft(draftStorageKey);
+    setHasSavedDraft(false);
+    setDraftWasRestored(false);
     void runSavingTask(async () => persistCurrentSessionInBackground({
       draftSnapshot,
       payload,
@@ -10873,6 +11103,7 @@ export function StockUpdateSessionRoute() {
         const key = `stock:${row.skuId}`;
         const baselineUnits = stockBySku.get(row.skuId)?.unitsInStock ?? 0;
         const changed = stockRowChanged(workingCatalog, stockBySku, row);
+        const includedInEditSession = originalProductsUpdateEditStockBySku.has(row.skuId);
         nextTiles.push({
           key,
           entityId: row.skuId,
@@ -10882,6 +11113,7 @@ export function StockUpdateSessionRoute() {
           kind: 'stock',
           stepId: 'stock',
           typeLabel: translateUiLiteral(language, 'SKU'),
+          stockSubtitle: formatWorkbenchStockSubtitle(row.unitsInStock, language),
           metaLabel: changed
             ? translateUiLiteral(language, 'Counted {count}', { count: row.unitsInStock })
             : countedAtBySku.get(row.skuId)
@@ -10891,7 +11123,7 @@ export function StockUpdateSessionRoute() {
           baselineQuantity: baselineUnits,
           unitAmount: row.costPerUnit,
           recentAt: countedAtBySku.get(row.skuId) ?? null,
-          touched: changed || posTouchedLineKeySet.has(`stock:${row.skuId}`),
+          touched: changed || includedInEditSession || posTouchedLineKeySet.has(`stock:${row.skuId}`),
           flash: captureTargetFlashKey === key || persistentCaptureFlashKeySet.has(key),
         });
       }
@@ -10905,6 +11137,7 @@ export function StockUpdateSessionRoute() {
         const priceChanged = serviceDisplayPriceChanged(workingCatalog, serviceId, draft, currency, usdToKhrExchangeRate);
         const draftPrice = serviceDraftPriceUsd(draft, currency, usdToKhrExchangeRate);
         const stockoutFlagged = draft.blockedEnabled && draft.blockedState === 'stockout';
+        const includedInEditSession = originalProductsUpdateEditServicePriceById.has(serviceId);
         nextTiles.push({
           key,
           entityId: serviceId,
@@ -10927,7 +11160,7 @@ export function StockUpdateSessionRoute() {
           baselineQuantity: 0,
           unitAmount: service.price,
           recentAt: null,
-          touched: priceChanged || stockoutFlagged || posTouchedLineKeySet.has(key),
+          touched: priceChanged || stockoutFlagged || includedInEditSession || posTouchedLineKeySet.has(key),
           flash: captureTargetFlashKey === key || persistentCaptureFlashKeySet.has(key),
         });
       }
@@ -10951,6 +11184,7 @@ export function StockUpdateSessionRoute() {
           kind: 'retail',
           stepId: 'retail-sales',
           typeLabel: translateUiLiteral(language, 'SKU'),
+          stockSubtitle: formatWorkbenchStockSubtitle(stockBySku.get(skuId)?.unitsInStock, language),
           metaLabel: isCustomerPendingLane
             ? translateUiLiteral(language, 'Open {count}', { count: previousPending })
             : translateUiLiteral(language, 'Price {amount}', {
@@ -11013,6 +11247,7 @@ export function StockUpdateSessionRoute() {
           kind: 'supplier-order',
           stepId: 'reorder',
           typeLabel: translateUiLiteral(language, 'SKU'),
+          stockSubtitle: formatWorkbenchStockSubtitle(stockBySku.get(row.skuId)?.unitsInStock, language),
           supplierName: supplierNameForSku(sku),
           metaLabel: latestOrderedAt.get(row.skuId)
             ? translateUiLiteral(language, 'Last order {date}', { date: formatSenaLongDate(latestOrderedAt.get(row.skuId)!, language) })
@@ -11044,6 +11279,7 @@ export function StockUpdateSessionRoute() {
           kind: 'supplier-receipt',
           stepId: 'receipt',
           typeLabel: translateUiLiteral(language, 'SKU'),
+          stockSubtitle: formatWorkbenchStockSubtitle(stockBySku.get(row.skuId)?.unitsInStock, language),
           metaLabel: latestReceiptAt.get(row.skuId)
             ? translateUiLiteral(language, 'Last receipt {date}', { date: formatSenaLongDate(latestReceiptAt.get(row.skuId)!, language) })
             : translateUiLiteral(language, 'Awaiting receipt'),
@@ -11074,6 +11310,8 @@ export function StockUpdateSessionRoute() {
     latestReceiptAt,
     latestRetailSalesAt,
     latestServiceSalesAt,
+    originalProductsUpdateEditServicePriceById,
+    originalProductsUpdateEditStockBySku,
     posTouchedLineKeySet,
     productsUpdateServiceIds,
     persistentCaptureFlashKeySet,
@@ -11800,7 +12038,7 @@ export function StockUpdateSessionRoute() {
       return [];
     }
 
-    const skuChanges = supplierFilteredRows.flatMap((row) => {
+    const skuChanges = rows.flatMap((row) => {
       const sku = skuById.get(row.skuId);
       const baseline = baselineStockRow(workingCatalog, stockBySku, row.skuId);
       if (!sku || !baseline) {
@@ -11855,6 +12093,29 @@ export function StockUpdateSessionRoute() {
               : translateUiLiteral(language, 'Blocked'),
         });
       }
+      if (changedFields.length === 0 && (originalProductsUpdateEditStockBySku.has(row.skuId) || posTouchedLineKeySet.has(`stock:${row.skuId}`))) {
+        changedFields.push({
+          key: 'units',
+          label: translateUiLiteral(language, 'Units'),
+          value: String(row.unitsInStock),
+        });
+        changedFields.push({
+          key: 'cost',
+          label: translateUiLiteral(language, 'Cost'),
+          value: row.costPerUnit == null
+            ? translateUiLiteral(language, 'n/a')
+            : formatCurrency(row.costPerUnit, currency, language, usdToKhrExchangeRate),
+        });
+        if (sku.soldAsProduct) {
+          changedFields.push({
+            key: 'price',
+            label: translateUiLiteral(language, 'Retail'),
+            value: row.productPrice == null
+              ? translateUiLiteral(language, 'n/a')
+              : formatCurrency(row.productPrice, currency, language, usdToKhrExchangeRate),
+          });
+        }
+      }
 
       return changedFields.length > 0
         ? [{
@@ -11889,6 +12150,17 @@ export function StockUpdateSessionRoute() {
           value: translateUiLiteral(language, 'Stockout'),
         });
       }
+      if (
+        changedFields.length === 0 &&
+        (originalProductsUpdateEditServicePriceById.has(serviceId) || posTouchedLineKeySet.has(`service-price:${serviceId}`))
+      ) {
+        const originalPrice = originalProductsUpdateEditServicePriceById.get(serviceId)?.price ?? service.price;
+        changedFields.push({
+          key: 'price',
+          label: translateUiLiteral(language, 'Service price'),
+          value: formatCurrency(originalPrice, currency, language, usdToKhrExchangeRate),
+        });
+      }
 
       return changedFields.length > 0
         ? [{
@@ -11905,6 +12177,9 @@ export function StockUpdateSessionRoute() {
   }, [
     currency,
     language,
+    originalProductsUpdateEditServicePriceById,
+    originalProductsUpdateEditStockBySku,
+    posTouchedLineKeySet,
     serviceById,
     productsUpdateServiceIds,
     serviceSignalDrafts,
@@ -11912,7 +12187,7 @@ export function StockUpdateSessionRoute() {
     skuSignalDrafts,
     stockBySku,
     stockCountPosMode,
-    supplierFilteredRows,
+    rows,
     usdToKhrExchangeRate,
     workingCatalog,
   ]);
@@ -12480,12 +12755,12 @@ export function StockUpdateSessionRoute() {
                     aria-label={translateUiLiteral(language, 'Apply suggested expected arrival for {item}', { item: row.title })}
                     key={row.key}
                     type="button"
-                    className="-mx-2 grid w-[calc(100%+1rem)] gap-x-3 gap-y-1 rounded-lg px-2 py-3 text-left transition hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_8rem_6.25rem_11rem] sm:items-center"
+                    className="-mx-2 grid w-[calc(100%+1rem)] gap-x-3 gap-y-1 rounded-lg px-2 py-3 text-left transition hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_8rem_6.25rem_11rem] sm:items-start"
                     onClick={() => applySupplierSuggestedEtaRow(row)}
                   >
-                    <p className="inline-flex min-w-0 items-center gap-2 truncate text-sm font-medium text-foreground">
+                    <p className="inline-flex min-w-0 items-start gap-2 text-sm font-medium leading-5 text-foreground">
                       <StatusScheduleIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 truncate">{row.title}</span>
+                      <span className="min-w-0 whitespace-normal break-words">{row.title}</span>
                     </p>
                     <p className="min-w-0 whitespace-nowrap text-sm font-semibold text-foreground">
                       {row.expectedArrival ? formatSenaLongDate(row.expectedArrival, language) : translateUiLiteral(language, 'n/a')}

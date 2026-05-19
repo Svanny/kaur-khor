@@ -612,6 +612,14 @@ function captureDoneButton() {
   return button;
 }
 
+function expectSavedStockSnapshot(expected: Array<{ skuId: string; unitsInStock: number }>) {
+  const payload = ingestSenaObservation.mock.calls[0]?.[0];
+  expect(payload).toBeTruthy();
+  expect(payload.stockSnapshot).toEqual(
+    expected.map((entry) => expect.objectContaining(entry)),
+  );
+}
+
 function posWorkbenchTileNames() {
   return screen
     .getAllByRole('button')
@@ -830,6 +838,39 @@ describe('StockUpdateSessionRoute', () => {
     expect(razorTile).toHaveAttribute('data-workbench-tile-key', 'retail:sku-1');
   });
 
+  it('shows plural-aware stock subtitles on POS SKU item cards', () => {
+    setStoredSessionViewMode('pos');
+
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    const razorTile = getPosWorkbenchTile('Razor refill');
+    const razorSubtitle = within(razorTile).getByText('(12 units left in stock)');
+
+    expect(razorSubtitle).toHaveAttribute('data-slot', 'workbench-stock-subtitle');
+    expect(razorSubtitle).toHaveClass('font-normal');
+    expect(razorSubtitle).not.toHaveClass('font-semibold');
+    expect(getPosWorkbenchTile('Haircut').querySelector('[data-slot="workbench-stock-subtitle"]')).toBeNull();
+  });
+
+  it('uses singular unit wording for POS SKU item card stock subtitles', () => {
+    setStoredSessionViewMode('pos');
+
+    renderRoute([
+      {
+        ...observations[0]!,
+        input: {
+          ...observations[0]!.input,
+          stockSnapshot: [
+            { skuId: 'sku-1', unitsInStock: 1, costPerUnit: 4, productPrice: 9 },
+            { skuId: 'sku-2', unitsInStock: 4, costPerUnit: 2, productPrice: null },
+          ],
+        },
+      },
+    ], `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    expect(within(getPosWorkbenchTile('Razor refill')).getByText('(1 unit left in stock)')).toBeInTheDocument();
+  });
+
   it('anchors the POS quantity pill to the outer item card corner', async () => {
     setStoredSessionViewMode('pos');
 
@@ -875,6 +916,30 @@ describe('StockUpdateSessionRoute', () => {
     expect(quantityLabel).toHaveTextContent('6.4k');
     expect(quantityLabel).toHaveAttribute('title', '6,376');
     expect(quantityLabel).toHaveAttribute('aria-label', '6,376');
+  });
+
+  it('saves customer ticket completions with inventory count deltas', async () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_COMPLETED_PATH}?ticketMode=new`);
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
+    fireEvent.change(within(dialog).getByLabelText('Quantity for Razor refill'), { target: { value: '2' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add line' }));
+    fireEvent.click(captureDoneButton());
+
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Confirm receipt' })).getByRole('button', { name: 'Confirm save' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+      retailSalesSnapshot: [{ skuId: 'sku-1', unitsSold: 2 }],
+      ticketEvents: [
+        expect.objectContaining({
+          eventType: 'fulfilled_immediate',
+          ticketFamily: 'customer',
+        }),
+      ],
+    }));
+    expectSavedStockSnapshot([{ skuId: 'sku-1', unitsInStock: 10 }]);
   });
 
   it('renders Products Update POS with SKU and service update popups', () => {
@@ -951,6 +1016,126 @@ describe('StockUpdateSessionRoute', () => {
     expect(visibleWorkbenchTileTitles()).toEqual(['Razor refill', 'Towel']);
     expect(screen.getByRole('button', { name: 'Edit Razor refill changed item' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit Towel changed item' })).not.toBeInTheDocument();
+  });
+
+  it('marks saved Products Update edit rows as changed when the saved update is the latest baseline', () => {
+    const editableObservation = {
+      ...observations[0]!,
+      input: {
+        ...observations[0]!.input,
+        stockSnapshot: [
+          { skuId: 'sku-1', unitsInStock: 11, costPerUnit: 4, productPrice: 9 },
+        ],
+      },
+    };
+
+    renderEditRoute(editableObservation, [editableObservation]);
+
+    const razorTileVisual = getPosWorkbenchTile('Razor refill').querySelector('[data-slot="workbench-tile-visual"]');
+    expect(razorTileVisual).toHaveClass('bg-foreground');
+    expect(screen.getByRole('button', { name: 'Edit Razor refill changed item' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Towel changed item' })).not.toBeInTheDocument();
+  });
+
+  it('marks restored Products Update draft rows as changed when touched keys match the latest baseline', async () => {
+    window.localStorage.setItem(
+      STOCK_UPDATE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: '2026-04-03T12:01:00.000Z',
+        customSelectedLaneIds: [],
+        touchedPosMetadataPopupIds: [],
+        posTouchedLineKeys: ['stock:sku-1'],
+        currentStepId: 'stock',
+        unlockedStepCount: 1,
+        observedAt: '2026-04-03T12:01',
+        notes: '',
+        stockView: 'priority',
+        rows: [
+          { skuId: 'sku-1', unitsInStock: 12, costPerUnit: 4, productPrice: 9 },
+        ],
+      }),
+    );
+
+    renderRoute(observations);
+
+    await waitFor(() => expect(screen.getByText('Draft resumed')).toBeInTheDocument());
+    const razorTileVisual = getPosWorkbenchTile('Razor refill').querySelector('[data-slot="workbench-tile-visual"]');
+    expect(razorTileVisual).toHaveClass('bg-foreground');
+    expect(screen.getByRole('button', { name: 'Edit Razor refill changed item' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Towel changed item' })).not.toBeInTheDocument();
+  });
+
+  it('keeps historical Products Update draft rows untouched when legacy drafts contain every row', async () => {
+    window.localStorage.setItem(
+      STOCK_UPDATE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: '2026-04-03T12:01:00.000Z',
+        customSelectedLaneIds: [],
+        touchedPosMetadataPopupIds: [],
+        currentStepId: 'stock',
+        unlockedStepCount: 1,
+        observedAt: '2026-04-03T12:01',
+        notes: '',
+        stockView: 'priority',
+        rows: [
+          { skuId: 'sku-1', unitsInStock: 12, costPerUnit: 4, productPrice: 9 },
+          { skuId: 'sku-2', unitsInStock: 4, costPerUnit: 2, productPrice: null },
+        ],
+      }),
+    );
+
+    renderRoute(observations);
+
+    await waitFor(() => expect(screen.getByText('Draft resumed')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Edit Razor refill changed item' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Towel changed item' })).not.toBeInTheDocument();
+  });
+
+  it('marks restored Products Update draft rows for generated SKUs with no history as changed', async () => {
+    const generatedCatalog = {
+      ...catalog,
+      skus: [
+        {
+          ...catalog.skus[0]!,
+          skuId: 'generated:sku-1',
+          name: 'Generated hotdog',
+          supplierName: 'Mekong Looms',
+          costPerUnit: 1.25,
+          productPrice: 3,
+        },
+      ],
+      services: [],
+      sharingMask: [],
+    };
+    window.localStorage.setItem(
+      STOCK_UPDATE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: '2026-04-03T12:01:00.000Z',
+        customSelectedLaneIds: [],
+        touchedPosMetadataPopupIds: [],
+        posTouchedLineKeys: ['stock:generated:sku-1'],
+        currentStepId: 'stock',
+        unlockedStepCount: 1,
+        observedAt: '2026-04-03T12:01',
+        notes: '',
+        stockView: 'priority',
+        rows: [
+          { skuId: 'generated:sku-1', unitsInStock: 10, costPerUnit: 1.25, productPrice: 3 },
+        ],
+      }),
+    );
+
+    renderRouteWithCatalog(generatedCatalog, []);
+
+    await waitFor(() => expect(screen.getByText('Draft resumed')).toBeInTheDocument());
+    const generatedTileVisual = getPosWorkbenchTile('Generated hotdog').querySelector('[data-slot="workbench-tile-visual"]');
+    expect(generatedTileVisual).toHaveClass('bg-foreground');
+    expect(screen.getByRole('button', { name: 'Edit Generated hotdog changed item' })).toBeInTheDocument();
+    expect(screen.getByText('Units')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
   });
 
   it('keeps non-edit stock-count SKU deep links scoped to the target SKU', () => {
@@ -1308,6 +1493,24 @@ describe('StockUpdateSessionRoute', () => {
     await screen.findByRole('dialog', { name: 'Razor refill' });
   });
 
+  it('keeps Products Update changed items visible when workbench filtering excludes the tile', () => {
+    renderRoute();
+
+    fireEvent.click(getPosWorkbenchTile('Towel'));
+
+    const dialog = screen.getByRole('dialog', { name: 'Towel' });
+    fireEvent.change(within(dialog).getByLabelText('Units in stock'), { target: { value: '9' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+
+    const workbench = screen.getByText('Main workbench').closest('section');
+    expect(workbench).not.toBeNull();
+    fireEvent.change(within(workbench!).getByRole('searchbox', { name: 'Search workbench items' }), { target: { value: 'Razor' } });
+
+    expect(within(workbench!).queryByText('Towel')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Towel changed item' })).toBeInTheDocument();
+    expect(screen.getByText('4 → 9')).toBeInTheDocument();
+  });
+
   it('uses a stacked changed-item summary on embedded phone capture sessions', () => {
     document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'true';
 
@@ -1394,6 +1597,7 @@ describe('StockUpdateSessionRoute', () => {
     });
     expect(tileVisual).toHaveClass('ring-2');
     expect(tileVisual).toHaveClass('kaur-khor-capture-target-flash');
+    expect(tileVisual).not.toHaveClass('bg-foreground');
     expect(getPosWorkbenchTile('Towel')).toBeInTheDocument();
 
     fireEvent.click(razorTile);
@@ -1780,6 +1984,8 @@ describe('StockUpdateSessionRoute', () => {
     expect(within(dialog).getAllByText(/ETA:/)).toHaveLength(2);
     expect(within(dialog).getAllByText(/Variation:/)).toHaveLength(2);
     expect(within(dialog).queryByText(/ETA variation:/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Razor refill')).toHaveClass('whitespace-normal');
+    expect(within(dialog).getByText('Razor refill')).toHaveClass('break-words');
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply suggested expected arrival for Towel' }));
 
@@ -1985,6 +2191,24 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(screen.getByText('Draft resumed')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /^Timing/i })).not.toHaveClass('bg-primary');
     expect(screen.getByRole('button', { name: /^Notes/i })).toHaveClass('bg-primary');
+  });
+
+  it('saves touched Products Update POS lines into a draft', async () => {
+    const { unmount } = renderRoute();
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
+    fireEvent.change(within(dialog).getByLabelText('Units in stock'), { target: { value: '13' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Razor refill changed item' })).toBeInTheDocument());
+    unmount();
+
+    expect(JSON.parse(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
+      expect.objectContaining({
+        posTouchedLineKeys: expect.arrayContaining(['stock:sku-1']),
+      }),
+    );
   });
 
   it('derives touched POS metadata cards when editing an existing update', async () => {
@@ -2839,6 +3063,156 @@ describe('StockUpdateSessionRoute', () => {
       expect(document.querySelector('[data-workbench-tile-key="supplier-receipt:sku-1"] [data-slot="workbench-quantity-pill"]')).toHaveTextContent('8');
       expect(document.querySelector('[data-workbench-tile-key="supplier-receipt:sku-2"] [data-slot="workbench-quantity-pill"]')).toHaveTextContent('3');
     });
+  });
+
+  it('resolves the supplier ticket when a receipt edit receives every ordered line', async () => {
+    const supplierTicket = supplierTicketRecord();
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        recordUpdateContext: {
+          observationFingerprint: { count: 1, latestObservedAt: '2026-04-03T12:00:00.000Z', latestObservationId: 'obs-ticket' },
+          latestObservedAt: '2026-04-03T12:00:00.000Z',
+          latestStockBySku: {},
+          latestRetailSaleBySku: {},
+          latestServiceSaleByService: {},
+          latestOrderBySku: {},
+          latestReceiptBySku: {},
+          openTicketsByFamily: {
+            customer: [],
+            supplier: [supplierTicket],
+          },
+          latestTicketsById: {
+            'supplier-ticket-real': {
+              observationId: 'obs-ticket',
+              observedAt: '2026-04-03T12:00:00.000Z',
+              value: supplierTicket,
+            },
+          },
+          latestDeliveryFeeByBucket: {},
+          recentActivity: [],
+        },
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_RECEIPT_PATH}?ticketMode=edit&ticketId=supplier-ticket-real&flashTargets=supplier-receipt%3Asku-1%2Csupplier-receipt%3Asku-2`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-workbench-tile-key="supplier-receipt:sku-1"] [data-slot="workbench-quantity-pill"]')).toHaveTextContent('8');
+      expect(document.querySelector('[data-workbench-tile-key="supplier-receipt:sku-2"] [data-slot="workbench-quantity-pill"]')).toHaveTextContent('3');
+    });
+
+    fireEvent.click(captureDoneButton());
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Confirm receipt' })).getByRole('button', { name: 'Confirm save' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockSnapshot: [
+          expect.objectContaining({ skuId: 'sku-1', unitsInStock: 20 }),
+          expect.objectContaining({ skuId: 'sku-2', unitsInStock: 7 }),
+        ],
+        ticketEvents: [
+          expect.objectContaining({
+            eventType: 'fully_received',
+            lifecycle: 'resolved',
+            stage: 'received',
+            ticketFamily: 'supplier',
+            ticketId: 'supplier-ticket-real',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('saves partial supplier receipts with only the received inventory deltas', async () => {
+    const supplierTicket = supplierTicketRecord();
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        recordUpdateContext: {
+          observationFingerprint: { count: 1, latestObservedAt: '2026-04-03T12:00:00.000Z', latestObservationId: 'obs-ticket' },
+          latestObservedAt: '2026-04-03T12:00:00.000Z',
+          latestStockBySku: {},
+          latestRetailSaleBySku: {},
+          latestServiceSaleByService: {},
+          latestOrderBySku: {},
+          latestReceiptBySku: {},
+          openTicketsByFamily: {
+            customer: [],
+            supplier: [supplierTicket],
+          },
+          latestTicketsById: {
+            'supplier-ticket-real': {
+              observationId: 'obs-ticket',
+              observedAt: '2026-04-03T12:00:00.000Z',
+              value: supplierTicket,
+            },
+          },
+          latestDeliveryFeeByBucket: {},
+          recentActivity: [],
+        },
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_RECEIPT_PATH}?ticketMode=edit&ticketId=supplier-ticket-real&flashTargets=supplier-receipt%3Asku-1%2Csupplier-receipt%3Asku-2`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Towel receipt line' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Towel receipt line' }));
+    const towelDialog = screen.getByRole('dialog', { name: 'Towel' });
+    fireEvent.change(within(towelDialog).getByLabelText('Quantity for Towel'), { target: { value: '1' } });
+    fireEvent.click(within(towelDialog).getByRole('button', { name: 'Update line' }));
+
+    fireEvent.click(captureDoneButton());
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Confirm receipt' })).getByRole('button', { name: 'Confirm save' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockSnapshot: [
+          expect.objectContaining({ skuId: 'sku-1', unitsInStock: 20 }),
+          expect.objectContaining({ skuId: 'sku-2', unitsInStock: 5 }),
+        ],
+        ticketEvents: [
+          expect.objectContaining({
+            eventType: 'partial_received',
+            lifecycle: 'open',
+            stage: 'partial_received',
+            ticketFamily: 'supplier',
+            ticketId: 'supplier-ticket-real',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('does not change inventory counts for supplier orders before receipt', async () => {
+    renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    await fillPendingPosTiming('2026-05-20');
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
+    fireEvent.click(captureDoneButton());
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Confirm receipt' })).getByRole('button', { name: 'Confirm save' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+      stockSnapshot: [],
+      ticketEvents: [
+        expect.objectContaining({
+          eventType: 'created',
+          ticketFamily: 'supplier',
+        }),
+      ],
+    }));
   });
 
   it('hydrates supplier ticket item cards from queue edit-session observations', async () => {
@@ -3908,7 +4282,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
     expect(runWorkspacePreparation).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
-    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
 
     rerun.resolve(undefined);
 
@@ -3932,7 +4306,7 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByText('Capture destination')).toBeInTheDocument());
     expect(triggerSenaRun).not.toHaveBeenCalled();
-    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
 
     observationSave.resolve({ observationId: 'obs-background' });
 

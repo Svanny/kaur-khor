@@ -54,6 +54,7 @@ function freezeDate(isoString: string) {
 
 const inventoryHook = vi.fn();
 const deleteSenaObservation = vi.fn();
+const loadSenaObservations = vi.fn();
 const triggerSenaRun = vi.fn();
 const preferenceState = {
   language: 'en',
@@ -266,6 +267,8 @@ function renderRoute(overrides?: Record<string, unknown>, initialEntry = '/opera
     isLoading: false,
     isSaving: false,
     latestRun: null,
+    loadSenaObservations,
+    observationFingerprint: { count: sampleObservations.length, latestObservedAt: sampleObservations[0]!.input.observedAt, latestObservationId: sampleObservations[0]!.observationId },
     observations: sampleObservations,
     retrySenaRun: vi.fn(),
     triggerSenaRun,
@@ -287,6 +290,8 @@ function renderRouteWithDestination(nextObservations = sampleObservations) {
     isLoading: false,
     isSaving: false,
     latestRun: null,
+    loadSenaObservations,
+    observationFingerprint: { count: nextObservations.length, latestObservedAt: nextObservations[0]?.input.observedAt ?? null, latestObservationId: nextObservations[0]?.observationId ?? null },
     observations: nextObservations,
     retrySenaRun: vi.fn(),
     triggerSenaRun,
@@ -325,6 +330,7 @@ describe('StockUpdateRoute', () => {
 
   beforeEach(() => {
     deleteSenaObservation.mockResolvedValue(undefined);
+    loadSenaObservations.mockResolvedValue(sampleObservations);
     triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
   });
 
@@ -345,6 +351,32 @@ describe('StockUpdateRoute', () => {
     expect(screen.getByRole('button', { name: 'Previous contribution year' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next contribution year' })).toBeDisabled();
   }, 10_000);
+
+  it('loads observations when Settings history opens from startup state', async () => {
+    renderRoute({
+      observations: [],
+      observationFingerprint: {
+        count: sampleObservations.length,
+        latestObservedAt: sampleObservations[0]!.input.observedAt,
+        latestObservationId: sampleObservations[0]!.observationId,
+      },
+    });
+
+    await waitFor(() => expect(loadSenaObservations).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not load observations for a confirmed blank Settings history workspace', async () => {
+    renderRoute({
+      observations: [],
+      observationFingerprint: {
+        count: 0,
+        latestObservedAt: null,
+        latestObservationId: null,
+      },
+    });
+
+    await waitFor(() => expect(loadSenaObservations).not.toHaveBeenCalled());
+  });
 
   it('switches to the all view and paginates observations in groups of five', () => {
     const paginatedObservations = [
@@ -654,6 +686,8 @@ describe('StockUpdateRoute', () => {
       isLoading: true,
       isSaving: false,
       latestRun: null,
+      loadSenaObservations,
+      observationFingerprint: { count: sampleObservations.length, latestObservedAt: sampleObservations[0]!.input.observedAt, latestObservationId: sampleObservations[0]!.observationId },
       observations: [],
       retrySenaRun: vi.fn(),
       triggerSenaRun: vi.fn(),
@@ -665,6 +699,8 @@ describe('StockUpdateRoute', () => {
       isLoading: false,
       isSaving: false,
       latestRun: null,
+      loadSenaObservations,
+      observationFingerprint: { count: sampleObservations.length, latestObservedAt: sampleObservations[0]!.input.observedAt, latestObservationId: sampleObservations[0]!.observationId },
       observations: sampleObservations,
       retrySenaRun: vi.fn(),
       triggerSenaRun: vi.fn(),

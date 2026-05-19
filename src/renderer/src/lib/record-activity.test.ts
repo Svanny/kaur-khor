@@ -351,6 +351,23 @@ describe('record activity helpers', () => {
     expect(directory.phoneToName.get('+85598765432')).toBe('Dara');
   });
 
+  test('ignores stale customer ticket summaries when context is a blank slate', () => {
+    const blankContextWithStaleTickets: SenaRecordUpdateContext = {
+      ...context,
+      observationFingerprint: {
+        count: 0,
+        latestObservationId: null,
+        latestObservedAt: null,
+      },
+      latestObservedAt: null,
+    };
+
+    const directory = buildCustomerLinkDirectoryFromContext(blankContextWithStaleTickets, []);
+
+    expect(directory.entries).toEqual([]);
+    expect(directory.names).toEqual([]);
+  });
+
   test('reads latest delivery fees from context before fallback observations', () => {
     expect(latestDeliveryFeeMetadataFromContext(context, 'customer_order', [])?.displayTotalUsd).toBe(11);
   });

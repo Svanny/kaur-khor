@@ -28,7 +28,6 @@ import {
   buildOperationsSearchParams,
   readOperationsRouteState,
 } from '@/lib/navigation-state';
-import { observationRecordActivityEntries } from '@/lib/record-activity';
 import { filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { translateUiLiteral } from '@/lib/translations';
 import { RECORD_UPDATE_HUB_PATH } from '@/lib/record-update-routes';
@@ -598,7 +597,6 @@ function ObservationCard({
   onDelete: () => void;
   onEdit: () => void;
 }) {
-  const activityEntries = useMemo(() => observationRecordActivityEntries(observation, language), [language, observation]);
   return (
     <div className="rounded-[1.25rem] border border-border/70 bg-background/70 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -612,18 +610,6 @@ function ObservationCard({
           </p>
           {observation.input.notes ? (
             <p className="mt-2 text-sm text-muted-foreground">{observation.input.notes}</p>
-          ) : null}
-          {activityEntries.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {activityEntries.slice(0, 5).map((entry) => (
-                <span
-                  key={entry.activityId}
-                  className="rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground"
-                >
-                  {entry.summary}{entry.detail ? ` · ${entry.detail}` : ''}
-                </span>
-              ))}
-            </div>
           ) : null}
         </div>
         <WorkspaceActionRow className="shrink-0 gap-2">
@@ -647,6 +633,8 @@ export function StockUpdateRoute() {
     deleteSenaObservation,
     isLoading,
     isSaving,
+    loadSenaObservations,
+    observationFingerprint,
     observations,
     triggerSenaRun,
   } = useInventory();
@@ -671,6 +659,13 @@ export function StockUpdateRoute() {
   const [deleteTarget, setDeleteTarget] = useState<SenaObservationRecord | null>(null);
   const [deleteTokenValue, setDeleteTokenValue] = useState('');
   const baseCatalog = catalog ?? null;
+
+  useEffect(() => {
+    if (observations.length > 0 || observationFingerprint?.count === 0) {
+      return;
+    }
+    void loadSenaObservations();
+  }, [loadSenaObservations, observationFingerprint?.count, observations.length]);
 
   function updateRouteState(nextState: Parameters<typeof buildOperationsSearchParams>[1], replace = false) {
     setSearchParams(buildOperationsSearchParams(searchParams, nextState), { replace });

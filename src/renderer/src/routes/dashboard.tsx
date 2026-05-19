@@ -27,7 +27,6 @@ import {
   WorkspaceEmpty,
   WorkspacePage,
   WorkspaceTitleCard,
-  useWorkspaceWindowMinHeight,
 } from '@/components/system/workspace';
 import { BatchActionPrompt, type TaskGroup } from '@/components/system/batch-action-prompt';
 import type { IconComponent } from '@icons';
@@ -84,6 +83,7 @@ import { matchesSupplierName, type SupplierFilterValue } from '@/lib/sena-catalo
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
+import { stockSnapshotForTicketInventoryDeltas } from '@/lib/ticket-inventory-reconciliation';
 import {
   buildCustomerTicketCaptureHref,
   buildSupplierTicketCaptureHref,
@@ -662,7 +662,7 @@ function useVirtualizedQueueRows<T>(
 type OverviewWorkflowScope = 'customer' | 'supplier';
 
 function boardClassName() {
-  return `${cardFrameClassName} ${cardSurfaceClassName} flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2rem]`;
+  return `${cardFrameClassName} ${cardSurfaceClassName} flex min-h-0 flex-col overflow-hidden rounded-[2rem]`;
 }
 
 function railBlockClassName() {
@@ -873,7 +873,6 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const filter = routeState.filter as OverviewTaskFilter;
   const activeFilter: OverviewTaskFilter = showOverviewTaskTabs ? filter : 'all';
-  const workWindow = useWorkspaceWindowMinHeight<HTMLDivElement>(`${overviewScope}:${overviewScope === 'customer' ? customerFilter : activeFilter}:${showRightRailCards}`);
   const availableObservationCount = deriveAvailableObservationCount(inventory);
   const needsInitialWorkSupportData = Boolean(
     inventory.catalog &&
@@ -891,6 +890,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     setIsQueueSaving(true);
     try {
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await loadWorkSupportData({ includeObservations: true });
     } finally {
       setIsQueueSaving(false);
     }
@@ -982,6 +982,20 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       targetId: line.entityId,
       targetType: customerLineTargetType(line),
     }));
+  }
+
+  function stockSnapshotForCustomerSales(salesBySku: Map<string, number>) {
+    const deltasBySkuId = new Map(
+      [...salesBySku]
+        .filter(([, quantity]) => Number.isFinite(quantity) && quantity > 0)
+        .map(([skuId, quantity]) => [skuId, -quantity] as const),
+    );
+    return stockSnapshotForTicketInventoryDeltas({
+      catalog: inventory.catalog,
+      deltasBySkuId,
+      recordUpdateContext: inventory.recordUpdateContext,
+      snapshot: inventory.snapshot,
+    });
   }
 
   function buildSupplierQueueCaptureHref(task: OverviewSkuTask | OverviewSupplierTicketTask, mode: 'single' | 'batch') {
@@ -1125,6 +1139,39 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   function handleTaskActionClick(task: OverviewSkuTask | OverviewSupplierTicketTask) {
     if (isOverviewSupplierTicketTask(task)) {
       openSingleTask(task);
+      return;
+    }
+    if (task.action === 'log_order' && !task.supplierTicketId) {
+      const preference = taskBatchPreferenceForAction(task.action);
+      const taskGroup = buildBatchTaskGroup(task);
+      const debugBase = {
+        action: task.action,
+        actionLabel: task.actionLabel,
+        flashTargets: supplierCaptureFlashTargetsForTask(task).map((target) => `${target.action}:${target.targetId}`),
+        groupedTaskIds: taskGroup.tasks.map((groupTask) => groupTask.id),
+        preference,
+        skuIds: supplierSkuIdsForTask(task),
+        taskId: task.id,
+      };
+      logWorkQueueBatchDebug('action-click', debugBase);
+      if (preference === 'always_batch') {
+        routeSupplierQueueTask(task, 'batch', 'stored_preference_always_batch');
+        return;
+      }
+      if (preference === 'always_alone') {
+        routeSupplierQueueTask(task, 'single', 'stored_preference_always_alone');
+        return;
+      }
+      if (taskGroup.tasks.length > 1) {
+        logWorkQueueBatchDebug('action-decision', {
+          ...debugBase,
+          decision: 'open_batch_prompt',
+          reason: 'ask_preference_with_grouped_tasks',
+        });
+        setBatchPromptRequest({ rememberChoice: false, scope: 'supplier', task, taskGroup });
+        return;
+      }
+      routeSupplierQueueTask(task, 'single', 'ask_preference_single_task');
       return;
     }
 
@@ -1484,6 +1531,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     payload.retailRankings = [...salesBySku.keys()];
     payload.serviceSalesSnapshot = [...salesByService].map(([serviceId, unitsSold]) => ({ serviceId, unitsSold }));
     payload.serviceRankings = [...salesByService.keys()];
+    payload.stockSnapshot = stockSnapshotForCustomerSales(salesBySku);
 
     if (selectedCustomerCompletionTask.ticket) {
       const ticket = selectedCustomerCompletionTask.ticket;
@@ -1546,6 +1594,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       setIsQueueSaving(true);
       await ingestSenaObservation(payload);
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await loadWorkSupportData({ includeObservations: true });
       setSelectedCustomerCompletionTaskId(null);
       updateRouteState({ customerTaskId: null }, true);
       return true;
@@ -1649,12 +1698,14 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       payload.retailRankings = [...salesBySku.keys()];
       payload.serviceSalesSnapshot = [...salesByService].map(([serviceId, unitsSold]) => ({ serviceId, unitsSold }));
       payload.serviceRankings = [...salesByService.keys()];
+      payload.stockSnapshot = stockSnapshotForCustomerSales(salesBySku);
     }
 
     try {
       setIsQueueSaving(true);
       await ingestSenaObservation(payload);
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await loadWorkSupportData({ includeObservations: true });
       setSelectedCustomerCompletionTaskId(null);
       updateRouteState({ customerTaskId: null }, true);
       return true;
@@ -1780,15 +1831,13 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       {showWorkSupportLoading ? (
         <WorkSupportLoadingBoard />
       ) : (
-      <div className="flex min-h-0 flex-1 flex-col" data-work-window-root="queue">
+      <div className="flex min-h-0 flex-col" data-work-window-root="queue">
         <div
-          ref={workWindow.ref}
           className="flex min-h-0 shrink-0 flex-col"
           data-work-window="queue"
-          style={workWindow.style}
         >
           <ChromeTabs
-            className="relative min-h-0 flex-1 gap-0"
+            className="relative min-h-0 gap-0"
             value={overviewScope === 'customer' ? customerFilter : activeFilter}
             onValueChange={(nextValue) => {
               if (overviewScope === 'customer') {
@@ -1833,7 +1882,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
           }}
         >
           {overviewScope === 'customer' ? (
-            <div className={showRightRailCards ? 'grid h-full min-h-0 items-stretch gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid h-full min-h-0 gap-0'}>
+            <div className={showRightRailCards ? 'grid min-h-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid min-h-0 gap-0'}>
               <div className="flex min-h-0 min-w-0 flex-col border-b border-border/60 lg:border-r lg:border-b-0">
                 <div className="border-b border-border/60 px-5 py-5 sm:px-6">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -1962,7 +2011,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 )}
               </div>
               {showRightRailCards ? (
-                <aside className="flex h-full min-h-0 flex-col bg-secondary/15" data-slot="overview-right-rail">
+                <aside className="flex min-h-0 flex-col bg-secondary/15" data-slot="overview-right-rail">
                   <section className={railBlockClassName()}>
                     <div className="mb-4 flex items-center gap-2">
                       <NavigationTaskListIcon className="size-4 text-primary" />
@@ -2022,7 +2071,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
               ) : null}
             </div>
           ) : (
-            <div className={showRightRailCards ? 'grid h-full min-h-0 items-stretch gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid h-full min-h-0 gap-0'}>
+            <div className={showRightRailCards ? 'grid min-h-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid min-h-0 gap-0'}>
           <div className="flex min-h-0 min-w-0 flex-col border-b border-border/60 lg:border-r lg:border-b-0">
             <div className="border-b border-border/60 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -2251,7 +2300,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
           </div>
 
           {showRightRailCards ? (
-          <aside className="flex h-full min-h-0 flex-col bg-secondary/15" data-slot="overview-right-rail">
+          <aside className="flex min-h-0 flex-col bg-secondary/15" data-slot="overview-right-rail">
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
                 <NavigationTaskListIcon className="size-4 text-primary" />
