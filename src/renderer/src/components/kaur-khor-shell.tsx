@@ -340,6 +340,27 @@ function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'e
   );
 }
 
+function SidebarVersionPill({ language }: { language: 'en' | 'km' }) {
+  const label = translateUiLiteral(language, 'Version Alpha');
+  const tooltip = translateUiLiteral(language, 'Expect some bugs!');
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex h-7 w-full max-w-full items-center justify-center rounded-full border border-destructive/40 bg-destructive/10 px-2.5 text-center text-xs font-semibold leading-none text-destructive shadow-[0_1px_0_rgba(255,255,255,0.45)]"
+          data-slot="sidebar-version-pill"
+          tabIndex={0}
+          title={tooltip}
+        >
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={10}>{tooltip}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function SettingsSidebarMenu({
   location,
   sections,
@@ -602,6 +623,10 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
   }
 
   const showSidebarText = isMobile || state === 'expanded';
+  const showSidebarVersionPill =
+    showSidebarText &&
+    !isMobile &&
+    (typeof document === 'undefined' || document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape !== 'true');
   const mainContentInset = 'var(--spacing-page)';
 
   return (
@@ -616,33 +641,40 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
       <Sidebar className="border-r border-sidebar-border/60" collapsible="icon" variant="sidebar">
         <SidebarHeader className="px-3 pt-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
           {showSidebarText ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  aria-label={t('collapseNavigation')}
-                  className="group/brand flex h-10 w-full min-w-0 items-center gap-3 rounded-xl px-1 text-left text-foreground ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent/55 focus-visible:ring-2"
-                  data-testid="sidebar-collapse-toggle"
-                  type="button"
-                  onClick={toggleSidebar}
-                >
-                  <span className="relative flex size-10 shrink-0 items-center justify-center">
-                    <img
-                      alt=""
-                      aria-hidden="true"
-                      className="size-5 transition-opacity duration-150 ease-out group-hover/brand:opacity-0 motion-reduce:transition-none"
-                      src={brandLogo}
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 ease-out group-hover/brand:opacity-100 motion-reduce:transition-none">
-                      <NavigationRightPanelIcon aria-hidden="true" className="size-4.5" />
+            <div className="flex w-full min-w-0 flex-col gap-1.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    aria-label={t('collapseNavigation')}
+                    className="group/brand flex h-10 w-full min-w-0 items-center gap-3 rounded-xl px-1 text-left text-foreground ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent/55 focus-visible:ring-2"
+                    data-testid="sidebar-collapse-toggle"
+                    type="button"
+                    onClick={toggleSidebar}
+                  >
+                    <span className="relative flex size-10 shrink-0 items-center justify-center">
+                      <img
+                        alt=""
+                        aria-hidden="true"
+                        className="size-5 transition-opacity duration-150 ease-out group-hover/brand:opacity-0 motion-reduce:transition-none"
+                        src={brandLogo}
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 ease-out group-hover/brand:opacity-100 motion-reduce:transition-none">
+                        <NavigationRightPanelIcon aria-hidden="true" className="size-4.5" />
+                      </span>
                     </span>
-                  </span>
-                  <span className="min-w-0 truncate text-[0.95rem] font-semibold leading-snug tracking-normal text-foreground">
-                    {isSettingsRoute ? t('settingsTitle') : t('appBrand')}
-                  </span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={10}>{t('collapseNavigation')}</TooltipContent>
-            </Tooltip>
+                    <span className="min-w-0 truncate text-[0.95rem] font-semibold leading-snug tracking-normal text-foreground">
+                      {isSettingsRoute ? t('settingsTitle') : t('appBrand')}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={10}>{t('collapseNavigation')}</TooltipContent>
+              </Tooltip>
+              {showSidebarVersionPill ? (
+                <div className="w-full px-1">
+                  <SidebarVersionPill language={language} />
+                </div>
+              ) : null}
+            </div>
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>

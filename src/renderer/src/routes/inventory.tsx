@@ -387,6 +387,7 @@ function CatalogLoadingState() {
         <WorkspacePanel
           title="SKUs"
           descriptor={translateUiLiteral(language, 'Stock-carrying items Kaur Khor tracks directly.')}
+          helperExemptReason="Products loading panel descriptor supplies section guidance."
         >
           <div className="grid gap-3">
             {CatalogLoadingRows({ count: 4 })}
@@ -396,6 +397,7 @@ function CatalogLoadingState() {
         <WorkspacePanel
           title={translateUiLiteral(language, 'Services')}
           descriptor={translateUiLiteral(language, 'Sellable services and the SKUs that support them.')}
+          helperExemptReason="Products loading panel descriptor supplies section guidance."
         >
           <div className="grid gap-3">
             {CatalogLoadingRows({ count: 3 })}
@@ -433,7 +435,7 @@ export function InventoryRoute() {
     status: 'checking' | 'failed' | 'ready';
   }>({ blockersByKey: {}, status: 'checking' });
 
-  const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
+  const visibleCatalog = activeSenaCatalog(catalog);
 
   const projectedSnapshot = useMemo(
     () => (visibleCatalog ? projectInventorySnapshotFromSena(visibleCatalog, observations) : null),

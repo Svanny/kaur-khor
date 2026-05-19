@@ -121,6 +121,11 @@ describe('navigation-state', () => {
   });
 
   test('reads inventory route state safely and maps performance helpers to inventory', () => {
+    expect(readInventoryRouteState(new URLSearchParams())).toMatchObject({
+      rowSet: 'all',
+      scope: 'skus',
+    });
+
     expect(readInventoryRouteState(new URLSearchParams('range=7d&scope=skus&projection=30d&rows=all&preset=flow'))).toMatchObject({
       range: '7d',
       scope: 'skus',

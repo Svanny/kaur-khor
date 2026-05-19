@@ -5,6 +5,7 @@ type HeaderedTableVariant = 'overview' | 'framed';
 type HeaderedTableLayoutBreakpoint = 'lg' | 'xl' | '2xl';
 type HeaderedTableLayoutGap = 4 | 5;
 type HeaderedTableOverflow = 'hidden' | 'auto';
+type HeaderedTableHeightMode = 'content' | 'fill';
 
 export type HeaderedTableLayout = {
   containerClassName: string;
@@ -34,7 +35,7 @@ export function createHeaderedTableLayout({
   const responsiveClasses =
     breakpoint === 'lg'
       ? {
-          container: 'min-h-full flex-1 bg-white lg:grid lg:auto-rows-max lg:content-start lg:[grid-template-columns:var(--headered-table-columns)]',
+          container: 'bg-white lg:grid lg:auto-rows-max lg:content-start lg:[grid-template-columns:var(--headered-table-columns)]',
           header: 'lg:grid lg:grid-cols-subgrid lg:col-span-full',
           body: 'lg:grid lg:grid-cols-subgrid lg:col-span-full',
           row: 'lg:grid-cols-subgrid lg:col-span-full',
@@ -42,14 +43,14 @@ export function createHeaderedTableLayout({
         }
       : breakpoint === 'xl'
         ? {
-          container: 'min-h-full flex-1 bg-white xl:grid xl:auto-rows-max xl:content-start xl:[grid-template-columns:var(--headered-table-columns)]',
+          container: 'bg-white xl:grid xl:auto-rows-max xl:content-start xl:[grid-template-columns:var(--headered-table-columns)]',
           header: 'xl:grid xl:grid-cols-subgrid xl:col-span-full',
           body: 'xl:grid xl:grid-cols-subgrid xl:col-span-full',
           row: 'xl:grid-cols-subgrid xl:col-span-full',
           mobileLabel: 'xl:hidden',
         }
         : {
-          container: 'min-h-full flex-1 bg-white 2xl:grid 2xl:auto-rows-max 2xl:content-start 2xl:[grid-template-columns:var(--headered-table-columns)]',
+          container: 'bg-white 2xl:grid 2xl:auto-rows-max 2xl:content-start 2xl:[grid-template-columns:var(--headered-table-columns)]',
           header: '2xl:grid 2xl:grid-cols-subgrid 2xl:col-span-full',
           body: '2xl:grid 2xl:grid-cols-subgrid 2xl:col-span-full',
           row: '2xl:grid-cols-subgrid 2xl:col-span-full',
@@ -108,6 +109,7 @@ export const HeaderedTable = forwardRef<HTMLDivElement, {
   children: ReactNode;
   className?: string;
   empty?: boolean;
+  heightMode?: HeaderedTableHeightMode;
   hideWhenEmpty?: boolean;
   overflowX?: HeaderedTableOverflow;
   variant?: HeaderedTableVariant;
@@ -115,6 +117,7 @@ export const HeaderedTable = forwardRef<HTMLDivElement, {
   children,
   className,
   empty = false,
+  heightMode = 'content',
   hideWhenEmpty = false,
   overflowX = 'hidden',
   variant = 'overview',
@@ -126,13 +129,16 @@ export const HeaderedTable = forwardRef<HTMLDivElement, {
   return (
     <div
       className={cn(
-        variant === 'overview' && 'flex min-h-full flex-1 flex-col rounded-none border-0 bg-white',
-        variant === 'framed' && 'flex min-h-full flex-1 flex-col rounded-[1.4rem] border border-border/60 bg-white',
+        'flex flex-col',
+        heightMode === 'fill' && 'min-h-full flex-1',
+        variant === 'overview' && 'rounded-none border-0 bg-white',
+        variant === 'framed' && 'rounded-[1.4rem] border border-border/60 bg-white',
         overflowX === 'hidden' && 'overflow-hidden',
         overflowX === 'auto' && 'overflow-x-auto overscroll-x-contain',
         className,
       )}
       data-slot="headered-table"
+      data-height-mode={heightMode}
       data-overflow-x={overflowX}
       data-variant={variant}
       ref={ref}
@@ -295,7 +301,7 @@ export function HeaderedTableCellStack({
     <div className={cn('min-w-0', className)} data-slot="headered-table-cell-stack">
       <div className={cn('font-medium text-foreground', primaryClassName)}>{primary}</div>
       {secondary ? (
-        <div className={cn('mt-2 text-sm leading-6 text-muted-foreground', secondaryClassName)}>{secondary}</div>
+        <div className={cn('mt-2 text-lg leading-6 text-muted-foreground', secondaryClassName)}>{secondary}</div>
       ) : null}
     </div>
   );

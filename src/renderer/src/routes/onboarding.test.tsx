@@ -216,7 +216,7 @@ describe('OnboardingRoute', () => {
     renderRoute('/onboarding?step=interface');
 
     expect(await screen.findByText('Choose interface view')).toBeInTheDocument();
-    expect(screen.getByRole('radiogroup', { name: 'Display view mode' })).toHaveAttribute('data-presentation', 'carousel');
+    expect(screen.getByRole('radiogroup', { name: 'Display view mode' })).toHaveAttribute('data-presentation', 'grid');
     expect(screen.getByRole('radio', { name: 'Default View' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByRole('combobox', { name: 'Language' })).not.toBeInTheDocument();
   });

@@ -487,17 +487,34 @@ function phoneCaptureDraftStorage() {
   }
 }
 
+function recordUpdateDraftStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function hasPhoneCaptureDraft(draftStorageKey: string | null) {
   return readPhoneCaptureDraft(draftStorageKey) != null;
 }
 
+function hasAnyCaptureDraft(draftStorageKey: string | null) {
+  return hasPhoneCaptureDraft(draftStorageKey) || hasRecordUpdateCaptureDraft(draftStorageKey);
+}
+
 function removePhoneCaptureDraft(draftStorageKey: string | null) {
   const storage = phoneCaptureDraftStorage();
-  if (!draftStorageKey || typeof storage?.removeItem !== 'function') {
+  const recordUpdateStorage = recordUpdateDraftStorage();
+  if (!draftStorageKey) {
     return;
   }
   try {
-    storage.removeItem(draftStorageKey);
+    storage?.removeItem(draftStorageKey);
+    recordUpdateStorage?.removeItem(draftStorageKey);
   } catch {
     // Draft cleanup is best effort; blocked storage should not prevent capture navigation.
   }
@@ -533,7 +550,7 @@ function PhoneCaptureActionRow({
   const hasDraftConfirmPrompt = confirmPrompt === 'saved-draft';
 
   function requestCaptureSession() {
-    setConfirmPrompt(hasPhoneCaptureDraft(draftStorageKey) ? 'saved-draft' : 'leave-page');
+    setConfirmPrompt(hasAnyCaptureDraft(draftStorageKey) ? 'saved-draft' : 'leave-page');
   }
 
   function openCaptureSession({ deleteDraft }: { deleteDraft: boolean }) {
@@ -1433,6 +1450,18 @@ function readPhoneCaptureDraft(key: string | null) {
     return null;
   }
   return null;
+}
+
+function hasRecordUpdateCaptureDraft(key: string | null) {
+  if (!key) {
+    return false;
+  }
+  try {
+    const value = window.localStorage.getItem(key);
+    return typeof value === 'string' && value.trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 function defaultPhoneObservedAtInput() {

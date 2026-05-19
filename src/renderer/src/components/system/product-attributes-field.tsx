@@ -155,7 +155,7 @@ export function ProductAttributesField({ draft, language, presets, onChange }: P
                 <span
                   key={addPresetFlashKey}
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 bg-[#cfe6a4] opacity-0 [will-change:opacity] motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1] motion-reduce:opacity-100"
+                  className="pointer-events-none absolute inset-0 bg-[#cfe6a4] [opacity:var(--kaur-khor-attention-progress,0)] [will-change:opacity] motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1] motion-reduce:opacity-100"
                 />
               ) : null}
               <ActionAddBadgeIcon className="relative" data-icon="inline-start" />

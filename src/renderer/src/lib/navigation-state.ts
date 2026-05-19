@@ -510,7 +510,7 @@ export function readInventoryRouteState(searchParams: URLSearchParams): Inventor
     customRangeEnd: customRange.customRangeEnd,
     projectionHorizon: readEnumValue(searchParams, 'projection', inventoryProjectionHorizonValues, '14d'),
     range: range === 'custom' && !customRange.customRangeStart ? '30d' : range,
-    rowSet: readEnumValue(searchParams, 'rows', inventoryRowSetValues, 'focus'),
+    rowSet: readEnumValue(searchParams, 'rows', inventoryRowSetValues, 'all'),
     scope: readEnumValue(searchParams, 'scope', inventoryScopeValues, 'skus'),
     supplier: readOptionalTrimmedValue(searchParams, 'supplier'),
     viewPreset: readEnumValue(searchParams, 'preset', inventoryViewPresetValues, 'health'),
@@ -541,7 +541,7 @@ export function buildInventorySearchParams(
   writeOptionalValue(searchParams, 'customStart', resolvedState.customRangeStart?.trim() ? resolvedState.customRangeStart.trim() : null);
   writeOptionalValue(searchParams, 'customEnd', resolvedState.customRangeEnd?.trim() ? resolvedState.customRangeEnd.trim() : null);
   writeEnumValue(searchParams, 'projection', resolvedState.projectionHorizon, '14d');
-  writeEnumValue(searchParams, 'rows', resolvedState.rowSet, 'focus');
+  writeEnumValue(searchParams, 'rows', resolvedState.rowSet, 'all');
   writeEnumValue(searchParams, 'preset', resolvedState.viewPreset, 'health');
   if (resolvedState.viewPreset === 'custom' && resolvedState.customColumns.length > 0) {
     searchParams.set('columns', resolvedState.customColumns.join(','));
