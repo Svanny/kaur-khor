@@ -528,7 +528,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           })
           .catch((error) => {
             inflightRef.current.delete(key);
-            throw error;
+            console.warn('[inventory] failed to refresh persisted detail page', error);
+            return persisted;
           });
         inflightRef.current.set(key, request);
       }
@@ -1298,7 +1299,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           return page;
         };
         if (strategy === 'network-only') {
-          return loadFresh();
+          const page = await loadFresh();
+          readCacheRef.current.set(key, page);
+          return page;
         }
         return loadSenaDetailPage({
           key,
@@ -1341,7 +1344,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           return page;
         };
         if (strategy === 'network-only') {
-          return loadFresh();
+          const page = await loadFresh();
+          readCacheRef.current.set(key, page);
+          return page;
         }
         return loadSenaDetailPage({
           key,

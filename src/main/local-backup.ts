@@ -99,6 +99,21 @@ async function pruneOldSnapshots(userDataPath: string, maxSnapshots: number, pre
   }
 }
 
+async function uniqueSnapshotDirectoryPath(backupDirectoryPath: string, snapshotDirectoryName: string) {
+  let candidate = join(backupDirectoryPath, snapshotDirectoryName);
+  for (let suffix = 2; ; suffix += 1) {
+    try {
+      await fs.mkdir(candidate);
+      return candidate;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        throw error;
+      }
+    }
+    candidate = join(backupDirectoryPath, `${snapshotDirectoryName}-${suffix}`);
+  }
+}
+
 function runBackupQueue<T>(userDataPath: string, task: () => Promise<T>): Promise<T> {
   const previous = backupQueues.get(userDataPath) ?? Promise.resolve();
   const next = previous
@@ -123,7 +138,6 @@ async function removePaths(paths: string[], fileOps: FileOps = fs) {
 }
 
 async function copyFilesIntoDirectory(sourceFiles: string[], directoryPath: string, fileOps: FileOps = fs) {
-  await fileOps.mkdir(directoryPath, { recursive: true });
   for (const sourcePath of sourceFiles) {
     const targetPath = join(directoryPath, basename(sourcePath));
     const sourceStats = await fileOps.stat(sourcePath);
@@ -161,6 +175,7 @@ export async function restoreWorkspaceFiles(
   const restoredPaths: string[] = [];
 
   try {
+    await fileOps.mkdir(stagedSnapshotDirectoryPath, { recursive: true });
     await copyFilesIntoDirectory(snapshotFiles, stagedSnapshotDirectoryPath, fileOps);
     const currentFiles = await listSnapshotSourceFiles(userDataPath, fileOps);
     await moveFilesIntoDirectory(currentFiles, rollbackDirectoryPath, fileOps);
@@ -201,7 +216,8 @@ async function createDesktopBackupSnapshotUnchecked({
     .filter(Boolean)
     .join('-');
   const backupDirectoryPath = desktopBackupDirectoryPath(userDataPath);
-  const snapshotPath = join(backupDirectoryPath, snapshotDirectoryName);
+  await fs.mkdir(backupDirectoryPath, { recursive: true });
+  const snapshotPath = await uniqueSnapshotDirectoryPath(backupDirectoryPath, snapshotDirectoryName);
   const sourceFiles = await listSnapshotSourceFiles(userDataPath);
 
   await copyFilesIntoDirectory(sourceFiles, snapshotPath, fs);

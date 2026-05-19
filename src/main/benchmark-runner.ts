@@ -90,7 +90,7 @@ function boundedTail(lines: string[], nextLine: string) {
 }
 
 function safeRunId(runId: string) {
-  if (!/^[a-zA-Z0-9._-]+$/.test(runId)) {
+  if (typeof runId !== 'string' || runId.length === 0 || !/^[a-zA-Z0-9._-]+$/.test(runId)) {
     throw new Error('Invalid benchmark run id.');
   }
   return runId;
@@ -144,9 +144,13 @@ async function walkFiles(directory: string): Promise<string[]> {
   return files.flat();
 }
 
-function normalizeRunOptions(options: KaurKhorBenchmarkRunOptions): KaurKhorBenchmarkRunOptions {
+export function normalizeRunOptions(options: KaurKhorBenchmarkRunOptions): KaurKhorBenchmarkRunOptions {
+  if (!options || typeof options !== 'object') {
+    throw new Error('Benchmark run options must be an object.');
+  }
   const validScenarioIds = new Set(KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id));
-  const scenarios = options.scenarios.filter((scenario) => validScenarioIds.has(scenario));
+  const requestedScenarios = Array.isArray(options.scenarios) ? options.scenarios : [];
+  const scenarios = requestedScenarios.filter((scenario) => validScenarioIds.has(scenario));
   if (scenarios.length === 0) {
     throw new Error('Select at least one benchmark scenario.');
   }
@@ -157,6 +161,29 @@ function normalizeRunOptions(options: KaurKhorBenchmarkRunOptions): KaurKhorBenc
     repeatCount: Math.min(5, Math.max(1, Math.floor(Number(options.repeatCount) || 1))),
     buildBeforeRun: options.buildBeforeRun !== false,
   };
+}
+
+export function normalizeBenchmarkComparisonPayload(payload: {
+  baselineRunId: string;
+  candidateRunId: string;
+}) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Benchmark comparison requires two run ids.');
+  }
+  return {
+    baselineRunId: safeRunId(payload.baselineRunId),
+    candidateRunId: safeRunId(payload.candidateRunId),
+  };
+}
+
+export function normalizeBenchmarkFlamegraphRequest(payload: KaurKhorBenchmarkFlamegraphRequest) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Benchmark flame graph request must be an object.');
+  }
+  return {
+    runId: safeRunId(payload.runId),
+    scenario: payload.scenario,
+  } satisfies KaurKhorBenchmarkFlamegraphRequest;
 }
 
 function escapeHtml(value: string) {
@@ -590,14 +617,15 @@ export function registerBenchmarkRunnerIpc({
   async function generateFlamegraphArtifact(
     payload: KaurKhorBenchmarkFlamegraphRequest,
   ): Promise<KaurKhorBenchmarkFlamegraphArtifact> {
-    const run = await readRun(payload.runId);
+    const flamegraphRequest = normalizeBenchmarkFlamegraphRequest(payload);
+    const run = await readRun(flamegraphRequest.runId);
     if (!run) {
       throw new Error('Benchmark run not found.');
     }
     if (isBenchmarkRunInFlight(run.status)) {
       throw new Error('Wait for the benchmark run to finish before generating a flame graph.');
     }
-    const scenario = payload.scenario;
+    const scenario = flamegraphRequest.scenario;
     if (!KAUR_KHOR_BENCHMARK_SCENARIOS.some((entry) => entry.id === scenario)) {
       throw new Error('Choose a single benchmark scope before generating a flame graph.');
     }
@@ -908,8 +936,9 @@ export function registerBenchmarkRunnerIpc({
   });
 
   ipcMain.handle(IPC_CHANNELS.benchmarkRunnerCompareRuns, async (_event, payload: { baselineRunId: string; candidateRunId: string }) => {
-    const baseline = await readRun(payload.baselineRunId);
-    const candidate = await readRun(payload.candidateRunId);
+    const comparisonPayload = normalizeBenchmarkComparisonPayload(payload);
+    const baseline = await readRun(comparisonPayload.baselineRunId);
+    const candidate = await readRun(comparisonPayload.candidateRunId);
     if (!baseline || !candidate) {
       throw new Error('Both benchmark runs are required for comparison.');
     }

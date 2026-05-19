@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -199,6 +199,35 @@ describe('desktop local backup snapshots', () => {
 
     await expect(readFile(join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3-wal'), 'utf8')).resolves.toBe('wal-data');
     await expect(readFile(join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3-shm'), 'utf8')).resolves.toBe('shm-data');
+  });
+
+  it('creates a new directory when snapshot timestamps collide', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-collision-'));
+    const now = () => new Date('2026-04-10T10:00:00.000Z');
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'first-sqlite', 'utf8');
+    await writeFile(join(userDataPath, 'desktop-preferences.json'), '{"language":"en"}', 'utf8');
+
+    const first = await createDesktopBackupSnapshot({
+      now,
+      reason: 'settings',
+      trigger: 'manual',
+      userDataPath,
+    });
+
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'second-sqlite', 'utf8');
+    await rm(join(userDataPath, 'desktop-preferences.json'));
+
+    const second = await createDesktopBackupSnapshot({
+      now,
+      reason: 'settings',
+      trigger: 'manual',
+      userDataPath,
+    });
+
+    expect(second.snapshotPath).not.toBe(first.snapshotPath);
+    await expect(readFile(join(first.snapshotPath, 'desktop-preferences.json'), 'utf8')).resolves.toBe('{"language":"en"}');
+    await expect(readFile(join(second.snapshotPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('second-sqlite');
+    await expect(readFile(join(second.snapshotPath, 'desktop-preferences.json'), 'utf8')).rejects.toThrow();
   });
 
   it('captures and restores nested workspace directories', async () => {

@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, 
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 import { createManagedCoreController } from './core-manager';
@@ -17,11 +17,19 @@ import {
 } from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import { normalizeDesktopImage } from './desktop-image';
+import { resolveDesktopAssetPathFromRequest } from './desktop-asset-protocol';
 import { normalizeAllowedExternalUrl } from './external-url';
 import { normalizeAllowedLocalDataPath } from './local-path-access';
 import { installMainWindowNavigationGuards } from './navigation-guards';
 import { storeDroppedImageHandler } from './store-dropped-image';
 import { checkForKaurKhorUpdate, launchKaurKhorSourceUpdate } from './desktop-update';
+import {
+  assertSenaObservationDeletePayloadIsValid,
+  assertSenaObservationUpdatePayloadIsValid,
+  assertSenaRunLookupPayloadIsValid,
+  normalizeSenaServiceLookupPayload,
+  normalizeSenaSkuLookupPayload,
+} from './sena-ipc-payloads';
 import {
   finalizeAutomationPromotion,
   listAutomationConversations,
@@ -177,7 +185,6 @@ const SENA_READ_CACHE_SCHEMA_VERSION = 1;
 const SENA_READ_CACHE_MAX_PERSISTED_ENTRY_BYTES = 512_000;
 const DESKTOP_ASSET_DIRECTORY = 'assets';
 const DESKTOP_ASSET_PROTOCOL = 'kaur-khor-asset';
-const DESKTOP_ASSET_HOST = 'local';
 const DESKTOP_IMAGE_IMPORT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const;
 const DESKTOP_ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
@@ -621,38 +628,10 @@ function desktopAssetDirectoryPath() {
   return join(desktopDataPath, DESKTOP_ASSET_DIRECTORY);
 }
 
-function resolveDesktopAssetPathFromRequest(requestUrl: string) {
-  try {
-    const assetUrl = new URL(requestUrl);
-    if (assetUrl.protocol !== `${DESKTOP_ASSET_PROTOCOL}:` || assetUrl.hostname !== DESKTOP_ASSET_HOST) {
-      return null;
-    }
-
-    const requestedAssetName = decodeURIComponent(assetUrl.pathname.replace(/^\/+/, ''));
-    if (!requestedAssetName || requestedAssetName !== basename(requestedAssetName)) {
-      return null;
-    }
-
-    const assetExtension = extname(requestedAssetName).toLowerCase();
-    if (!DESKTOP_ALLOWED_IMAGE_EXTENSIONS.has(assetExtension)) {
-      return null;
-    }
-
-    return join(desktopAssetDirectoryPath(), requestedAssetName);
-  } catch {
-    return null;
-  }
-}
-
 function installDesktopAssetProtocol() {
   protocol.handle(DESKTOP_ASSET_PROTOCOL, async (request) => {
-    const assetPath = resolveDesktopAssetPathFromRequest(request.url);
+    const assetPath = await resolveDesktopAssetPathFromRequest(request.url, desktopAssetDirectoryPath());
     if (!assetPath) {
-      return new Response('Not found', { status: 404 });
-    }
-
-    const assetStats = await stat(assetPath).catch(() => null);
-    if (!assetStats?.isFile()) {
       return new Response('Not found', { status: 404 });
     }
 
@@ -1835,6 +1814,7 @@ ipcMain.handle(IPC_CHANNELS.senaIngestObservation, benchmarkIpcHandle(IPC_CHANNE
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, benchmarkIpcHandle(IPC_CHANNELS.senaUpdateObservation, async (_event, payload: SenaObservationUpdatePayload) => {
+  assertSenaObservationUpdatePayloadIsValid(payload);
   const observationsBeforeUpdate = await listFreshSenaObservations();
   const previousObservation = observationsBeforeUpdate.find((entry) => entry.observationId === payload.observationId) ?? null;
   await snapshotBeforeWorkspaceMutation('sena-update-observation');
@@ -1848,6 +1828,7 @@ ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, benchmarkIpcHandle(IPC_CHANNE
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaDeleteObservation, benchmarkIpcHandle(IPC_CHANNELS.senaDeleteObservation, async (_event, payload: SenaObservationDeletePayload) => {
+  assertSenaObservationDeletePayloadIsValid(payload);
   await snapshotBeforeWorkspaceMutation('sena-delete-observation');
   await managedCore.invoke('sena.deleteObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
@@ -1895,6 +1876,7 @@ ipcMain.handle(IPC_CHANNELS.senaTriggerRun, benchmarkIpcHandle(IPC_CHANNELS.sena
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaRetryRun, benchmarkIpcHandle(IPC_CHANNELS.senaRetryRun, async (_event, payload: SenaRunLookupPayload) => {
+  assertSenaRunLookupPayloadIsValid(payload);
   await snapshotBeforeWorkspaceMutation('sena-retry-run');
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.retryRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
@@ -1910,17 +1892,18 @@ ipcMain.handle(IPC_CHANNELS.senaGetWorkspaceSummary, benchmarkIpcHandle(IPC_CHAN
     }),
   ),
 ));
-ipcMain.handle(IPC_CHANNELS.senaGetSkuDetail, benchmarkIpcHandle(IPC_CHANNELS.senaGetSkuDetail, async (_event, payload: SenaSkuLookupPayload) =>
-  loadCachedSenaRead(`sku-detail:${payload.skuId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 20}`, () =>
+ipcMain.handle(IPC_CHANNELS.senaGetSkuDetail, benchmarkIpcHandle(IPC_CHANNELS.senaGetSkuDetail, async (_event, payload: SenaSkuLookupPayload) => {
+  const detailPayload = normalizeSenaSkuLookupPayload(payload);
+  return loadCachedSenaRead(`sku-detail:${detailPayload.skuId}:before:${detailPayload.beforeIntervalIndex ?? 'latest'}:limit:${detailPayload.limit ?? 20}`, () =>
     managedCore.invoke<SenaSkuDetailPage | null>('sena.getSkuDetail', {
-      skuId: payload.skuId,
-      beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
-      limit: payload.limit ?? 20,
+      skuId: detailPayload.skuId,
+      beforeIntervalIndex: detailPayload.beforeIntervalIndex ?? null,
+      limit: detailPayload.limit ?? 20,
     }, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
-  ),
-));
+  );
+}));
 ipcMain.handle(IPC_CHANNELS.senaGetDiagnostics, benchmarkIpcHandle(IPC_CHANNELS.senaGetDiagnostics, async () =>
   loadCachedSenaRead('diagnostics', () =>
     managedCore.invoke<SenaDiagnostics | null>('sena.getDiagnostics', undefined, {
@@ -1932,22 +1915,23 @@ ipcMain.handle(IPC_CHANNELS.senaGetDiagnostics, benchmarkIpcHandle(IPC_CHANNELS.
 ipcMain.handle(
   IPC_CHANNELS.senaGetServiceDetail,
   benchmarkIpcHandle(IPC_CHANNELS.senaGetServiceDetail, async (_event, payload: SenaServiceLookupPayload) => {
-    const cacheKey = `service-detail:${payload.serviceId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 20}`;
+    const detailPayload = normalizeSenaServiceLookupPayload(payload);
+    const cacheKey = `service-detail:${detailPayload.serviceId}:before:${detailPayload.beforeIntervalIndex ?? 'latest'}:limit:${detailPayload.limit ?? 20}`;
     return loadCachedSenaRead(cacheKey, async () => {
       const endCoreRoundTrip = startBenchmarkSpan({
         category: 'ipc',
         name: 'main.service-detail.core-round-trip',
         detail: {
-          beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
-          limit: payload.limit ?? 20,
-          serviceId: payload.serviceId,
+          beforeIntervalIndex: detailPayload.beforeIntervalIndex ?? null,
+          limit: detailPayload.limit ?? 20,
+          serviceId: detailPayload.serviceId,
         },
       });
       try {
         const result = await managedCore.invoke<SenaServiceDetailPage | null>('sena.getServiceDetail', {
-          serviceId: payload.serviceId,
-          beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
-          limit: payload.limit ?? 20,
+          serviceId: detailPayload.serviceId,
+          beforeIntervalIndex: detailPayload.beforeIntervalIndex ?? null,
+          limit: detailPayload.limit ?? 20,
         }, {
           timeoutMs: SENA_READ_TIMEOUT_MS,
         });
@@ -1972,13 +1956,14 @@ ipcMain.handle(
     invalidateSenaDetailCache(payload),
   ),
 );
-ipcMain.handle(IPC_CHANNELS.senaGetRunStatus, benchmarkIpcHandle(IPC_CHANNELS.senaGetRunStatus, async (_event, payload: SenaRunLookupPayload) =>
-  loadCachedSenaRead(`run-status:${payload.runId}`, () =>
+ipcMain.handle(IPC_CHANNELS.senaGetRunStatus, benchmarkIpcHandle(IPC_CHANNELS.senaGetRunStatus, async (_event, payload: SenaRunLookupPayload) => {
+  assertSenaRunLookupPayloadIsValid(payload);
+  return loadCachedSenaRead(`run-status:${payload.runId}`, () =>
     managedCore.invoke<SenaAnalysisRunRecord | null>('sena.getRunStatus', payload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
-  ),
-));
+  );
+}));
 
 ipcMain.handle(IPC_CHANNELS.preferencesGet, benchmarkIpcHandle(IPC_CHANNELS.preferencesGet, async () =>
   loadDesktopPreferences(desktopDataPath),

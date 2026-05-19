@@ -71,6 +71,14 @@ function ticketDisplayDate(value: string | null | undefined) {
   return date.toISOString().slice(0, 10);
 }
 
+function ticketDisplaySortValue(value: string | null | undefined) {
+  if (!value) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+}
+
 function ticketDisplayLabels(
   context: SenaRecordUpdateContext | null,
   family: Extract<SenaTicketFamily, 'customer' | 'supplier'>,
@@ -87,8 +95,8 @@ function ticketDisplayLabels(
   }
 
   const tickets = [...ticketsById.values()].sort((left, right) =>
+    ticketDisplaySortValue(left.occurredAt) - ticketDisplaySortValue(right.occurredAt) ||
     ticketDisplayDate(left.occurredAt).localeCompare(ticketDisplayDate(right.occurredAt)) ||
-    left.occurredAt.localeCompare(right.occurredAt) ||
     left.ticketId.localeCompare(right.ticketId),
   );
   const countByDate = new Map<string, number>();

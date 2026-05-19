@@ -55,4 +55,13 @@ describe('normalizeAllowedExternalUrl', () => {
       'Only Kaur Khor GitHub and Telegram links can be opened.',
     );
   });
+
+  it('rejects credential-bearing HTTPS links on approved hosts', () => {
+    expect(() => normalizeAllowedExternalUrl('https://github.com@example.com/Svanny/kaur-khor')).toThrow(
+      'Only Kaur Khor GitHub and Telegram links can be opened.',
+    );
+    expect(() => normalizeAllowedExternalUrl('https://user:token@github.com/Svanny/kaur-khor')).toThrow(
+      'Only Kaur Khor GitHub and Telegram links can be opened.',
+    );
+  });
 });

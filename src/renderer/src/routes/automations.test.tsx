@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AutomationConversationSummary,
+  AutomationExposureRow,
   AutomationMessageRecord,
   AutomationOrderIntake,
 } from '@shared/automation';
@@ -53,7 +54,25 @@ vi.mock('./automations/connection-card', () => ({
 }));
 
 vi.mock('./automations/exposure-table', () => ({
-  AutomationExposureTable: () => <div>Exposure table</div>,
+  AutomationExposureTable: ({
+    rows,
+    onAliasCommit,
+    onToggle,
+  }: {
+    rows: AutomationExposureRow[];
+    onAliasCommit: (row: AutomationExposureRow, nextAlias: string) => void;
+    onToggle: (row: AutomationExposureRow, checked: boolean) => void;
+  }) => (
+    <div>
+      <div>Exposure table</div>
+      {rows.map((row) => (
+        <div key={`${row.entityType}:${row.entityId}`}>
+          <button type="button" onClick={() => onAliasCommit(row, 'Telegram label')}>Commit alias</button>
+          <button type="button" onClick={() => onToggle(row, !row.exposed)}>Toggle exposure</button>
+        </div>
+      ))}
+    </div>
+  ),
 }));
 
 vi.mock('./automations/intake-table', () => ({
@@ -723,6 +742,40 @@ describe('AutomationsRoute', () => {
     expect(screen.getByText('Unavailable sellables are still exposed')).toBeInTheDocument();
     expect(screen.getByText(/1 customer-facing Telegram item is unavailable but still toggled on/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Review exposed sellables/i })).toBeInTheDocument();
+  });
+
+  it('surfaces exposure update failures instead of leaving an unhandled mutation', async () => {
+    const patchExposureRow = vi.fn().mockRejectedValue(new Error('Cannot update sellable'));
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      patchExposureRow,
+      exposures: [
+        {
+          entityType: 'sku',
+          entityId: 'sku-1',
+          label: 'Handwoven Belt',
+          archived: false,
+          exposed: true,
+          price: 25,
+          availabilityStatus: 'available',
+          availabilityLabel: 'Available',
+          alias: null,
+          sortOrder: 0,
+        },
+      ],
+    }));
+
+    renderRoute('/automations?section=catalog');
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle exposure' }));
+
+    await waitFor(() => {
+      expect(patchExposureRow).toHaveBeenCalledWith({
+        entityType: 'sku',
+        entityId: 'sku-1',
+        exposed: false,
+      });
+      expect(screen.getByText('Telegram sellable not updated')).toBeInTheDocument();
+      expect(screen.getByText('Cannot update sellable')).toBeInTheDocument();
+    });
   });
 
   it('opens the bot through the Telegram app deep link instead of a browser window', () => {

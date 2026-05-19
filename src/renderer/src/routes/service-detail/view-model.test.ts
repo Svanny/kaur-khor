@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { InventorySnapshot, ServiceRecord } from '@shared/inventory';
-import type { SenaServiceDetail, SenaWorkspaceSummary } from '@shared/sena';
+import type { SenaObservationRecord, SenaServiceDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { translateRegimeLabel } from '@/lib/localized-display';
 import { deriveServiceDetailViewModel } from './view-model';
 
@@ -86,6 +86,32 @@ const detail: SenaServiceDetail = {
   ],
   regimeTimeline: [],
 };
+
+function makeObservation(
+  observationId: string,
+  observedAt: string,
+  orderSignal: SenaObservationRecord['input']['orderSignals'][number],
+): SenaObservationRecord {
+  return {
+    observationId,
+    ownerSub: 'desktop-owner',
+    input: {
+      observedAt,
+      stockSnapshot: [],
+      serviceRankings: [],
+      retailRankings: [],
+      serviceStockouts: [],
+      retailStockouts: [],
+      orderSignals: [orderSignal],
+      servicePrices: [],
+      retailPrices: [],
+      leadTimeHints: [],
+      adjustmentSignals: [],
+      recipeUsageHints: [],
+      notes: null,
+    },
+  };
+}
 
 describe('deriveServiceDetailViewModel', () => {
   test('keeps semantic regime keys separate from translated display labels', () => {
@@ -471,5 +497,36 @@ describe('deriveServiceDetailViewModel', () => {
       'Tailor Pleat Trouser',
       'Boardwalk Camp Shirt',
     ]);
+  });
+
+  test('ignores dirty restoration timestamps when deriving open inbound orders', () => {
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail,
+      language: 'en',
+      observations: [
+        makeObservation('obs-receipt', '2026-04-04T08:00:00.000Z', {
+          skuId: 'sku-razor',
+          orderPlaced: false,
+          receiptArrived: true,
+          approximateOrderQuantity: null,
+          approximateReceiptQuantity: 4,
+        }),
+        makeObservation('obs-dirty-order', 'zzzz', {
+          skuId: 'sku-razor',
+          orderPlaced: true,
+          receiptArrived: false,
+          approximateOrderQuantity: 10,
+          approximateReceiptQuantity: null,
+        }),
+      ],
+      reports: [],
+      service,
+      snapshot,
+      workspaceSummary,
+    });
+
+    expect(model.restoration.map((event) => event.state)).toEqual(['logged']);
+    expect(model.contributors[0]?.inboundLabel).not.toBe('ETA pending');
   });
 });

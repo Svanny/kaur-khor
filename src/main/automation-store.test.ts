@@ -8,11 +8,13 @@ import {
   finalizeAutomationPromotion,
   findAutomationConversationForTelegramTicket,
   ingestAutomationTelegramUpdates,
+  listAutomationConversations,
   listAutomationPendingTelegramOutboundJobs,
   listAutomationIntakes,
   patchAutomationExposureRow,
   prepareAutomationPromotion,
   readAutomationConversation,
+  readAutomationIntake,
   readAutomationIntakeThread,
   readAutomationWorkspace,
   readAutomationTransportState,
@@ -808,6 +810,25 @@ describe('automation telegram ingestion', () => {
     await expect(readFile(storePath, 'utf8')).resolves.toBe(corruptPayload);
   });
 
+  it('drops malformed persisted collection entries while loading automation workspace', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [null, 'dirty-conversation'],
+      messages: [null, 7],
+      intakes: [null, false],
+      customerPreferences: [null, 'dirty-preferences'],
+      wizardSessions: [null, 'dirty-session'],
+      pendingOutboundJobs: [null, 'dirty-job'],
+    }), 'utf8');
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+
+    expect(workspace.conversations).toEqual([]);
+    expect(workspace.intakes).toEqual([]);
+    await expect(listAutomationPendingTelegramOutboundJobs(userDataPath)).resolves.toEqual([]);
+  });
+
   it('rejects malformed automation connection patches before persisting state', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
@@ -939,12 +960,140 @@ describe('automation telegram ingestion', () => {
     ]);
   });
 
+  it('sorts dirty automation timestamps after valid records in user-facing lists', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [
+        {
+          conversationId: 'dirty-conversation',
+          channel: 'telegram',
+          externalConversationKey: 'chat-dirty',
+          customerDisplayName: 'Dirty',
+          customerHandle: null,
+          phone: null,
+          lastMessageAt: 'zzzz',
+          messageCount: 1,
+          latestIntakeStatus: null,
+          latestTicketId: null,
+        },
+        {
+          conversationId: 'valid-conversation',
+          channel: 'telegram',
+          externalConversationKey: 'chat-valid',
+          customerDisplayName: 'Valid',
+          customerHandle: null,
+          phone: null,
+          lastMessageAt: '2026-04-22T00:00:00.000Z',
+          messageCount: 1,
+          latestIntakeStatus: null,
+          latestTicketId: null,
+        },
+      ],
+      messages: [
+        {
+          messageId: 'dirty-message',
+          conversationId: 'valid-conversation',
+          externalMessageKey: 'message-dirty',
+          direction: 'inbound',
+          sentAt: 'zzzz',
+          rawText: 'dirty',
+          normalizedText: 'dirty',
+          parseConfidence: null,
+        },
+        {
+          messageId: 'valid-message',
+          conversationId: 'valid-conversation',
+          externalMessageKey: 'message-valid',
+          direction: 'inbound',
+          sentAt: '2026-04-22T00:00:00.000Z',
+          rawText: 'valid',
+          normalizedText: 'valid',
+          parseConfidence: null,
+        },
+      ],
+      intakes: [
+        {
+          intakeId: 'dirty-intake',
+          conversationId: 'valid-conversation',
+          channel: 'telegram',
+          status: 'new',
+          parseConfidence: 'low',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: null,
+          quotedSubtotal: null,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: null,
+          createdAt: 'zzzz',
+          updatedAt: 'zzzz',
+          promotedTicketId: null,
+          lines: [],
+        },
+        {
+          intakeId: 'valid-intake',
+          conversationId: 'valid-conversation',
+          channel: 'telegram',
+          status: 'new',
+          parseConfidence: 'low',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: null,
+          quotedSubtotal: null,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: null,
+          createdAt: '2026-04-22T00:00:00.000Z',
+          updatedAt: '2026-04-22T00:00:00.000Z',
+          promotedTicketId: null,
+          lines: [],
+        },
+      ],
+    }), 'utf8');
+
+    await expect(listAutomationConversations(userDataPath)).resolves.toEqual([
+      expect.objectContaining({ conversationId: 'valid-conversation' }),
+      expect.objectContaining({ conversationId: 'dirty-conversation' }),
+    ]);
+    await expect(listAutomationIntakes(userDataPath)).resolves.toEqual([
+      expect.objectContaining({ intakeId: 'valid-intake' }),
+      expect.objectContaining({ intakeId: 'dirty-intake' }),
+    ]);
+
+    const conversation = await readAutomationConversation(userDataPath, 'valid-conversation');
+    expect(conversation.messages.map((message) => message.messageId)).toEqual([
+      'valid-message',
+      'dirty-message',
+    ]);
+    expect(conversation.intakes.map((intake) => intake.intakeId)).toEqual([
+      'valid-intake',
+      'dirty-intake',
+    ]);
+  });
+
   it('rejects malformed automation intake filters before reading state', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await expect(listAutomationIntakes(userDataPath, {
       q: 42,
     } as never)).rejects.toThrow('Automation intake filter q must be a string or null.');
+
+    const transport = await readAutomationTransportState(userDataPath);
+    expect(transport.connection.status).toBe('disconnected');
+  });
+
+  it('rejects malformed automation read identifiers before reading state', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await expect(readAutomationConversation(userDataPath, '' as never))
+      .rejects.toThrow('Automation conversation reads require a conversation id.');
+    await expect(readAutomationIntake(userDataPath, null as never))
+      .rejects.toThrow('Automation intake reads require an intake id.');
+    await expect(readAutomationIntakeThread(userDataPath, '   ' as never))
+      .rejects.toThrow('Automation intake reads require an intake id.');
 
     const transport = await readAutomationTransportState(userDataPath);
     expect(transport.connection.status).toBe('disconnected');

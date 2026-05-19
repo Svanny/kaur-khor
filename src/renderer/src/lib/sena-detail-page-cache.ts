@@ -114,10 +114,15 @@ function removeEntry(store: PersistedSenaDetailPageStore, key: string) {
 
 function sortKeysByWrittenAt(store: PersistedSenaDetailPageStore, keys: string[]) {
   return [...keys].sort((left, right) => {
-    const leftWrittenAt = Date.parse(store.entries[left]?.writtenAt ?? '');
-    const rightWrittenAt = Date.parse(store.entries[right]?.writtenAt ?? '');
+    const leftWrittenAt = parsedWrittenAt(store.entries[left]?.writtenAt);
+    const rightWrittenAt = parsedWrittenAt(store.entries[right]?.writtenAt);
     return leftWrittenAt - rightWrittenAt;
   });
+}
+
+function parsedWrittenAt(value: string | undefined) {
+  const writtenAt = Date.parse(value ?? '');
+  return Number.isFinite(writtenAt) ? writtenAt : Number.NEGATIVE_INFINITY;
 }
 
 function pruneSubjectEntries(store: PersistedSenaDetailPageStore, subject: string) {

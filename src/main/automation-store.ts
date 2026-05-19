@@ -318,6 +318,22 @@ function automationCreatedAtSortValue(value: string) {
   return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
 }
 
+function automationTimestampMs(value: string | null | undefined) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function compareAutomationNewestFirst(left: string | null | undefined, right: string | null | undefined) {
+  return (automationTimestampMs(right) ?? Number.NEGATIVE_INFINITY) - (automationTimestampMs(left) ?? Number.NEGATIVE_INFINITY);
+}
+
+function compareAutomationOldestFirst(left: string | null | undefined, right: string | null | undefined) {
+  return (automationTimestampMs(left) ?? Number.POSITIVE_INFINITY) - (automationTimestampMs(right) ?? Number.POSITIVE_INFINITY);
+}
+
 function normalizeExposureRules(value: unknown): AutomationExposureRuleRecord[] {
   if (!Array.isArray(value)) {
     return [];
@@ -411,6 +427,14 @@ function assertAutomationListIntakesPayloadIsValid(payload: AutomationListIntake
   }
 }
 
+function assertAutomationReadConversationIdIsValid(conversationId: unknown) {
+  assertNonEmptyString(conversationId, 'Automation conversation reads require a conversation id.');
+}
+
+function assertAutomationReadIntakeIdIsValid(intakeId: unknown) {
+  assertNonEmptyString(intakeId, 'Automation intake reads require an intake id.');
+}
+
 function assertAutomationResolvePayloadIsValid(payload: AutomationResolveIntakePayload) {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Automation intake resolution must be an object.');
@@ -480,6 +504,10 @@ function automationTextIncludes(haystack: Array<string | null | undefined>, quer
   return haystack.some((entry) => safeLower(entry).includes(normalizedQuery));
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function normalizeState(value: Partial<AutomationStoreState> | null | undefined): AutomationStoreState {
   const connection = value?.connection;
   const normalizedBotToken = normalizeOptionalString(connection?.botToken);
@@ -504,28 +532,29 @@ function normalizeState(value: Partial<AutomationStoreState> | null | undefined)
     telegramUpdateCursor: normalizeTelegramUpdateCursor(value?.telegramUpdateCursor),
     exposureRules: normalizeExposureRules(value?.exposureRules),
     conversations: Array.isArray(value?.conversations)
-      ? value.conversations.map((conversation) => ({
+      ? value.conversations.filter(isObjectRecord).map((conversation) => ({
         ...conversation,
         phone: normalizeNullablePhone(conversation.phone),
-      }))
+      } as AutomationConversationSummary))
       : [],
     messages: Array.isArray(value?.messages)
-      ? value.messages.map((message) => ({
+      ? value.messages.filter(isObjectRecord).map((message) => ({
         ...message,
         intakeId: typeof message.intakeId === 'string' ? message.intakeId : null,
-      }))
+      } as AutomationMessageRecord))
       : [],
     intakes: Array.isArray(value?.intakes)
-      ? value.intakes.map((intake) => ({
+      ? value.intakes.filter(isObjectRecord).map((intake) => ({
         ...intake,
         phone: normalizeNullablePhone(intake.phone),
-      }))
+      } as AutomationOrderIntake))
       : [],
     customerPreferences: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.customerPreferences)
-      ? [...(value as Partial<AutomationStoreState>).customerPreferences!]
+      ? (value as Partial<AutomationStoreState>).customerPreferences!.filter(isObjectRecord)
+        .map((preference) => ({ ...preference } as AutomationCustomerPreferencesRecord))
       : [],
     wizardSessions: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.wizardSessions)
-      ? (value as Partial<AutomationStoreState>).wizardSessions!.map((session) => ({
+      ? (value as Partial<AutomationStoreState>).wizardSessions!.filter(isObjectRecord).map((session) => ({
         ...session,
         currentStep: session.currentStep ?? 'menu',
         catalogCursor: typeof session.catalogCursor === 'number' ? session.catalogCursor : 0,
@@ -762,10 +791,10 @@ function recalculateConversation(state: AutomationStoreState, conversationId: st
   }
   const conversationMessages = state.messages
     .filter((message) => message.conversationId === conversationId)
-    .sort((left, right) => new Date(right.sentAt).getTime() - new Date(left.sentAt).getTime());
+    .sort((left, right) => compareAutomationNewestFirst(left.sentAt, right.sentAt));
   const conversationIntakes = state.intakes
     .filter((intake) => intake.conversationId === conversationId)
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+    .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt));
   conversation.messageCount = conversationMessages.length;
   conversation.lastMessageAt = conversationMessages[0]?.sentAt ?? conversation.lastMessageAt;
   conversation.latestIntakeStatus = conversationIntakes[0]?.status ?? null;
@@ -960,7 +989,7 @@ function latestTicketEventForId(observations: SenaObservationRecord[], ticketId:
       if (right.revision !== left.revision) {
         return right.revision - left.revision;
       }
-      return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
+      return compareAutomationNewestFirst(left.occurredAt, right.occurredAt);
     })[0] ?? null;
 }
 
@@ -1963,7 +1992,7 @@ function latestActiveTelegramIntakeForConversation(
 ) {
   return state.intakes
     .filter((intake) => intake.conversationId === conversationId && isActiveTelegramIntake(intake))
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0] ?? null;
+    .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt))[0] ?? null;
 }
 
 function appendExtraTelegramMessageToActiveIntake(
@@ -2577,8 +2606,8 @@ export async function readAutomationWorkspace(
     connection: state.connection,
     metrics: buildAutomationMetrics(state.intakes, exposures),
     exposures,
-    conversations: [...state.conversations].sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()),
-    intakes: [...state.intakes].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    conversations: [...state.conversations].sort((left, right) => compareAutomationNewestFirst(left.lastMessageAt, right.lastMessageAt)),
+    intakes: [...state.intakes].sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt)),
   };
 }
 
@@ -2913,7 +2942,7 @@ export async function patchAutomationExposureRow(
 
 export async function listAutomationConversations(userDataPath: string): Promise<AutomationConversationSummary[]> {
   const state = await loadAutomationState(userDataPath);
-  return [...state.conversations].sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime());
+  return [...state.conversations].sort((left, right) => compareAutomationNewestFirst(left.lastMessageAt, right.lastMessageAt));
 }
 
 export async function readAutomationConversation(
@@ -2924,6 +2953,7 @@ export async function readAutomationConversation(
   messages: AutomationMessageRecord[];
   intakes: AutomationOrderIntake[];
 }> {
+  assertAutomationReadConversationIdIsValid(conversationId);
   const state = await loadAutomationState(userDataPath);
   const conversation = state.conversations.find((entry) => entry.conversationId === conversationId);
   if (!conversation) {
@@ -2933,10 +2963,10 @@ export async function readAutomationConversation(
     conversation,
     messages: state.messages
       .filter((entry) => entry.conversationId === conversationId)
-      .sort((left, right) => new Date(left.sentAt).getTime() - new Date(right.sentAt).getTime()),
+      .sort((left, right) => compareAutomationOldestFirst(left.sentAt, right.sentAt)),
     intakes: state.intakes
       .filter((entry) => entry.conversationId === conversationId)
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+      .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt)),
   };
 }
 
@@ -2948,6 +2978,7 @@ export async function readAutomationIntakeThread(
   intake: AutomationOrderIntake;
   messages: AutomationMessageRecord[];
 }> {
+  assertAutomationReadIntakeIdIsValid(intakeId);
   const state = await loadAutomationState(userDataPath);
   const intake = state.intakes.find((entry) => entry.intakeId === intakeId);
   if (!intake) {
@@ -2971,7 +3002,7 @@ export async function readAutomationIntakeThread(
     conversation,
     intake,
     messages: [...linkedMessages, ...legacySourceMessages]
-      .sort((left, right) => new Date(left.sentAt).getTime() - new Date(right.sentAt).getTime()),
+      .sort((left, right) => compareAutomationOldestFirst(left.sentAt, right.sentAt)),
   };
 }
 
@@ -3001,7 +3032,7 @@ export async function findAutomationConversationForTelegramTicket(
   const state = await loadAutomationState(userDataPath);
   const intakeMatch = [...state.intakes]
     .filter((entry) => entry.promotedTicketId === ticketEvent.ticketId)
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
+    .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt))[0];
 
   if (intakeMatch) {
     return state.conversations.find((entry) => entry.conversationId === intakeMatch.conversationId) ?? null;
@@ -3032,7 +3063,7 @@ export async function listAutomationIntakes(
   assertAutomationListIntakesPayloadIsValid(payload);
   const state = await loadAutomationState(userDataPath);
   return filterIntakes(
-    [...state.intakes].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [...state.intakes].sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt)),
     payload,
   );
 }
@@ -3041,6 +3072,7 @@ export async function readAutomationIntake(
   userDataPath: string,
   intakeId: string,
 ): Promise<AutomationOrderIntake | null> {
+  assertAutomationReadIntakeIdIsValid(intakeId);
   const state = await loadAutomationState(userDataPath);
   return state.intakes.find((entry) => entry.intakeId === intakeId) ?? null;
 }

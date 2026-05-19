@@ -1,8 +1,23 @@
 import { existsSync, realpathSync } from 'node:fs';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 
 function canonicalizePath(path: string) {
-  return existsSync(path) ? realpathSync.native(path) : resolve(path);
+  const normalizedPath = resolve(path);
+  if (existsSync(normalizedPath)) {
+    return realpathSync.native(normalizedPath);
+  }
+
+  const missingSegments: string[] = [];
+  let currentPath = normalizedPath;
+  while (!existsSync(currentPath)) {
+    const parentPath = dirname(currentPath);
+    if (parentPath === currentPath) {
+      return normalizedPath;
+    }
+    missingSegments.unshift(basename(currentPath));
+    currentPath = parentPath;
+  }
+  return resolve(realpathSync.native(currentPath), ...missingSegments);
 }
 
 function isPathInsideRoot(candidatePath: string, rootPath: string) {

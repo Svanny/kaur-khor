@@ -9,6 +9,9 @@ import {
   benchmarkChildSpawnOptions,
   benchmarkOutputDirectoryForRun,
   buildFlamegraphHtml,
+  normalizeBenchmarkComparisonPayload,
+  normalizeBenchmarkFlamegraphRequest,
+  normalizeRunOptions,
   readBenchmarkJsonFile,
   SCENARIO_FILE_BY_ID,
   terminateBenchmarkChild,
@@ -27,6 +30,20 @@ describe('benchmark runner helpers', () => {
     );
     expect(() => benchmarkOutputDirectoryForRun('/tmp/kaur-khor/bench-results', '../bad')).toThrow(
       'Invalid benchmark run id.',
+    );
+    expect(() => benchmarkOutputDirectoryForRun('/tmp/kaur-khor/bench-results', undefined as never)).toThrow(
+      'Invalid benchmark run id.',
+    );
+  });
+
+  it('rejects malformed benchmark runner payloads before reading run files', () => {
+    expect(() => normalizeRunOptions(undefined as never)).toThrow('Benchmark run options must be an object.');
+    expect(() => normalizeRunOptions({ scenarios: [] } as never)).toThrow('Select at least one benchmark scenario.');
+    expect(() => normalizeBenchmarkComparisonPayload({ baselineRunId: 'gui-1', candidateRunId: '../bad' })).toThrow(
+      'Invalid benchmark run id.',
+    );
+    expect(() => normalizeBenchmarkFlamegraphRequest(null as never)).toThrow(
+      'Benchmark flame graph request must be an object.',
     );
   });
 

@@ -20,6 +20,7 @@ use async_trait::async_trait;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use serde_json::json;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -306,9 +307,48 @@ fn is_newer_record_update_anchor(
     current_observation_id: &str,
     next_observed_at: &str,
     next_observation_id: &str,
-) -> bool {
-    next_observed_at > current_observed_at
-        || (next_observed_at == current_observed_at && next_observation_id > current_observation_id)
+) -> Result<bool> {
+    Ok(compare_observation_position(
+        next_observed_at,
+        next_observation_id,
+        current_observed_at,
+        current_observation_id,
+    )? == Ordering::Greater)
+}
+
+fn parse_observed_at(value: &str) -> Result<OffsetDateTime> {
+    OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map_err(|err| anyhow!("observedAt must be RFC3339: {err}"))
+}
+
+fn compare_observation_position(
+    left_observed_at: &str,
+    left_observation_id: &str,
+    right_observed_at: &str,
+    right_observation_id: &str,
+) -> Result<Ordering> {
+    Ok(parse_observed_at(left_observed_at)?
+        .cmp(&parse_observed_at(right_observed_at)?)
+        .then_with(|| left_observation_id.cmp(right_observation_id)))
+}
+
+fn sort_observation_rows_chronological(rows: &mut [(String, String, String)]) -> Result<()> {
+    let mut parsed_rows = rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| parse_observed_at(&row.1).map(|observed_at| (index, observed_at)))
+        .collect::<Result<Vec<_>>>()?;
+    parsed_rows.sort_by(|left, right| {
+        left.1
+            .cmp(&right.1)
+            .then_with(|| rows[left.0].0.cmp(&rows[right.0].0))
+    });
+    let sorted = parsed_rows
+        .into_iter()
+        .map(|(index, _)| rows[index].clone())
+        .collect::<Vec<_>>();
+    rows.clone_from_slice(&sorted);
+    Ok(())
 }
 
 fn upsert_record_update_anchor_locked<T: Serialize>(
@@ -338,7 +378,7 @@ fn upsert_record_update_anchor_locked<T: Serialize>(
             &current_observation_id,
             observed_at,
             observation_id,
-        ) {
+        )? {
             return Ok(());
         }
     }
@@ -1003,30 +1043,11 @@ fn observation_fingerprint_locked(
     connection: &Connection,
     owner_sub: &str,
 ) -> Result<SenaObservationFingerprint> {
-    let count = connection.query_row(
-        "SELECT COUNT(*) FROM sena_observation WHERE owner_sub = ?1",
-        params![owner_sub],
-        |row| row.get::<_, i64>(0),
-    )? as usize;
-    let latest = connection
-        .query_row(
-            r#"
-            SELECT observed_at, observation_id
-            FROM sena_observation
-            WHERE owner_sub = ?1
-            ORDER BY observed_at DESC, observation_id DESC
-            LIMIT 1
-            "#,
-            params![owner_sub],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-        )
-        .optional()?;
     let mut stmt = connection.prepare(
         r#"
         SELECT observation_id, observed_at, payload
         FROM sena_observation
         WHERE owner_sub = ?1
-        ORDER BY observed_at ASC, observation_id ASC
         "#,
     )?;
     let rows = stmt.query_map(params![owner_sub], |row| {
@@ -1040,10 +1061,12 @@ fn observation_fingerprint_locked(
     for row in rows {
         fingerprint_rows.push(row?);
     }
+    sort_observation_rows_chronological(&mut fingerprint_rows)?;
+    let latest = fingerprint_rows.last();
     Ok(SenaObservationFingerprint {
-        count,
-        latest_observed_at: latest.as_ref().map(|row| row.0.clone()),
-        latest_observation_id: latest.map(|row| row.1),
+        count: fingerprint_rows.len(),
+        latest_observed_at: latest.map(|row| row.1.clone()),
+        latest_observation_id: latest.map(|row| row.0.clone()),
         content_fingerprint: Some(crate::inference::fingerprint_value(&fingerprint_rows)?),
     })
 }
@@ -1052,36 +1075,38 @@ fn assert_earliest_observation_has_stock_locked(
     connection: &Connection,
     owner_sub: &str,
 ) -> Result<()> {
-    let earliest_observed_at = connection
-        .query_row(
-            r#"
-            SELECT observed_at
-            FROM sena_observation
-            WHERE owner_sub = ?1
-            ORDER BY observed_at ASC, observation_id ASC
-            LIMIT 1
-            "#,
-            params![owner_sub],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()?;
-    let Some(earliest_observed_at) = earliest_observed_at else {
+    let mut statement = connection.prepare(
+        r#"
+        SELECT observation_id, observed_at, payload
+        FROM sena_observation
+        WHERE owner_sub = ?1
+        "#,
+    )?;
+    let rows = statement.query_map(params![owner_sub], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+    let mut rows_with_time = Vec::new();
+    for row in rows {
+        let (observation_id, observed_at, payload) = row?;
+        rows_with_time.push((observation_id, parse_observed_at(&observed_at)?, payload));
+    }
+    let Some(earliest_time) = rows_with_time
+        .iter()
+        .map(|(_observation_id, observed_at, _payload)| *observed_at)
+        .min()
+    else {
         return Ok(());
     };
 
-    let mut statement = connection.prepare(
-        r#"
-        SELECT payload
-        FROM sena_observation
-        WHERE owner_sub = ?1 AND observed_at = ?2
-        ORDER BY observation_id ASC
-        "#,
-    )?;
-    let rows = statement.query_map(params![owner_sub, earliest_observed_at], |row| {
-        row.get::<_, String>(0)
-    })?;
-    for row in rows {
-        let input: SenaObservationInput = serde_json::from_str(&row?)?;
+    for (_observation_id, observed_at, payload) in rows_with_time {
+        if observed_at != earliest_time {
+            continue;
+        }
+        let input: SenaObservationInput = serde_json::from_str(&payload)?;
         if !input.stock_snapshot.is_empty() {
             return Ok(());
         }
@@ -1713,23 +1738,30 @@ impl SenaRepository for SqliteSenaRepository {
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let mut stmt = connection.prepare(
-            "SELECT observation_id, payload FROM sena_observation WHERE owner_sub = ?1 ORDER BY observed_at ASC, observation_id ASC",
+            "SELECT observation_id, observed_at, payload FROM sena_observation WHERE owner_sub = ?1",
         )?;
         let rows = stmt.query_map(params![owner_sub], |row| {
             let observation_id: String = row.get(0)?;
-            let payload: String = row.get(1)?;
-            Ok((observation_id, payload))
+            let observed_at: String = row.get(1)?;
+            let payload: String = row.get(2)?;
+            Ok((observation_id, observed_at, payload))
         })?;
-        let mut records = Vec::new();
+        let mut raw_rows = Vec::new();
         for row in rows {
-            let (observation_id, payload) = row?;
-            records.push(SenaObservationRecord {
-                observation_id,
-                owner_sub: owner_sub.to_string(),
-                input: serde_json::from_str(&payload)?,
-            });
+            raw_rows.push(row?);
         }
-        Ok(records)
+        sort_observation_rows_chronological(&mut raw_rows)?;
+        raw_rows
+            .into_iter()
+            .map(|(observation_id, _observed_at, payload)| {
+                serde_json::from_str(&payload).map(|input| SenaObservationRecord {
+                    observation_id,
+                    owner_sub: owner_sub.to_string(),
+                    input,
+                })
+            })
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(anyhow::Error::new)
     }
 
     async fn list_observation_page(
@@ -1744,77 +1776,65 @@ impl SenaRepository for SqliteSenaRepository {
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let fingerprint = observation_fingerprint_locked(&connection, owner_sub)?;
-        let query =
-            if request.before_observed_at.is_some() && request.before_observation_id.is_some() {
-                r#"
-            SELECT observation_id, observed_at, payload
-            FROM sena_observation
-            WHERE owner_sub = ?1
-              AND (observed_at < ?2 OR (observed_at = ?2 AND observation_id < ?3))
-            ORDER BY observed_at DESC, observation_id DESC
-            LIMIT ?4
-            "#
-            } else if request.before_observed_at.is_some() {
-                r#"
-            SELECT observation_id, observed_at, payload
-            FROM sena_observation
-            WHERE owner_sub = ?1 AND observed_at < ?2
-            ORDER BY observed_at DESC, observation_id DESC
-            LIMIT ?4
-            "#
-            } else {
-                r#"
-            SELECT observation_id, observed_at, payload
-            FROM sena_observation
-            WHERE owner_sub = ?1
-            ORDER BY observed_at DESC, observation_id DESC
-            LIMIT ?4
-            "#
-            };
-        let mut stmt = connection.prepare(query)?;
-        let requested_rows = (limit + 1) as i64;
-        let row_mapper = |row: &rusqlite::Row<'_>| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        };
-        let rows =
-            if request.before_observed_at.is_some() && request.before_observation_id.is_some() {
-                stmt.query_map(
-                    params![
-                        owner_sub,
-                        request.before_observed_at.as_deref(),
-                        request.before_observation_id.as_deref(),
-                        requested_rows,
-                    ],
-                    row_mapper,
-                )?
-            } else if request.before_observed_at.is_some() {
-                stmt.query_map(
-                    params![
-                        owner_sub,
-                        request.before_observed_at.as_deref(),
-                        rusqlite::types::Null,
-                        requested_rows,
-                    ],
-                    row_mapper,
-                )?
-            } else {
-                stmt.query_map(
-                    params![
-                        owner_sub,
-                        rusqlite::types::Null,
-                        rusqlite::types::Null,
-                        requested_rows
-                    ],
-                    row_mapper,
-                )?
-            };
+        let fetch_limit = limit + 1;
         let mut raw_rows = Vec::new();
-        for row in rows {
-            raw_rows.push(row?);
+        if let Some(before_observed_at) = request.before_observed_at.as_deref() {
+            parse_observed_at(before_observed_at)?;
+            let before_observation_id = request.before_observation_id.as_deref().unwrap_or("");
+            let mut stmt = connection.prepare(
+                r#"
+                SELECT observation_id, observed_at, payload
+                FROM sena_observation
+                WHERE owner_sub = ?1
+                  AND (
+                    unixepoch(observed_at) < unixepoch(?2)
+                    OR (unixepoch(observed_at) = unixepoch(?2) AND observation_id < ?3)
+                  )
+                ORDER BY unixepoch(observed_at) DESC, observation_id DESC
+                LIMIT ?4
+                "#,
+            )?;
+            let rows = stmt.query_map(
+                params![
+                    owner_sub,
+                    before_observed_at,
+                    before_observation_id,
+                    fetch_limit as i64
+                ],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )?;
+            for row in rows {
+                raw_rows.push(row?);
+            }
+        } else {
+            let mut stmt = connection.prepare(
+                r#"
+                SELECT observation_id, observed_at, payload
+                FROM sena_observation
+                WHERE owner_sub = ?1
+                ORDER BY unixepoch(observed_at) DESC, observation_id DESC
+                LIMIT ?2
+                "#,
+            )?;
+            let rows = stmt.query_map(params![owner_sub, fetch_limit as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?;
+            for row in rows {
+                raw_rows.push(row?);
+            }
+        }
+        for row in &raw_rows {
+            parse_observed_at(&row.1)?;
         }
         let has_older = raw_rows.len() > limit;
         raw_rows.truncate(limit);
@@ -2290,6 +2310,8 @@ impl SenaRepository for SqliteSenaRepository {
             }],
         };
         refresh_batch(&mut new_batch);
+        new_batch.children[0].status = child.status;
+        new_batch.status = order_batch_status(&new_batch.children);
         validate_order_batch_record(&new_batch)?;
         persist_batch(&connection, &new_batch)?;
         Ok(new_batch)
@@ -3645,6 +3667,42 @@ mod tests {
     }
 
     #[test]
+    fn observations_with_offsets_are_listed_chronologically() {
+        let path = temp_store_path("offset-observation-order");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        insert_observation_with_id(&repo, "obs-z", "2026-04-01T01:00:00-05:00", 8.0);
+        insert_observation_with_id(&repo, "obs-a", "2026-04-01T05:00:00Z", 12.0);
+        insert_observation_with_id(&repo, "obs-m", "2026-04-01T07:00:00+01:00", 10.0);
+
+        let observations =
+            block_on(repo.list_observations("owner")).expect("observations should load");
+
+        assert_eq!(
+            observations
+                .iter()
+                .map(|observation| observation.observation_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["obs-a", "obs-m", "obs-z"]
+        );
+    }
+
+    #[test]
+    fn stockless_offset_observation_after_baseline_is_allowed() {
+        let path = temp_store_path("offset-earliest-stock-baseline");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T05:00:00Z", 12.0).input),
+        )
+        .expect("stock baseline should insert");
+        block_on(
+            repo.insert_observation("owner", &stockless_observation("2026-04-01T01:00:00-05:00")),
+        )
+        .expect("later stockless observation should insert");
+    }
+
+    #[test]
     fn observation_fingerprint_uses_metadata_without_deserializing_observations() {
         let path = temp_store_path("observation-fingerprint");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
@@ -3738,6 +3796,26 @@ mod tests {
     }
 
     #[test]
+    fn observation_fingerprint_orders_offset_timestamps_by_instant() {
+        let path = temp_store_path("observation-fingerprint-offset");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        insert_observation_with_id(&repo, "obs-z", "2026-04-01T01:00:00-05:00", 8.0);
+        insert_observation_with_id(&repo, "obs-a", "2026-04-01T05:00:00Z", 12.0);
+        insert_observation_with_id(&repo, "obs-m", "2026-04-01T07:00:00+01:00", 10.0);
+
+        let fingerprint =
+            block_on(repo.get_observation_fingerprint("owner")).expect("fingerprint should load");
+
+        assert_eq!(fingerprint.count, 3);
+        assert_eq!(
+            fingerprint.latest_observed_at.as_deref(),
+            Some("2026-04-01T01:00:00-05:00")
+        );
+        assert_eq!(fingerprint.latest_observation_id.as_deref(), Some("obs-z"));
+    }
+
+    #[test]
     fn observation_fingerprint_changes_when_older_payload_changes() {
         let path = temp_store_path("observation-fingerprint-payload");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
@@ -3824,6 +3902,56 @@ mod tests {
         assert_eq!(
             next.latest_observed_at.as_deref(),
             Some("2026-04-03T00:00:00Z")
+        );
+    }
+
+    #[test]
+    fn observation_pages_order_offset_timestamps_by_instant() {
+        let path = temp_store_path("observation-page-offset");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        insert_observation_with_id(&repo, "obs-z", "2026-04-01T01:00:00-05:00", 8.0);
+        insert_observation_with_id(&repo, "obs-a", "2026-04-01T05:00:00Z", 12.0);
+        insert_observation_with_id(&repo, "obs-m", "2026-04-01T07:00:00+01:00", 10.0);
+
+        let first = block_on(repo.list_observation_page(
+            "owner",
+            Some(&SenaObservationPageRequest {
+                before_observed_at: None,
+                before_observation_id: None,
+                limit: Some(2),
+            }),
+        ))
+        .expect("first page should load");
+
+        assert_eq!(
+            first
+                .observations
+                .iter()
+                .map(|observation| observation.observation_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["obs-z", "obs-m"]
+        );
+        assert!(first.has_older);
+        let cursor = first.next_cursor.expect("older cursor should exist");
+        assert_eq!(cursor.observed_at, "2026-04-01T07:00:00+01:00");
+        assert_eq!(cursor.observation_id, "obs-m");
+
+        let next = block_on(repo.list_observation_page(
+            "owner",
+            Some(&SenaObservationPageRequest {
+                before_observed_at: Some(cursor.observed_at),
+                before_observation_id: Some(cursor.observation_id),
+                limit: Some(2),
+            }),
+        ))
+        .expect("next page should load");
+        assert_eq!(
+            next.observations
+                .iter()
+                .map(|observation| observation.observation_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["obs-a"]
         );
     }
 
@@ -4670,6 +4798,68 @@ mod tests {
         assert_eq!(
             split_batch.children[0].effective.received_quantity,
             Some(5.0)
+        );
+    }
+
+    #[test]
+    fn split_order_child_preserves_manual_review_status() {
+        let path = temp_store_path("order-split-reviewed");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let batch = block_on(repo.create_order_batch(
+            "owner",
+            &SenaCreateOrderBatchPayload {
+                supplier_name: Some("Mekong Looms".to_string()),
+                shared: SenaOrderFieldValues::default(),
+                children: vec![
+                    crate::types::SenaOrderBatchCreateChildInput {
+                        sku_id: "shirt".to_string(),
+                        overrides: Some(SenaOrderFieldValues {
+                            received_quantity: Some(5.0),
+                            receipt_timestamp: Some("2026-04-21T00:00:00Z".to_string()),
+                            ..Default::default()
+                        }),
+                    },
+                    crate::types::SenaOrderBatchCreateChildInput {
+                        sku_id: "pants".to_string(),
+                        overrides: None,
+                    },
+                ],
+            },
+        ))
+        .expect("order batch should create");
+        let child_id = batch.children[0].child_order_id.clone();
+
+        let reviewed = block_on(repo.update_order_child(
+            "owner",
+            &SenaUpdateOrderChildPayload {
+                child_order_id: child_id.clone(),
+                sku_id: None,
+                overrides: None,
+                status: Some(crate::types::SenaOrderChildStatus::Reviewed),
+                append_supplier_note: None,
+            },
+        ))
+        .expect("order child should mark reviewed");
+        assert_eq!(
+            reviewed.children[0].status,
+            crate::types::SenaOrderChildStatus::Reviewed
+        );
+
+        let split_batch = block_on(repo.split_order_child(
+            "owner",
+            &SenaSplitOrderChildPayload {
+                child_order_id: child_id,
+            },
+        ))
+        .expect("reviewed child should split");
+
+        assert_eq!(
+            split_batch.children[0].status,
+            crate::types::SenaOrderChildStatus::Reviewed
+        );
+        assert_eq!(
+            split_batch.status,
+            crate::types::SenaOrderBatchStatus::Reviewed
         );
     }
 }
