@@ -627,6 +627,7 @@ pub fn run_preprocessed_analysis(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_preprocessed_analysis_with_parameters(
     owner_sub: &str,
     catalog: &SenaCatalog,
@@ -1268,25 +1269,23 @@ fn execute_particle_batches(
     service_index: &HashMap<&str, usize>,
 ) -> Vec<IntervalParticleResult> {
     let particle_count = particles.len();
+    let context = ParticleStepContext {
+        owner_sub,
+        catalog,
+        interval,
+        usage_map: &preprocessed.usage_map,
+        sku_capacity_hints: &preprocessed.sku_capacity_hints,
+        observation_sigma: &preprocessed.observation_sigma,
+        sku_index,
+        service_index,
+    };
     #[cfg(not(feature = "desktop"))]
     {
         return particles
             .iter()
             .enumerate()
             .map(|(particle_index, particle)| {
-                step_particle(
-                    particle_index,
-                    particle_count,
-                    particle,
-                    owner_sub,
-                    catalog,
-                    interval,
-                    &preprocessed.usage_map,
-                    &preprocessed.sku_capacity_hints,
-                    &preprocessed.observation_sigma,
-                    sku_index,
-                    service_index,
-                )
+                step_particle(particle_index, particle_count, particle, &context)
             })
             .collect();
     }
@@ -1306,14 +1305,7 @@ fn execute_particle_batches(
                             absolute_index,
                             particle_count,
                             particle,
-                            owner_sub,
-                            catalog,
-                            interval,
-                            &preprocessed.usage_map,
-                            &preprocessed.sku_capacity_hints,
-                            &preprocessed.observation_sigma,
-                            sku_index,
-                            service_index,
+                            &context,
                         ));
                     }
                     batch_results
@@ -1342,6 +1334,10 @@ pub fn run_analysis_with_parameters(
     algorithm_version: &str,
     parameters: Option<&SenaEngineParameters>,
 ) -> Result<(SenaAnalysisResult, AnalysisArtifacts)> {
+    catalog.validate()?;
+    for observation in observations {
+        observation.input.validate()?;
+    }
     let preprocessed = preprocess_workspace(catalog, observations)?;
     let output = run_preprocessed_analysis_with_parameters(
         owner_sub,
@@ -1356,26 +1352,37 @@ pub fn run_analysis_with_parameters(
     Ok((output.result, output.artifacts))
 }
 
+struct ParticleStepContext<'a> {
+    owner_sub: &'a str,
+    catalog: &'a SenaCatalog,
+    interval: &'a PreprocessedInterval,
+    usage_map: &'a [Vec<(usize, f64)>],
+    sku_capacity_hints: &'a [f64],
+    observation_sigma: &'a [f64],
+    sku_index: &'a HashMap<&'a str, usize>,
+    service_index: &'a HashMap<&'a str, usize>,
+}
+
 fn step_particle(
     particle_index: usize,
     particle_count: usize,
     particle: &Particle,
-    owner_sub: &str,
-    catalog: &SenaCatalog,
-    interval: &PreprocessedInterval,
-    usage_map: &[Vec<(usize, f64)>],
-    sku_capacity_hints: &[f64],
-    observation_sigma: &[f64],
-    sku_index: &HashMap<&str, usize>,
-    service_index: &HashMap<&str, usize>,
+    context: &ParticleStepContext<'_>,
 ) -> IntervalParticleResult {
     let mut rng = StdRng::seed_from_u64(particle_seed(
-        owner_sub,
-        interval.index,
+        context.owner_sub,
+        context.interval.index,
         particle_count,
         particle_index,
     ));
     let mut next = particle.clone();
+    let catalog = context.catalog;
+    let interval = context.interval;
+    let usage_map = context.usage_map;
+    let sku_capacity_hints = context.sku_capacity_hints;
+    let observation_sigma = context.observation_sigma;
+    let sku_index = context.sku_index;
+    let service_index = context.service_index;
     let sku_count = catalog.skus.len();
     let service_count = catalog.services.len();
 
@@ -1905,7 +1912,7 @@ fn normalize_intervals(
             .map(|entry| (entry.sku_id.clone(), entry.units_sold.max(0.0)))
             .collect::<HashMap<_, _>>();
         let service_rank_order = if exact_service_sales_by_service.is_empty() {
-            pair[1].input.service_rankings.iter().cloned().collect()
+            pair[1].input.service_rankings.to_vec()
         } else {
             let mut ranked = pair[1]
                 .input
@@ -1926,7 +1933,7 @@ fn normalize_intervals(
                 .collect()
         };
         let retail_rank_order = if exact_retail_sales_by_sku.is_empty() {
-            pair[1].input.retail_rankings.iter().cloned().collect()
+            pair[1].input.retail_rankings.to_vec()
         } else {
             let mut ranked = pair[1]
                 .input
@@ -1959,8 +1966,8 @@ fn normalize_intervals(
             exact_retail_sales_by_sku,
             service_rank_order,
             retail_rank_order,
-            service_stockouts: pair[1].input.service_stockouts.iter().cloned().collect(),
-            retail_stockouts: pair[1].input.retail_stockouts.iter().cloned().collect(),
+            service_stockouts: pair[1].input.service_stockouts.to_vec(),
+            retail_stockouts: pair[1].input.retail_stockouts.to_vec(),
             order_signal_by_sku: pair[1]
                 .input
                 .order_signals
@@ -2720,6 +2727,33 @@ mod tests {
             result.service_details[0].contributors[0].reorder_quantity,
             Some(reorder_quantity.clone())
         );
+    }
+
+    #[test]
+    fn analysis_rejects_invalid_catalog_and_observation_inputs() {
+        let mut invalid_catalog = sample_catalog();
+        invalid_catalog.services[0].price = -1.0;
+        let observations = vec![
+            observation("2026-04-01T00:00:00Z", 10.0, false, false, 10.0),
+            observation("2026-04-02T00:00:00Z", 8.0, false, false, 10.0),
+        ];
+
+        let catalog_error =
+            run_analysis("owner", &invalid_catalog, &observations, "sena-analysis-v3")
+                .expect_err("invalid catalog should fail before preprocessing");
+        assert!(catalog_error
+            .to_string()
+            .contains("service price must be >= 0"));
+
+        let catalog = sample_catalog();
+        let mut invalid_observations = observations;
+        invalid_observations[1].input.service_prices[0].price = f64::INFINITY;
+        let observation_error =
+            run_analysis("owner", &catalog, &invalid_observations, "sena-analysis-v3")
+                .expect_err("invalid observation should fail before preprocessing");
+        assert!(observation_error
+            .to_string()
+            .contains("servicePrices[].price must be >= 0"));
     }
 
     #[test]

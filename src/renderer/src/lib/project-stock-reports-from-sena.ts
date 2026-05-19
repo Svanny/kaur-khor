@@ -15,9 +15,21 @@ function sortObservationsAscending(observations: SenaObservationRecord[]) {
   });
 }
 
+function nonNegativeFiniteOrFallback(value: number | null | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function optionalNonNegativeFiniteOrFallback(value: number | null | undefined, fallback: number | null) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function finiteOrNull(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 export function projectStockReportsFromSena(observations: SenaObservationRecord[]): StockReport[] {
   const previousRetailPriceBySkuId = new Map<string, number | null>();
-  const previousServicePriceByServiceId = new Map<string, number>();
+  const previousServicePriceByServiceId = new Map<string, number | null>();
   const reports = sortObservationsAscending(observations).map<StockReport>((observation) => {
     const skuObservationBySkuId = new Map(
       observation.input.stockSnapshot.map((entry) => [entry.skuId, entry]),
@@ -50,11 +62,14 @@ export function projectStockReportsFromSena(observations: SenaObservationRecord[
         const adjustment = adjustmentBySkuId.get(skuId);
         const nextObservation: StockReportSkuObservation = {
           skuId,
-          unitsInStock: stockSnapshot?.unitsInStock ?? 0,
-          costPerUnit: stockSnapshot?.costPerUnit ?? 0,
+          unitsInStock: nonNegativeFiniteOrFallback(stockSnapshot?.unitsInStock, 0),
+          costPerUnit: nonNegativeFiniteOrFallback(stockSnapshot?.costPerUnit, 0),
         };
         if (stockSnapshot?.productPrice != null || retailPrice != null) {
-          nextObservation.productPrice = retailPrice ?? stockSnapshot?.productPrice ?? null;
+          nextObservation.productPrice = optionalNonNegativeFiniteOrFallback(
+            retailPrice,
+            optionalNonNegativeFiniteOrFallback(stockSnapshot?.productPrice, null),
+          );
         }
         const previousPrice = previousRetailPriceBySkuId.get(skuId);
         if (previousPrice !== undefined) {
@@ -69,7 +84,7 @@ export function projectStockReportsFromSena(observations: SenaObservationRecord[
           nextObservation.retailStockout = true;
         }
         if (adjustment) {
-          nextObservation.adjustmentDelta = adjustment.quantityDelta;
+          nextObservation.adjustmentDelta = finiteOrNull(adjustment.quantityDelta);
           nextObservation.notes = adjustment.reason;
         }
         previousRetailPriceBySkuId.set(skuId, nextObservation.productPrice ?? null);
@@ -78,15 +93,16 @@ export function projectStockReportsFromSena(observations: SenaObservationRecord[
 
     const servicePriceAdjustments = (observation.input.servicePrices ?? [])
       .map<StockReportServicePriceAdjustment>((entry) => {
+        const price = nonNegativeFiniteOrFallback(entry.price, 0);
         const nextAdjustment: StockReportServicePriceAdjustment = {
           serviceId: entry.serviceId,
-          price: entry.price,
+          price,
         };
         const previousPrice = previousServicePriceByServiceId.get(entry.serviceId);
         if (previousPrice !== undefined) {
           nextAdjustment.previousPrice = previousPrice;
         }
-        previousServicePriceByServiceId.set(entry.serviceId, entry.price);
+        previousServicePriceByServiceId.set(entry.serviceId, price);
         return nextAdjustment;
       });
 

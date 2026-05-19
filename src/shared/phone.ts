@@ -24,6 +24,7 @@ const THREE_DIGIT_COUNTRY_CODES = new Set([
 ]);
 
 export const DEFAULT_PHONE_COUNTRY_CODE = '855';
+const MAX_SANITIZED_PHONE_LENGTH = 32;
 
 function digitsOnly(value: string) {
   return value.replace(/\D/g, '');
@@ -64,7 +65,11 @@ export function sanitizePhoneInput(value: string | null | undefined) {
   const normalizedInternationalPrefix = trimmed.replace(/^00/, '+');
   const hasLeadingPlus = normalizedInternationalPrefix.startsWith('+');
   const digits = digitsOnly(normalizedInternationalPrefix);
-  return hasLeadingPlus ? `+${digits}` : digits;
+  if (!digits) {
+    return '';
+  }
+  const cappedDigits = digits.slice(0, MAX_SANITIZED_PHONE_LENGTH);
+  return hasLeadingPlus ? `+${cappedDigits}` : cappedDigits;
 }
 
 export function normalizePhoneNumber(

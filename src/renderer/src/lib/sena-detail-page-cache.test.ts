@@ -223,6 +223,255 @@ describe('sena detail page cache', () => {
     })?.latestIntervalIndex).toBe(20);
   });
 
+  it('ignores corrupted cache entry envelopes', () => {
+    const key = cacheKey(null);
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      entries: {
+        [key]: {
+          beforeIntervalIndex: null,
+          entityId: 'sku-1',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: 'not-a-page',
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-05T00:00:00.000Z',
+        },
+      },
+      entityIndex: {
+        'sku:sku-1': [key],
+      },
+      fingerprintIndex: {
+        [freshness ?? '']: [key],
+      },
+    }));
+
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+
+    expect(() => writePersistedSenaDetailPage({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      page: makeSkuPage(20),
+      storage: window.localStorage,
+    })).not.toThrow();
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })?.latestIntervalIndex).toBe(20);
+  });
+
+  it('ignores structurally invalid detail pages before route hydration can read them', () => {
+    const skuKey = cacheKey(null);
+    const serviceKey = 'service:service-1:before:latest:limit:20';
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      entries: {
+        [skuKey]: {
+          beforeIntervalIndex: null,
+          entityId: 'sku-1',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: { detail: {} },
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-05T00:00:00.000Z',
+        },
+        [serviceKey]: {
+          beforeIntervalIndex: null,
+          entityId: 'service-1',
+          entityType: 'service',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: { detail: { serviceId: 'service-1' } },
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-05T00:00:00.000Z',
+        },
+      },
+      entityIndex: {
+        'sku:sku-1': [skuKey],
+        'service:service-1': [serviceKey],
+      },
+      fingerprintIndex: {
+        [freshness ?? '']: [skuKey, serviceKey],
+      },
+    }));
+
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+    expect(readPersistedSenaDetailPage<SenaServiceDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'service-1',
+      entityType: 'service',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+
+    writePersistedSenaDetailPage({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      page: makeSkuPage(20),
+      storage: window.localStorage,
+    });
+    writePersistedSenaDetailPage({
+      beforeIntervalIndex: null,
+      entityId: 'service-1',
+      entityType: 'service',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      page: makeServicePage(20),
+      storage: window.localStorage,
+    });
+
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })?.latestIntervalIndex).toBe(20);
+    expect(readPersistedSenaDetailPage<SenaServiceDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'service-1',
+      entityType: 'service',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })?.latestIntervalIndex).toBe(20);
+  });
+
+  it('ignores cache entries whose storage key does not match the envelope subject', () => {
+    const key = cacheKey(null);
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      entries: {
+        [key]: {
+          beforeIntervalIndex: null,
+          entityId: 'sku-2',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: makeSkuPage(20),
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-05T00:00:00.000Z',
+        },
+      },
+      entityIndex: {
+        'sku:sku-1': [key],
+      },
+      fingerprintIndex: {
+        [freshness ?? '']: [key],
+      },
+    }));
+
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+
+    writePersistedSenaDetailPage({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      page: makeSkuPage(20),
+      storage: window.localStorage,
+    });
+
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })?.latestIntervalIndex).toBe(20);
+  });
+
+  it('ignores cache entries whose page identity does not match the envelope subject', () => {
+    const skuKey = cacheKey(null);
+    const serviceKey = 'service:service-1:before:latest:limit:20';
+    const wrongSkuPage = makeSkuPage(20);
+    wrongSkuPage.detail.summary.skuId = 'sku-2';
+    const wrongServicePage = makeServicePage(20);
+    wrongServicePage.detail.serviceId = 'service-2';
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      entries: {
+        [skuKey]: {
+          beforeIntervalIndex: null,
+          entityId: 'sku-1',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: wrongSkuPage,
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-05T00:00:00.000Z',
+        },
+        [serviceKey]: {
+          beforeIntervalIndex: null,
+          entityId: 'service-1',
+          entityType: 'service',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: wrongServicePage,
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-05T00:00:00.000Z',
+        },
+      },
+      entityIndex: {
+        'sku:sku-1': [skuKey],
+        'service:service-1': [serviceKey],
+      },
+      fingerprintIndex: {
+        [freshness ?? '']: [skuKey, serviceKey],
+      },
+    }));
+
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+    expect(readPersistedSenaDetailPage<SenaServiceDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'service-1',
+      entityType: 'service',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+  });
+
   it('prunes stale fingerprints and clears per entity', () => {
     writePersistedSenaDetailPage({
       beforeIntervalIndex: null,

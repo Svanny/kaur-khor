@@ -904,16 +904,33 @@ impl SenaCatalog {
         }
         let mut sku_ids = HashSet::new();
         for sku in &self.skus {
-            validate_identifier("skuId", &sku.sku_id)?;
+            validate_entity_identifier("skuId", &sku.sku_id)?;
             validate_non_empty("sku name", &sku.name)?;
+            if !sku.cost_per_unit.is_finite() || sku.cost_per_unit < 0.0 {
+                return Err(anyhow!("costPerUnit must be >= 0"));
+            }
+            for (label, value) in [
+                ("productPrice", sku.product_price),
+                ("leadTimeMeanDaysHint", sku.lead_time_mean_days_hint),
+                ("leadTimeStdDaysHint", sku.lead_time_std_days_hint),
+            ] {
+                if let Some(value) = value {
+                    if !value.is_finite() || value < 0.0 {
+                        return Err(anyhow!("{label} must be >= 0"));
+                    }
+                }
+            }
             if !sku_ids.insert(sku.sku_id.clone()) {
                 return Err(anyhow!("duplicate skuId '{}'", sku.sku_id));
             }
         }
         let mut service_ids = HashSet::new();
         for service in &self.services {
-            validate_identifier("serviceId", &service.service_id)?;
+            validate_entity_identifier("serviceId", &service.service_id)?;
             validate_non_empty("service name", &service.name)?;
+            if !service.price.is_finite() || service.price < 0.0 {
+                return Err(anyhow!("service price must be >= 0"));
+            }
             if !service_ids.insert(service.service_id.clone()) {
                 return Err(anyhow!("duplicate serviceId '{}'", service.service_id));
             }
@@ -924,6 +941,7 @@ impl SenaCatalog {
                 ));
             }
         }
+        let mut sharing_mask_pairs = HashSet::new();
         for entry in &self.sharing_mask {
             if !service_ids.contains(&entry.service_id) {
                 return Err(anyhow!(
@@ -941,6 +959,13 @@ impl SenaCatalog {
                 if !(0.0..=1.0).contains(&probability) {
                     return Err(anyhow!("usageProbability must be between 0 and 1"));
                 }
+            }
+            if !sharing_mask_pairs.insert((entry.service_id.clone(), entry.sku_id.clone())) {
+                return Err(anyhow!(
+                    "duplicate sharingMask serviceId '{}' skuId '{}'",
+                    entry.service_id,
+                    entry.sku_id
+                ));
             }
         }
         Ok(())
@@ -982,8 +1007,8 @@ impl SenaObservationInput {
         .map_err(|err| anyhow!("observedAt must be RFC3339: {err}"))?;
         let mut seen = HashSet::new();
         for snapshot in &self.stock_snapshot {
-            validate_identifier("skuId", &snapshot.sku_id)?;
-            if snapshot.units_in_stock < 0.0 {
+            validate_entity_identifier("skuId", &snapshot.sku_id)?;
+            if !snapshot.units_in_stock.is_finite() || snapshot.units_in_stock < 0.0 {
                 return Err(anyhow!("unitsInStock must be >= 0"));
             }
             if let Some(cost) = snapshot.cost_per_unit {
@@ -1005,7 +1030,7 @@ impl SenaObservationInput {
         }
         let mut seen_retail_sales = HashSet::new();
         for snapshot in &self.retail_sales_snapshot {
-            validate_identifier("retailSalesSnapshot[].skuId", &snapshot.sku_id)?;
+            validate_entity_identifier("retailSalesSnapshot[].skuId", &snapshot.sku_id)?;
             if !snapshot.units_sold.is_finite() || snapshot.units_sold < 0.0 {
                 return Err(anyhow!("retailSalesSnapshot[].unitsSold must be >= 0"));
             }
@@ -1018,7 +1043,7 @@ impl SenaObservationInput {
         }
         let mut seen_service_sales = HashSet::new();
         for snapshot in &self.service_sales_snapshot {
-            validate_identifier("serviceSalesSnapshot[].serviceId", &snapshot.service_id)?;
+            validate_entity_identifier("serviceSalesSnapshot[].serviceId", &snapshot.service_id)?;
             if !snapshot.units_sold.is_finite() || snapshot.units_sold < 0.0 {
                 return Err(anyhow!("serviceSalesSnapshot[].unitsSold must be >= 0"));
             }
@@ -1030,31 +1055,47 @@ impl SenaObservationInput {
             }
         }
         for service_id in &self.service_rankings {
-            validate_identifier("serviceRankings[]", service_id)?;
+            validate_entity_identifier("serviceRankings[]", service_id)?;
         }
+        validate_unique_entity_ids("serviceRankings[]", &self.service_rankings)?;
         for sku_id in &self.retail_rankings {
-            validate_identifier("retailRankings[]", sku_id)?;
+            validate_entity_identifier("retailRankings[]", sku_id)?;
         }
+        validate_unique_entity_ids("retailRankings[]", &self.retail_rankings)?;
         for service_id in &self.service_stockouts {
-            validate_identifier("serviceStockouts[]", service_id)?;
+            validate_entity_identifier("serviceStockouts[]", service_id)?;
         }
+        validate_unique_entity_ids("serviceStockouts[]", &self.service_stockouts)?;
         for sku_id in &self.retail_stockouts {
-            validate_identifier("retailStockouts[]", sku_id)?;
+            validate_entity_identifier("retailStockouts[]", sku_id)?;
         }
+        validate_unique_entity_ids("retailStockouts[]", &self.retail_stockouts)?;
+        let mut seen_service_prices = HashSet::new();
         for price in &self.service_prices {
-            validate_identifier("servicePrices[].serviceId", &price.service_id)?;
+            validate_entity_identifier("servicePrices[].serviceId", &price.service_id)?;
             if !price.price.is_finite() || price.price < 0.0 {
                 return Err(anyhow!("servicePrices[].price must be >= 0"));
             }
+            if !seen_service_prices.insert(price.service_id.clone()) {
+                return Err(anyhow!(
+                    "duplicate servicePrices serviceId '{}'",
+                    price.service_id
+                ));
+            }
         }
+        let mut seen_retail_prices = HashSet::new();
         for price in &self.retail_prices {
-            validate_identifier("retailPrices[].skuId", &price.sku_id)?;
+            validate_entity_identifier("retailPrices[].skuId", &price.sku_id)?;
             if !price.price.is_finite() || price.price < 0.0 {
                 return Err(anyhow!("retailPrices[].price must be >= 0"));
             }
+            if !seen_retail_prices.insert(price.sku_id.clone()) {
+                return Err(anyhow!("duplicate retailPrices skuId '{}'", price.sku_id));
+            }
         }
+        let mut seen_lead_time_hints = HashSet::new();
         for hint in &self.lead_time_hints {
-            validate_identifier("leadTimeHints[].skuId", &hint.sku_id)?;
+            validate_entity_identifier("leadTimeHints[].skuId", &hint.sku_id)?;
             if let Some(days) = hint.typical_days {
                 if !days.is_finite() || days < 0.0 {
                     return Err(anyhow!("leadTimeHints[].typicalDays must be >= 0"));
@@ -1079,9 +1120,13 @@ impl SenaObservationInput {
                     "leadTimeHints[] must include typicalDays, variabilityClass, or low/high range"
                 ));
             }
+            if !seen_lead_time_hints.insert(hint.sku_id.clone()) {
+                return Err(anyhow!("duplicate leadTimeHints skuId '{}'", hint.sku_id));
+            }
         }
+        let mut seen_order_signals = HashSet::new();
         for signal in &self.order_signals {
-            validate_identifier("orderSignals[].skuId", &signal.sku_id)?;
+            validate_entity_identifier("orderSignals[].skuId", &signal.sku_id)?;
             if let Some(quantity) = signal.approximate_order_quantity {
                 if !quantity.is_finite() || quantity < 0.0 {
                     return Err(anyhow!(
@@ -1113,16 +1158,19 @@ impl SenaObservationInput {
                         anyhow!("orderSignals[].receiptTimestamp must be RFC3339: {err}")
                     })?;
             }
+            if !seen_order_signals.insert(signal.sku_id.clone()) {
+                return Err(anyhow!("duplicate orderSignals skuId '{}'", signal.sku_id));
+            }
         }
         for signal in &self.adjustment_signals {
-            validate_identifier("adjustmentSignals[].skuId", &signal.sku_id)?;
+            validate_entity_identifier("adjustmentSignals[].skuId", &signal.sku_id)?;
             validate_non_empty("adjustmentSignals[].reason", &signal.reason)?;
             if !signal.quantity_delta.is_finite() {
                 return Err(anyhow!("adjustmentSignals[].quantityDelta must be finite"));
             }
         }
         for event in &self.commercial_events {
-            validate_identifier("commercialEvents[].entityId", &event.entity_id)?;
+            validate_entity_identifier("commercialEvents[].entityId", &event.entity_id)?;
             if !event.quantity_delta.is_finite() {
                 return Err(anyhow!("commercialEvents[].quantityDelta must be finite"));
             }
@@ -1130,12 +1178,19 @@ impl SenaObservationInput {
                 validate_non_empty("commercialEvents[].reason", reason)?;
             }
         }
+        let mut seen_ticket_events = HashSet::new();
         for event in &self.ticket_events {
             validate_ticket_event(event)?;
+            if !seen_ticket_events.insert(event.ticket_id.clone()) {
+                return Err(anyhow!(
+                    "duplicate ticketEvents ticketId '{}'",
+                    event.ticket_id
+                ));
+            }
         }
         for hint in &self.recipe_usage_hints {
-            validate_identifier("recipeUsageHints[].serviceId", &hint.service_id)?;
-            validate_identifier("recipeUsageHints[].skuId", &hint.sku_id)?;
+            validate_entity_identifier("recipeUsageHints[].serviceId", &hint.service_id)?;
+            validate_entity_identifier("recipeUsageHints[].skuId", &hint.sku_id)?;
             if !hint.usage_probability.is_finite() || !(0.0..=1.0).contains(&hint.usage_probability)
             {
                 return Err(anyhow!(
@@ -1160,6 +1215,16 @@ impl SenaObservationInput {
         }
         Ok(())
     }
+}
+
+fn validate_unique_entity_ids(label: &str, values: &[String]) -> Result<()> {
+    let mut seen = HashSet::new();
+    for value in values {
+        if !seen.insert(value.clone()) {
+            return Err(anyhow!("duplicate {label} '{}'", value));
+        }
+    }
+    Ok(())
 }
 
 fn validate_ticket_event(event: &SenaTicketEvent) -> Result<()> {
@@ -1341,11 +1406,22 @@ fn validate_ticket_party_metadata(metadata: &SenaTicketPartyMetadata) -> Result<
             validate_non_empty(label, value)?;
         }
     }
+    if let (Some(customer_name), Some(customer_name_key)) = (
+        metadata.customer_name.as_deref(),
+        metadata.customer_name_key.as_deref(),
+    ) {
+        let expected_key = normalize_ticket_lookup_value(customer_name);
+        if !expected_key.is_empty() && customer_name_key != expected_key {
+            return Err(anyhow!(
+                "ticketEvents[].party.customerNameKey must match customerName"
+            ));
+        }
+    }
     Ok(())
 }
 
 fn validate_ticket_line(line: &SenaTicketLine) -> Result<()> {
-    validate_identifier("ticketEvents[].lines[].entityId", &line.entity_id)?;
+    validate_entity_identifier("ticketEvents[].lines[].entityId", &line.entity_id)?;
     if let Some(quantity) = line.quantity_delta {
         if !quantity.is_finite() {
             return Err(anyhow!(
@@ -1457,11 +1533,34 @@ pub fn validate_identifier(label: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn validate_entity_identifier(label: &str, value: &str) -> Result<()> {
+    validate_identifier(label, value)?;
+    if !value.chars().all(|character| {
+        character.is_ascii_lowercase()
+            || character.is_ascii_digit()
+            || character == '-'
+            || character == '_'
+    }) {
+        return Err(anyhow!(
+            "{label} may only contain lowercase ASCII letters, digits, '-' and '_'"
+        ));
+    }
+    Ok(())
+}
+
 pub fn validate_non_empty(label: &str, value: &str) -> Result<()> {
     if value.trim().is_empty() {
         return Err(anyhow!("{label} must not be empty"));
     }
     Ok(())
+}
+
+fn normalize_ticket_lookup_value(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 #[cfg(test)]
@@ -1506,6 +1605,91 @@ mod tests {
 
         let error = catalog.validate().expect_err("validation should fail");
         assert!(error.to_string().contains("conflicts with existing skuId"));
+    }
+
+    #[test]
+    fn catalog_validation_rejects_path_control_entity_ids() {
+        let catalog = SenaCatalog {
+            schema_version: SENA_SCHEMA_VERSION,
+            skus: vec![SenaSku {
+                sku_id: "sku/unsafe".to_string(),
+                name: "SKU".to_string(),
+                description: String::new(),
+                image_path: None,
+                supplier_name: Some("Test supplier".to_string()),
+                cost_per_unit: 2.0,
+                archived: false,
+                sold_as_product: false,
+                product_price: None,
+                lead_time_mean_days_hint: None,
+                lead_time_std_days_hint: None,
+            }],
+            services: vec![SenaService {
+                service_id: "service-1".to_string(),
+                name: "Service".to_string(),
+                description: String::new(),
+                image_path: None,
+                price: 10.0,
+                archived: false,
+                bundle: false,
+            }],
+            bundles: Vec::new(),
+            sharing_mask: Vec::new(),
+        };
+
+        let error = catalog.validate().expect_err("validation should fail");
+        assert!(error
+            .to_string()
+            .contains("skuId may only contain lowercase ASCII letters, digits, '-' and '_'"));
+    }
+
+    #[test]
+    fn catalog_validation_rejects_duplicate_sharing_mask_pairs() {
+        let catalog = SenaCatalog {
+            schema_version: SENA_SCHEMA_VERSION,
+            skus: vec![SenaSku {
+                sku_id: "sku-1".to_string(),
+                name: "SKU 1".to_string(),
+                description: "SKU".to_string(),
+                image_path: None,
+                supplier_name: None,
+                cost_per_unit: 1.0,
+                archived: false,
+                sold_as_product: true,
+                product_price: Some(2.0),
+                lead_time_mean_days_hint: None,
+                lead_time_std_days_hint: None,
+            }],
+            services: vec![SenaService {
+                service_id: "service-1".to_string(),
+                name: "Service 1".to_string(),
+                description: "Service".to_string(),
+                image_path: None,
+                price: 5.0,
+                archived: false,
+                bundle: false,
+            }],
+            bundles: Vec::new(),
+            sharing_mask: vec![
+                crate::types::SenaServiceSkuMaskEntry {
+                    service_id: "service-1".to_string(),
+                    sku_id: "sku-1".to_string(),
+                    enabled: true,
+                    usage_probability: Some(0.85),
+                },
+                crate::types::SenaServiceSkuMaskEntry {
+                    service_id: "service-1".to_string(),
+                    sku_id: "sku-1".to_string(),
+                    enabled: true,
+                    usage_probability: Some(0.35),
+                },
+            ],
+        };
+
+        let error = catalog.validate().expect_err("validation should fail");
+        assert!(error
+            .to_string()
+            .contains("duplicate sharingMask serviceId 'service-1' skuId 'sku-1'"));
     }
 
     #[test]
@@ -1605,6 +1789,41 @@ mod tests {
     }
 
     #[test]
+    fn observation_validation_rejects_non_finite_stock_units() {
+        let mut observation = SenaObservationInput {
+            observed_at: "2026-04-03T00:00:00Z".to_string(),
+            stock_snapshot: vec![SenaStockSnapshot {
+                sku_id: "sku-1".to_string(),
+                units_in_stock: 10.0,
+                cost_per_unit: Some(2.0),
+                product_price: Some(4.0),
+            }],
+            retail_sales_snapshot: Vec::new(),
+            service_sales_snapshot: Vec::new(),
+            service_rankings: Vec::new(),
+            retail_rankings: Vec::new(),
+            service_stockouts: Vec::new(),
+            retail_stockouts: Vec::new(),
+            order_signals: Vec::new(),
+            service_prices: Vec::new(),
+            retail_prices: Vec::new(),
+            lead_time_hints: Vec::new(),
+            regime_hint: None,
+            adjustment_signals: Vec::new(),
+            commercial_events: Vec::new(),
+            ticket_events: Vec::new(),
+            delivery_fee: None,
+            discount: None,
+            recipe_usage_hints: Vec::new(),
+            notes: None,
+        };
+
+        observation.stock_snapshot[0].units_in_stock = f64::INFINITY;
+        let error = observation.validate().expect_err("validation should fail");
+        assert!(error.to_string().contains("unitsInStock must be >= 0"));
+    }
+
+    #[test]
     fn observation_validation_accepts_signal_only_payload() {
         let observation = serde_json::from_str::<SenaObservationInput>(
             r#"{
@@ -1632,6 +1851,146 @@ mod tests {
         .expect("observation should parse");
 
         observation.validate().expect("observation should validate");
+    }
+
+    #[test]
+    fn observation_validation_rejects_duplicate_collapsed_signals() {
+        let observation = serde_json::from_str::<SenaObservationInput>(
+            r#"{
+              "observedAt": "2026-04-03T00:00:00Z",
+              "stockSnapshot": [],
+              "serviceRankings": ["service-1"],
+              "retailRankings": ["sku-1"],
+              "serviceStockouts": ["service-1"],
+              "retailStockouts": ["sku-1"],
+              "orderSignals": [{
+                "skuId": "sku-1",
+                "orderPlaced": true,
+                "receiptArrived": false,
+                "approximateOrderQuantity": 8,
+                "approximateReceiptQuantity": null
+              }],
+              "servicePrices": [{"serviceId": "service-1", "price": 15}],
+              "retailPrices": [{"skuId": "sku-1", "price": 9}],
+              "leadTimeHints": [{"skuId": "sku-1", "typicalDays": 4}],
+              "adjustmentSignals": [],
+              "recipeUsageHints": [],
+              "notes": "Signal-only sparse update"
+            }"#,
+        )
+        .expect("observation should parse");
+
+        let mut duplicate_service_ranking = observation.clone();
+        duplicate_service_ranking
+            .service_rankings
+            .push("service-1".to_string());
+        let error = duplicate_service_ranking
+            .validate()
+            .expect_err("validation should reject duplicate service ranking");
+        assert!(error
+            .to_string()
+            .contains("duplicate serviceRankings[] 'service-1'"));
+
+        let mut duplicate_service_price = observation.clone();
+        duplicate_service_price
+            .service_prices
+            .push(duplicate_service_price.service_prices[0].clone());
+        let error = duplicate_service_price
+            .validate()
+            .expect_err("validation should reject duplicate service price");
+        assert!(error
+            .to_string()
+            .contains("duplicate servicePrices serviceId 'service-1'"));
+
+        let mut duplicate_retail_price = observation.clone();
+        duplicate_retail_price
+            .retail_prices
+            .push(duplicate_retail_price.retail_prices[0].clone());
+        let error = duplicate_retail_price
+            .validate()
+            .expect_err("validation should reject duplicate retail price");
+        assert!(error
+            .to_string()
+            .contains("duplicate retailPrices skuId 'sku-1'"));
+
+        let mut duplicate_lead_time_hint = observation.clone();
+        duplicate_lead_time_hint
+            .lead_time_hints
+            .push(duplicate_lead_time_hint.lead_time_hints[0].clone());
+        let error = duplicate_lead_time_hint
+            .validate()
+            .expect_err("validation should reject duplicate lead-time hint");
+        assert!(error
+            .to_string()
+            .contains("duplicate leadTimeHints skuId 'sku-1'"));
+
+        let mut duplicate_order_signal = observation.clone();
+        duplicate_order_signal
+            .order_signals
+            .push(duplicate_order_signal.order_signals[0].clone());
+        let error = duplicate_order_signal
+            .validate()
+            .expect_err("validation should reject duplicate order signal");
+        assert!(error
+            .to_string()
+            .contains("duplicate orderSignals skuId 'sku-1'"));
+
+        let mut duplicate_stockout = observation;
+        duplicate_stockout
+            .service_stockouts
+            .push("service-1".to_string());
+        let error = duplicate_stockout
+            .validate()
+            .expect_err("validation should reject duplicate stockout");
+        assert!(error
+            .to_string()
+            .contains("duplicate serviceStockouts[] 'service-1'"));
+    }
+
+    #[test]
+    fn observation_validation_rejects_duplicate_ticket_events() {
+        let observation = serde_json::from_str::<SenaObservationInput>(
+            r#"{
+              "observedAt": "2026-04-03T00:00:00Z",
+              "stockSnapshot": [],
+              "ticketEvents": [{
+                "ticketId": "ticket:customer:1",
+                "ticketFamily": "customer",
+                "lifecycle": "open",
+                "stage": "pending",
+                "revision": 1,
+                "eventType": "created",
+                "occurredAt": "2026-04-03T00:00:00Z",
+                "lines": [{
+                  "entityType": "sku",
+                  "entityId": "sku-1",
+                  "quantityDelta": -1
+                }]
+              }, {
+                "ticketId": "ticket:customer:1",
+                "ticketFamily": "customer",
+                "lifecycle": "open",
+                "stage": "pending",
+                "revision": 2,
+                "eventType": "revised",
+                "occurredAt": "2026-04-03T00:01:00Z",
+                "lines": [{
+                  "entityType": "sku",
+                  "entityId": "sku-1",
+                  "quantityDelta": -2
+                }]
+              }],
+              "notes": null
+            }"#,
+        )
+        .expect("observation should parse");
+
+        let error = observation
+            .validate()
+            .expect_err("validation should reject duplicate ticket event");
+        assert!(error
+            .to_string()
+            .contains("duplicate ticketEvents ticketId 'ticket:customer:1'"));
     }
 
     #[test]
@@ -1719,6 +2078,11 @@ mod tests {
                 "ticketEvents[].party.customerNameKey must not be empty",
             ),
             (
+                "mismatched customer lookup key",
+                json!({"party": {"customerName": "Dara Sok", "customerNameKey": "sokha"}}),
+                "ticketEvents[].party.customerNameKey must match customerName",
+            ),
+            (
                 "empty ticket lines",
                 json!({"lines": []}),
                 "ticketEvents[].lines must not be empty",
@@ -1762,6 +2126,33 @@ mod tests {
                 "{label} returned unexpected error: {error}"
             );
         }
+    }
+
+    #[test]
+    fn observation_validation_rejects_path_control_entity_references() {
+        let observation = serde_json::from_value::<SenaObservationInput>(json!({
+            "observedAt": "2026-04-03T00:00:00Z",
+            "stockSnapshot": [{"skuId": "sku?unsafe", "unitsInStock": 10}],
+            "serviceRankings": [],
+            "retailRankings": [],
+            "serviceStockouts": [],
+            "retailStockouts": [],
+            "orderSignals": [],
+            "servicePrices": [],
+            "retailPrices": [],
+            "leadTimeHints": [],
+            "adjustmentSignals": [],
+            "commercialEvents": [],
+            "ticketEvents": [],
+            "recipeUsageHints": [],
+            "notes": null
+        }))
+        .expect("observation should deserialize");
+
+        let error = observation.validate().expect_err("validation should fail");
+        assert!(error
+            .to_string()
+            .contains("skuId may only contain lowercase ASCII letters, digits, '-' and '_'"));
     }
 
     #[test]

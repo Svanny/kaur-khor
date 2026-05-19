@@ -67,10 +67,19 @@ export function linkedSkusForService(catalog: SenaCatalog | null | undefined, se
   }
 
   const skuById = new Map(catalog.skus.map((sku) => [sku.skuId, sku] as const));
-  return catalog.sharingMask
-    .filter((entry) => entry.enabled && entry.serviceId === serviceId)
-    .map((entry) => skuById.get(entry.skuId))
-    .filter((sku): sku is SenaSku => Boolean(sku));
+  const seenSkuIds = new Set<string>();
+  const linkedSkus: SenaSku[] = [];
+  for (const entry of catalog.sharingMask) {
+    if (!entry.enabled || entry.serviceId !== serviceId || seenSkuIds.has(entry.skuId)) {
+      continue;
+    }
+    const sku = skuById.get(entry.skuId);
+    if (sku) {
+      seenSkuIds.add(entry.skuId);
+      linkedSkus.push(sku);
+    }
+  }
+  return linkedSkus;
 }
 
 export function supplierNamesForService(catalog: SenaCatalog | null | undefined, serviceId: string) {
@@ -388,9 +397,16 @@ export function createSkuAttributeVariants(
 }
 
 export function linkedSkuIdsForService(catalog: SenaCatalog, serviceId: string) {
-  return catalog.sharingMask
-    .filter((entry) => entry.serviceId === serviceId && entry.enabled)
-    .map((entry) => entry.skuId);
+  const seenSkuIds = new Set<string>();
+  const skuIds: string[] = [];
+  for (const entry of catalog.sharingMask) {
+    if (entry.serviceId !== serviceId || !entry.enabled || seenSkuIds.has(entry.skuId)) {
+      continue;
+    }
+    seenSkuIds.add(entry.skuId);
+    skuIds.push(entry.skuId);
+  }
+  return skuIds;
 }
 
 export function linkedServiceIdsForSku(catalog: SenaCatalog, skuId: string) {
@@ -416,12 +432,18 @@ export function upsertSenaService(
     ? catalog.services.map((entry) => (entry.serviceId === previousServiceId ? nextService : entry))
     : [...catalog.services, nextService];
 
+  const existingMaskBySkuId = new Map(
+    catalog.sharingMask
+      .filter((entry) => entry.serviceId === previousServiceId || entry.serviceId === nextService.serviceId)
+      .map((entry) => [entry.skuId, entry] as const),
+  );
   const remainingMask = catalog.sharingMask.filter((entry) => entry.serviceId !== previousServiceId);
-  const nextMaskEntries: SenaServiceSkuMaskEntry[] = skuIds.map((skuId) => ({
+  const nextSkuIds = Array.from(new Set(skuIds.map((skuId) => skuId.trim()).filter(Boolean)));
+  const nextMaskEntries: SenaServiceSkuMaskEntry[] = nextSkuIds.map((skuId) => ({
     enabled: true,
     serviceId: nextService.serviceId,
     skuId,
-    usageProbability: null,
+    usageProbability: existingMaskBySkuId.get(skuId)?.usageProbability ?? null,
   }));
 
   return {
@@ -571,7 +593,8 @@ export function catalogEntityActivityBlockers({
   const blockers = new Set<CatalogDeleteBlocker>();
 
   if (entityType === 'sku') {
-    if (catalog.skus.length <= 1) {
+    const targetSku = catalog.skus.find((sku) => sku.skuId === entityId);
+    if (!isSenaSkuArchived(targetSku) && activeSenaSkus(catalog).length <= 1) {
       blockers.add('last-sku');
     }
     if (catalog.sharingMask.some((entry) => entry.enabled && entry.skuId === entityId)) {

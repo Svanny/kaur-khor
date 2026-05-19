@@ -4,8 +4,11 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  coreReadCoalesceKey,
+  isCoreResponseEnvelope,
   isReadOnlyCoreCommand,
   predictWorkerFinishMs,
   resolveCoreLaunchCommand,
@@ -17,8 +20,22 @@ import {
 } from './backend';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const backendSource = readFileSync(resolve(projectRoot, 'src/main/backend.ts'), 'utf8');
 
 describe('desktop core host helpers', () => {
+  it('accepts only well-formed core response envelopes', () => {
+    expect(isCoreResponseEnvelope({ id: 1, ok: true, payload: { ready: true } })).toBe(true);
+    expect(isCoreResponseEnvelope({ id: 2, ok: false, error: 'failed' })).toBe(true);
+    expect(isCoreResponseEnvelope({ id: 3, ok: false })).toBe(true);
+
+    expect(isCoreResponseEnvelope({ id: '1', ok: true })).toBe(false);
+    expect(isCoreResponseEnvelope({ id: 1, ok: 'true' })).toBe(false);
+    expect(isCoreResponseEnvelope({ id: 1, ok: false, error: { message: 'failed' } })).toBe(false);
+    expect(isCoreResponseEnvelope({ id: 0, ok: true })).toBe(false);
+    expect(isCoreResponseEnvelope(null)).toBe(false);
+    expect(isCoreResponseEnvelope([])).toBe(false);
+  });
+
   it('only injects the local data path for the desktop core runtime', () => {
     const env = resolveManagedCoreEnv({
       dataFilePath: '/tmp/desktop-sena-store.sqlite3',
@@ -192,6 +209,17 @@ describe('desktop core host helpers', () => {
     }
   });
 
+  it('escalates stop timeout based on process exit instead of signal-send state', () => {
+    expect(backendSource).toContain('let exited = false;');
+    expect(backendSource).toMatch(
+      /const timeout = setTimeout\(\(\) => \{\s+if \(!exited\) \{\s+terminateManagedChildProcess\(child, 'SIGKILL'\);\s+\}\s+\}, 3_000\);/s,
+    );
+    expect(backendSource).toMatch(
+      /child\.once\('exit', \(\) => \{\s+exited = true;\s+clearTimeout\(timeout\);\s+resolvePromise\(\);\s+\}\);/s,
+    );
+    expect(backendSource).not.toContain("if (!child.killed) {\n            terminateManagedChildProcess(child, 'SIGKILL');");
+  });
+
   it('classifies read-only commands for read-pool dispatch', () => {
     expect(isReadOnlyCoreCommand('sena.getRecordUpdateContext')).toBe(true);
     expect(isReadOnlyCoreCommand('sena.listOrderBatches')).toBe(true);
@@ -225,6 +253,17 @@ describe('desktop core host helpers', () => {
       hasReadyReadWorker: false,
       readPriority: 'deferred',
     })).toBe(false);
+  });
+
+  it('keeps read coalescing scoped by priority so critical reads are not merged behind background reads', () => {
+    const payload = { skuId: 'sku-1' };
+
+    expect(coreReadCoalesceKey('sena.getSkuDetail', payload, 15_000, 'background')).not.toBe(
+      coreReadCoalesceKey('sena.getSkuDetail', payload, 15_000, 'critical'),
+    );
+    expect(coreReadCoalesceKey('sena.getSkuDetail', payload, 15_000)).toBe(
+      coreReadCoalesceKey('sena.getSkuDetail', payload, 15_000),
+    );
   });
 
   it('predicts queued read work from active command costs instead of worker-wide averages', () => {
