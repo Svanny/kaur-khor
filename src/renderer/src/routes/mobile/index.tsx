@@ -2771,6 +2771,11 @@ function PhoneQueueRoute() {
   };
   const openCustomerTask = (task: OverviewCustomerTask) => {
     if (task.source === 'telegram_intake' && task.automationIntakeId && !task.promotedTicketId) {
+      const intakeExists = automation.intakes.some((intake) => intake.intakeId === task.automationIntakeId);
+      if (!intakeExists) {
+        navigate(task.href);
+        return;
+      }
       setSelectedAutomationIntakeId(task.automationIntakeId);
       return;
     }

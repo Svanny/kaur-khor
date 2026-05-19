@@ -3743,23 +3743,23 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute([
       {
         ...observations[0]!,
-        observationId: 'obs-dirty',
-        input: {
-          ...observations[0]!.input,
-          observedAt: 'not-a-date',
-          stockSnapshot: [
-            { skuId: 'sku-1', unitsInStock: 99, costPerUnit: 4, productPrice: 9 },
-          ],
-        },
-      },
-      {
-        ...observations[0]!,
         observationId: 'obs-valid',
         input: {
           ...observations[0]!.input,
           observedAt: '2026-04-04T12:00:00.000Z',
           stockSnapshot: [
             { skuId: 'sku-1', unitsInStock: 15, costPerUnit: 4, productPrice: 9 },
+          ],
+        },
+      },
+      {
+        ...observations[0]!,
+        observationId: 'obs-dirty',
+        input: {
+          ...observations[0]!.input,
+          observedAt: 'not-a-date',
+          stockSnapshot: [
+            { skuId: 'sku-1', unitsInStock: 99, costPerUnit: 4, productPrice: 9 },
           ],
         },
       },

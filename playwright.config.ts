@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-const parsedWorkerCount = Number(process.env.KAUR_KHOR_E2E_WORKERS ?? 3);
+const parsedWorkerCount = Number.parseInt(process.env.KAUR_KHOR_E2E_WORKERS ?? '3', 10);
 const workerCount = Number.isFinite(parsedWorkerCount) ? Math.max(1, parsedWorkerCount) : 3;
 
 export default defineConfig({
