@@ -872,7 +872,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   const searchScope = routeState.scope;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const filter = routeState.filter as OverviewTaskFilter;
-  const activeFilter: OverviewTaskFilter = showOverviewTaskTabs ? filter : 'all';
+  const activeFilter: OverviewTaskFilter = filter;
   const availableObservationCount = deriveAvailableObservationCount(inventory);
   const needsInitialWorkSupportData = Boolean(
     inventory.catalog &&

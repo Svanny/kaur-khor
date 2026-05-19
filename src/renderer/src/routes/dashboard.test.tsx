@@ -2156,15 +2156,16 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('heading', { level: 2, name: 'Business signals' })).not.toBeInTheDocument();
   });
 
-  test('hides the overview tabs and keeps explicit supplier queue when tab view is disabled', async () => {
+  test('hides the overview tabs and keeps the explicit supplier queue filter', async () => {
     preferenceState.showOverviewTaskTabs = false;
 
-    renderRouteWithLocation('/?workflow=supplier&filter=ready_to_receive');
+    const { container } = renderRouteWithLocation('/?workflow=supplier&filter=ready_to_receive');
 
     expect(await screen.findByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Awaiting receipt' })).not.toBeInTheDocument();
-    expect(screen.getByText('Razor refill')).toBeInTheDocument();
-    expect(screen.getByText('Cotton pads')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Ready to receive' })).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-slot="overview-task-row"]')).toHaveLength(1);
+    expect(screen.queryByText('Razor refill')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cotton pads')).not.toBeInTheDocument();
   });
 
   test('hides overview descriptors and empty-state hints when optional help is disabled', async () => {
