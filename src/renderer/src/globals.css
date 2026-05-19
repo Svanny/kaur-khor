@@ -396,24 +396,24 @@
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-body"] {
-    gap: 0.25rem !important;
-    padding: 0.25rem !important;
+    gap: 0.25rem;
+    padding: 0.25rem;
     transform: translateY(0.25rem);
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-icon"] {
-    width: 1.75rem !important;
-    height: 1.75rem !important;
+    width: 1.75rem;
+    height: 1.75rem;
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-title"] {
     align-items: center;
     display: flex;
-    font-size: 0.95rem !important;
-    height: 2.125rem !important;
+    font-size: 0.95rem;
+    height: 2.125rem;
     justify-content: center;
-    line-height: 1.12 !important;
-    min-height: 2.125rem !important;
+    line-height: 1.12;
+    min-height: 2.125rem;
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-summary"] {
@@ -421,7 +421,7 @@
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-draft"] {
-    display: none !important;
+    display: none;
   }
 
   html[data-kaur-khor-embedded-phone-landscape="true"],

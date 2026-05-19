@@ -2,6 +2,27 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
+function cssDeclarationsForSelector(css: string, selector: string) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = css.match(new RegExp(`${escapedSelector}\\s*\\{([^}]*)\\}`, 's'));
+  if (!match?.[1]) {
+    return null;
+  }
+  return match[1]
+    .split(';')
+    .map((declaration) => declaration.trim())
+    .filter(Boolean)
+    .map((declaration) => {
+      const [property, ...valueParts] = declaration.split(':');
+      const rawValue = valueParts.join(':').trim();
+      return {
+        important: /!important$/.test(rawValue),
+        property: property.trim(),
+        value: rawValue.replace(/\s*!important$/, '').trim(),
+      };
+    });
+}
+
 describe('bundled font assets', () => {
   const fontDir = join(process.cwd(), 'src/renderer/src/assets/fonts');
 
@@ -47,7 +68,14 @@ describe('bundled font assets', () => {
 
   test('keeps embedded phone onboarding inside horizontal gutters', () => {
     const globalsCss = readFileSync(join(process.cwd(), 'src/renderer/src/globals.css'), 'utf8');
+    const declarations = cssDeclarationsForSelector(
+      globalsCss,
+      'html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-page"]',
+    );
 
-    expect(globalsCss).toMatch(/html\[data-kaur-khor-embedded-phone-portrait="true"\]\s+\[data-slot="onboarding-page"\]\s*\{[^}]*padding:\s*0 0\.75rem 1rem\s*!important;/s);
+    expect(declarations, 'embedded phone onboarding rule should exist').not.toBeNull();
+    const padding = declarations?.find((declaration) => declaration.property === 'padding');
+    expect(padding?.value).toBe('0 0.75rem 1rem');
+    expect(padding?.important).toBe(true);
   });
 });

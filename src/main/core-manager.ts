@@ -32,8 +32,14 @@ export function createManagedCoreController(
     const startPromise = start(options)
       .then((core) => {
         if (startingCore !== startPromise) {
-          void core.stop();
-          throw new Error('desktop core startup was canceled');
+          return core.stop().then(
+            () => {
+              throw new Error('desktop core startup was canceled');
+            },
+            (error) => {
+              throw new Error('desktop core startup was canceled; failed to stop canceled core', { cause: error });
+            },
+          );
         }
         managedCore = core;
         return core;
