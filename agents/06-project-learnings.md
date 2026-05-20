@@ -13,6 +13,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Interface view preset cards must keep fixed square card tracks with even outer gutters, and their wireframes must fill the preview/title space with proportional internal density rather than leaving blank frame area.
 - Khmer Kaur Khor app UI translations must not render Latin letters; transliterate product and technical tokens and keep tests scanning the full Khmer map.
 - Khmer web landing copy must use Khmer pronunciations for app, browser, desktop, backup, snapshots, automations, and code; keep proper nouns and platform/tool names like GitHub, Terminal, macOS, OPFS, and Bash in English.
+- `KAUR KHOR` is intentionally localized as `កខ` in Khmer UI via `translateUiLiteral`; do not replace that translation with the Latin brand literal.
 - Explain layout fixes must be verified at the full route or Electron geometry level; component-only class assertions can miss collapsed tab rows and clipped right rails.
 - Inventory layout fixes must be verified in the desktop Electron app because browser-mode evidence can miss right-rail and table geometry issues.
 - Inventory Chrome tab alignment must follow Explain's pattern: keep tab wrappers unshifted, pull the window surface up with the Chrome overlap variable, and stack the window with `relative z-[1]`.

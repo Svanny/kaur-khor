@@ -262,7 +262,7 @@ describe('web PWA install assets', () => {
 
     expect(entry).toContain('<WebLoadingFallback embeddedMode={Boolean(embeddedMode)} language={loadingLanguage} />');
     expect(entry).toContain("import { WebLoadingFallback } from '@/routes/web/loading-fallback';");
-    expect(fallback).toContain('<p className="text-sm font-semibold text-primary">KAUR KHOR</p>');
+    expect(fallback).toContain("translateUiLiteral(language, 'KAUR KHOR')");
     expect(embeddedApp).toContain('grid min-h-svh place-items-center bg-background px-6 text-center text-foreground');
     expect(embeddedApp).toContain("translateUiLiteral(language, 'Loading workspace…')");
     expect(embeddedApp).not.toContain('Preparing browser workspace');
