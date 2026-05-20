@@ -23,6 +23,7 @@ import {
   StatusScheduleIcon,
   StatusSettingsControlIcon,
   StatusTrendChartIcon,
+  StatusVariableIcon,
   StatusWaveformIcon,
 } from '@icons/status';
 import {
@@ -94,6 +95,7 @@ import type { ChartCustomTimeframeRange } from '@/components/system/chart-timefr
 import type { ChartLayoutPreferenceMergeOptions, PersistedChartLayoutPreferences } from '@/lib/chart-layout-preferences';
 import { PagedPanelNavigation } from '@/routes/detail-panels';
 import { PerformanceSectionShell } from './chrome';
+import type { SenaAnalysisArtifactRecord } from '@shared/sena';
 import type {
   AnalysisEntityPressureRow,
   AnalysisRiskLevel,
@@ -116,10 +118,10 @@ const pressureTableLayout = createHeaderedTableLayout({
 const ANALYSIS_BOARD_CLASS_NAME = 'editorial-panel relative z-[1] flex min-h-0 flex-col overflow-hidden rounded-[2rem] !border-white/70 bg-white text-sm text-card-foreground shadow-[0_16px_40px_rgba(48,31,20,0.06)]';
 const ANALYSIS_PANEL_SURFACE_CLASS_NAME = 'analysis-panel-shell !overflow-visible !rounded-none !border-transparent !shadow-none ![background:transparent]';
 const ANALYSIS_RAIL_PANEL_BASE_CLASS_NAME = 'flex flex-col bg-secondary/15 lg:rounded-l-none lg:[background:linear-gradient(to_bottom,#fff_0,#fff_8px,hsl(var(--secondary)/0.15)_8px)]';
-const ANALYSIS_SECTIONS: AnalysisSection[] = ['workbench', 'pressure', 'observations', 'fragility', 'settings'];
+const ANALYSIS_SECTIONS: AnalysisSection[] = ['workbench', 'pressure', 'observations', 'fragility', 'settings', 'variables'];
 
 function sectionSupportsRightRail(section: AnalysisSection) {
-  return section !== 'observations' && section !== 'fragility';
+  return section !== 'observations' && section !== 'fragility' && section !== 'variables';
 }
 
 function visibleAnalysisSections(model: AnalysisWorkbenchViewModel) {
@@ -422,6 +424,7 @@ function InternalNav({
     { value: 'observations', label: t('analysisWorkbenchNavObservations'), leading: <EntityEvidenceIcon className="size-4" /> },
     { value: 'fragility', label: t('analysisWorkbenchNavFragility'), leading: <NavigationDenseGridIcon className="size-4" /> },
     { value: 'settings', label: t('analysisWorkbenchNavSettings'), leading: <StatusSettingsControlIcon className="size-4" /> },
+    { value: 'variables', label: t('analysisWorkbenchNavVariables'), leading: <StatusVariableIcon className="size-4" /> },
   ] satisfies Array<{ value: AnalysisSection; label: string; leading: ReactNode }>).filter((option) => visibleSections.includes(option.value));
   return (
     <div className={`relative flex overflow-hidden px-5 sm:pl-8 sm:pr-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`} data-analysis-nav="true">
@@ -483,6 +486,17 @@ function AnalysisSurfaceWireframe({ section }: { section: AnalysisSection }) {
             <Skeleton key={`wireframe-fragility:${index}`} className="h-20 rounded-[1rem]" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (section === 'variables') {
+    return (
+      <div className="grid gap-4 p-6">
+        <Skeleton className="h-6 w-44 rounded-full" />
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Skeleton key={`wireframe-variables:${index}`} className="h-24 rounded-[1.2rem]" />
+        ))}
       </div>
     );
   }
@@ -2423,6 +2437,247 @@ function FragilitySurface({
   );
 }
 
+type VariableRow = {
+  key: string;
+  label: string;
+  path: string;
+  value: unknown;
+};
+
+type VariableGroup = {
+  key: string;
+  title: string;
+  rows: VariableRow[];
+};
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value != null && !Array.isArray(value);
+}
+
+function getArtifactPayload(record: SenaAnalysisArtifactRecord | null): Record<string, unknown> | null {
+  return isJsonRecord(record?.payload) ? record.payload : null;
+}
+
+function getArtifactValue(root: Record<string, unknown>, path: string) {
+  return path.split('.').reduce<unknown>((current, part) => {
+    if (!isJsonRecord(current)) {
+      return undefined;
+    }
+    return current[part];
+  }, root);
+}
+
+function buildRecordRows(root: Record<string, unknown>, groupKey: string, path: string, titleByKey: Record<string, string> = {}) {
+  const value = getArtifactValue(root, path);
+  if (!isJsonRecord(value)) {
+    return value == null ? [] : [{ key: `${groupKey}:${path}`, label: titleByKey[path] ?? path, path, value }];
+  }
+  return Object.entries(value).map(([key, entry]) => ({
+    key: `${groupKey}:${path}.${key}`,
+    label: titleByKey[key] ?? readableVariableLabel(key),
+    path: `${path}.${key}`,
+    value: entry,
+  }));
+}
+
+function readableVariableLabel(value: string) {
+  return value
+    .replace(/\[(\d+)\]/g, ' $1')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function artifactArray(root: Record<string, unknown>, path: string): unknown[] {
+  const value = getArtifactValue(root, path);
+  return Array.isArray(value) ? value : [];
+}
+
+function deriveVariableGroups(artifact: SenaAnalysisArtifactRecord | null): VariableGroup[] {
+  const payload = getArtifactPayload(artifact);
+  if (!payload) {
+    return [];
+  }
+  const metadataRows: VariableRow[] = [
+    { key: 'metadata:runId', label: 'Run ID', path: 'runId', value: artifact?.runId },
+    { key: 'metadata:primaryArtifactKey', label: 'Artifact key', path: 'primaryArtifactKey', value: artifact?.primaryArtifactKey },
+    { key: 'metadata:synthesized', label: 'Synthesized compatibility artifact', path: 'synthesized', value: artifact?.synthesized },
+    { key: 'metadata:generatedAt', label: 'Generated at', path: 'generatedAt', value: payload.generatedAt },
+    { key: 'metadata:algorithmVersion', label: 'Algorithm version', path: 'algorithmVersion', value: payload.algorithmVersion },
+    { key: 'metadata:run', label: 'Run metadata', path: 'run', value: payload.run },
+  ].filter((row) => row.value !== undefined);
+  const workspaceRows = buildRecordRows(payload, 'workspace', 'workspaceSummary');
+  const skuSummaries = artifactArray(payload, 'skuSummaries')
+    .concat(workspaceRows.find((row) => row.path === 'workspaceSummary.skuSummaries') ? [] : artifactArray(payload, 'workspaceSummary.skuSummaries'))
+    .map((value, index) => ({
+      key: `sku-summary:${index}`,
+      label: isJsonRecord(value) && typeof value.skuId === 'string' ? value.skuId : `SKU summary ${index + 1}`,
+      path: `skuSummaries[${index}]`,
+      value,
+    }));
+  const skuPosteriorRows = artifactArray(payload, 'skuDetails').flatMap((value, index) => {
+    if (!isJsonRecord(value)) {
+      return [{ key: `sku-detail:${index}`, label: `SKU detail ${index + 1}`, path: `skuDetails[${index}]`, value }];
+    }
+    const skuId = isJsonRecord(value.summary) && typeof value.summary.skuId === 'string' ? value.summary.skuId : `SKU ${index + 1}`;
+    return ['summary', 'inventoryPosterior', 'demandPosterior', 'pipelinePosterior', 'leadTimePosterior']
+      .filter((key) => key in value)
+      .map((key) => ({
+        key: `sku-posterior:${index}:${key}`,
+        label: `${skuId} ${readableVariableLabel(key)}`,
+        path: `skuDetails[${index}].${key}`,
+        value: value[key],
+      }));
+  });
+  const serviceDetails = artifactArray(payload, 'serviceDetails');
+  const serviceRows = serviceDetails.flatMap((value, index) => {
+    if (!isJsonRecord(value)) {
+      return [{ key: `service-detail:${index}`, label: `Service detail ${index + 1}`, path: `serviceDetails[${index}]`, value }];
+    }
+    const serviceId = typeof value.serviceId === 'string' ? value.serviceId : `Service ${index + 1}`;
+    return Object.entries(value)
+      .filter(([key]) => key !== 'contributors')
+      .map(([key, entry]) => ({
+        key: `service-detail:${index}:${key}`,
+        label: `${serviceId} ${readableVariableLabel(key)}`,
+        path: `serviceDetails[${index}].${key}`,
+        value: entry,
+      }));
+  });
+  const contributorRows = serviceDetails.flatMap((value, index) => {
+    if (!isJsonRecord(value) || !Array.isArray(value.contributors)) {
+      return [];
+    }
+    const serviceId = typeof value.serviceId === 'string' ? value.serviceId : `Service ${index + 1}`;
+    return value.contributors.map((contributor, contributorIndex) => ({
+      key: `service-contributor:${index}:${contributorIndex}`,
+      label: `${serviceId} contributor ${contributorIndex + 1}`,
+      path: `serviceDetails[${index}].contributors[${contributorIndex}]`,
+      value: contributor,
+    }));
+  });
+
+  return [
+    { key: 'metadata', title: 'Run metadata', rows: metadataRows },
+    { key: 'parameters', title: 'Engine parameters', rows: buildRecordRows(payload, 'parameters', 'engineParameters') },
+    { key: 'diagnostics', title: 'Diagnostics', rows: buildRecordRows(payload, 'diagnostics', 'diagnostics') },
+    { key: 'workspace', title: 'Workspace summary', rows: workspaceRows.filter((row) => row.path !== 'workspaceSummary.skuSummaries') },
+    { key: 'sku-summaries', title: 'SKU summaries', rows: skuSummaries },
+    { key: 'sku-posteriors', title: 'SKU posterior arrays', rows: skuPosteriorRows },
+    { key: 'service-details', title: 'Service details', rows: serviceRows },
+    { key: 'service-contributors', title: 'Service contributors', rows: contributorRows },
+    { key: 'raw', title: 'Raw artifact root', rows: [{ key: 'raw:payload', label: 'Artifact payload', path: '$', value: payload }] },
+  ].filter((group) => group.rows.length > 0);
+}
+
+function describeVariableType(value: unknown) {
+  if (Array.isArray(value)) {
+    return `array · ${value.length}`;
+  }
+  if (isJsonRecord(value)) {
+    return `object · ${Object.keys(value).length}`;
+  }
+  if (value == null) {
+    return 'null';
+  }
+  return typeof value;
+}
+
+function summarizeVariableValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.length === 0 ? '[]' : `[${value.length} entries]`;
+  }
+  if (isJsonRecord(value)) {
+    const keys = Object.keys(value);
+    return keys.length === 0 ? '{}' : `{ ${keys.slice(0, 5).join(', ')}${keys.length > 5 ? ', …' : ''} }`;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(value);
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (value == null) {
+    return 'null';
+  }
+  return String(value);
+}
+
+function VariableValue({ value }: { value: unknown }) {
+  const expandable = Array.isArray(value) || isJsonRecord(value);
+  if (!expandable) {
+    return <span className="break-words text-sm text-foreground">{summarizeVariableValue(value)}</span>;
+  }
+  return (
+    <details className="group">
+      <summary className="cursor-pointer list-none break-words text-sm font-medium text-foreground underline decoration-border underline-offset-4">
+        {summarizeVariableValue(value)}
+      </summary>
+      <pre className="mt-3 max-h-72 overflow-auto rounded-[1rem] border border-border/70 bg-secondary/15 p-3 text-left text-xs leading-5 text-muted-foreground">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </details>
+  );
+}
+
+function VariablesSurface({
+  analysisArtifact,
+  analysisArtifactError,
+  isAnalysisArtifactLoading,
+  showRightRailCards,
+}: {
+  analysisArtifact: SenaAnalysisArtifactRecord | null;
+  analysisArtifactError?: string | null;
+  isAnalysisArtifactLoading?: boolean;
+  showRightRailCards: boolean;
+}) {
+  const { t } = usePreferences();
+  const groups = useMemo(() => deriveVariableGroups(analysisArtifact), [analysisArtifact]);
+  let content: ReactNode;
+  if (isAnalysisArtifactLoading) {
+    content = <div className="rounded-[1.25rem] border border-dashed border-border bg-secondary/10 px-4 py-5 text-sm text-muted-foreground">{t('analysisWorkbenchVariablesLoading')}</div>;
+  } else if (analysisArtifactError) {
+    content = <div className="rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-5 text-sm text-destructive">{t('analysisWorkbenchVariablesError')} {analysisArtifactError}</div>;
+  } else if (groups.length === 0) {
+    content = <div className="rounded-[1.25rem] border border-dashed border-border bg-secondary/10 px-4 py-5 text-sm text-muted-foreground">{t('analysisWorkbenchVariablesUnavailable')}</div>;
+  } else {
+    content = (
+      <div className="grid gap-5">
+        {groups.map((group) => (
+          <section key={group.key} className="overflow-hidden rounded-[1.25rem] border border-white/70 bg-white/92 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+            <div className="border-b border-border/70 px-4 py-3">
+              <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
+            </div>
+            <div className="divide-y divide-border/60">
+              {group.rows.map((row) => (
+                <div key={row.key} className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1fr)_minmax(6rem,0.45fr)_minmax(0,1.35fr)]">
+                  <div className="min-w-0 text-sm font-medium text-foreground">{row.label}</div>
+                  <code className="min-w-0 break-words rounded-[0.7rem] bg-secondary/20 px-2 py-1 text-xs text-muted-foreground">{row.path}</code>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{describeVariableType(row.value)}</div>
+                  <div className="min-w-0"><VariableValue value={row.value} /></div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="grid gap-6" data-analysis-surface-content="true">
+      <PerformanceSectionShell
+        title={t('analysisWorkbenchVariablesTitle')}
+        tooltip={t('analysisWorkbenchVariablesTooltip')}
+        helpHref="/settings/help#explain-variables"
+        descriptor={t('analysisWorkbenchVariablesDescriptor')}
+        className={cn(ANALYSIS_PANEL_SURFACE_CLASS_NAME, showRightRailCards && 'lg:rounded-r-none')}
+      >
+        {content}
+      </PerformanceSectionShell>
+    </div>
+  );
+}
+
 function SettingsSurface({
   model,
   showRightRailCards,
@@ -2471,6 +2726,8 @@ function SettingsSurface({
 }
 
 export function AnalysisWorkbench({
+  analysisArtifact = null,
+  analysisArtifactError = null,
   chartZoomResetToken = 0,
   chartLayoutPreferences,
   chartResolution,
@@ -2479,6 +2736,7 @@ export function AnalysisWorkbench({
   expanded = false,
   hasOlderIntervals = false,
   isHydratingDetails = false,
+  isAnalysisArtifactLoading = false,
   isVisuallyBusy,
   isLoadingOlderIntervals = false,
   loadOlderIntervals = async () => 0,
@@ -2495,6 +2753,8 @@ export function AnalysisWorkbench({
   showRightRailCards,
   timeframe = 'Recent',
 }: {
+  analysisArtifact?: SenaAnalysisArtifactRecord | null;
+  analysisArtifactError?: string | null;
   chartZoomResetToken?: number;
   chartLayoutPreferences?: PersistedChartLayoutPreferences;
   chartResolution?: ChartResolutionOption;
@@ -2503,6 +2763,7 @@ export function AnalysisWorkbench({
   expanded?: boolean;
   hasOlderIntervals?: boolean;
   isHydratingDetails?: boolean;
+  isAnalysisArtifactLoading?: boolean;
   isVisuallyBusy?: boolean;
   isLoadingOlderIntervals?: boolean;
   loadOlderIntervals?: (limit?: number) => Promise<number>;
@@ -2630,6 +2891,16 @@ export function AnalysisWorkbench({
     if (activeSection === 'settings') {
       return <SettingsSurface model={model} showRightRailCards={railEnabled} />;
     }
+    if (activeSection === 'variables') {
+      return (
+        <VariablesSurface
+          analysisArtifact={analysisArtifact}
+          analysisArtifactError={analysisArtifactError}
+          isAnalysisArtifactLoading={isAnalysisArtifactLoading}
+          showRightRailCards={railEnabled}
+        />
+      );
+    }
     return (
             <WorkbenchSurface
               chartZoomResetToken={chartZoomResetToken}
@@ -2656,7 +2927,7 @@ export function AnalysisWorkbench({
               timeframe={timeframe}
             />
     );
-  }, [activeSection, chartLayoutPreferences, chartResolution, chartZoomResetToken, customChartResolution, customTimeframeRange, expanded, handleSelection, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onChartResolutionChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
+  }, [activeSection, analysisArtifact, analysisArtifactError, chartLayoutPreferences, chartResolution, chartZoomResetToken, customChartResolution, customTimeframeRange, expanded, handleSelection, isAnalysisArtifactLoading, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onChartResolutionChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
 
   const workbenchSectionActive = activeSection === 'workbench';
   const workbenchFitsViewport = workbenchSectionActive && railEnabled;

@@ -1251,7 +1251,7 @@ export const enUiCopyV1 = {
   settingsCreditsDescription: 'One last small note from the builder.',
   settingsUpdatesTitle: 'Updates',
   settingsUpdatesDescription:
-    'Check the latest desktop release and export a snapshot before replacing the app.',
+    'Kaur Khor updates replace the desktop app only. Your workspace data stays separate, and you can export a snapshot to a folder you choose before installing.',
   settingsUpdatesBody:
     'Kaur Khor updates replace the desktop app only. Your workspace data stays separate, and you can export a snapshot to a folder you choose before installing.',
   settingsUpdatesCurrentVersion: 'Current version',
@@ -1266,12 +1266,17 @@ export const enUiCopyV1 = {
   settingsUpdatesChooseDataAction: 'Choose data folder',
   settingsUpdatesChooseBackupAction: 'Choose snapshot export folder',
   settingsUpdatesSkipBackupLabel: 'Skip snapshot export for this update.',
+  settingsUpdatesSkipBackupTitle: 'Skip snapshot export?',
+  settingsUpdatesSkipBackupWarning:
+    'Skipping the snapshot export can lead to data loss for changes made after the latest checkpoint.',
+  settingsUpdatesSkipBackupCheckpoint: 'Latest checkpoint: {checkpoint}',
+  settingsUpdatesSkipBackupUnknownCheckpoint: 'No saved checkpoint found',
+  settingsUpdatesSkipBackupConfirm: 'Skip snapshot export',
+  settingsUpdatesSkipBackupCancel: 'Keep snapshot export',
   settingsUpdatesDataDirectoryStatus: 'Data folder: {path}',
   settingsUpdatesBackupDirectoryStatus: 'Snapshot export folder: {path}',
   settingsUpdatesDefaultDataDirectory: 'current app data folder',
   settingsUpdatesNoBackupDirectory: 'choose a folder or skip export',
-  settingsUpdatesRehydrateHint:
-    'After the new version opens, restore this exported snapshot from Settings / Local data if you selected a custom data folder or need to rehydrate manually.',
   settingsUpdatesInstallAction: 'Build and install {version}',
   settingsUpdatesStarting: 'Starting updater…',
   settingsUpdatesAvailable: 'Update available: v{version}.',
@@ -1706,6 +1711,7 @@ export const enUiCopyV1 = {
   analysisWorkbenchNavObservations: 'Observations',
   analysisWorkbenchNavFragility: 'Fragility',
   analysisWorkbenchNavSettings: 'Parameters',
+  analysisWorkbenchNavVariables: 'Variables',
   analysisWorkbenchSettingsRunIdLabel: 'Run ID',
   analysisWorkbenchSettingsRunIdTooltip: 'Unique identifier for the current Explain run.',
   analysisWorkbenchSettingsLatestObservedLabel: 'Latest observed',
@@ -1888,6 +1894,14 @@ export const enUiCopyV1 = {
     'Read-only model and evidence metadata for the current Explain window.',
   analysisWorkbenchSettingsDescriptor:
     'Check the run settings and evidence coverage behind this analysis.',
+  analysisWorkbenchVariablesTitle: 'SENA variables',
+  analysisWorkbenchVariablesTooltip:
+    'Raw analysis artifact fields for the active Explain run.',
+  analysisWorkbenchVariablesDescriptor:
+    'Inspect the persisted SENA artifact and compatibility fields used by diagnostics.',
+  analysisWorkbenchVariablesLoading: 'Loading SENA variables…',
+  analysisWorkbenchVariablesUnavailable: 'No SENA variables available yet.',
+  analysisWorkbenchVariablesError: 'SENA variables could not be loaded.',
   stockUpdateViewPriority: 'Priority',
   stockUpdateViewCounted: 'Counted',
   stockUpdateViewAllSkus: 'All SKUs',
@@ -2588,7 +2602,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsCreditsDescription: 'A small note from the builder.',
   settingsUpdatesTitle: 'Updates',
   settingsUpdatesDescription:
-    'Check the latest desktop release and export a snapshot before replacing the app.',
+    'Kaur Khor updates replace the desktop app only. Your workspace data stays separate, and you can export a snapshot to a folder you choose before installing.',
   settingsUpdatesBody:
     'Kaur Khor updates replace the desktop app only. Your workspace data stays separate, and you can export a snapshot to a folder you choose before installing.',
   settingsUpdatesCurrentVersion: 'Current version',
@@ -2603,12 +2617,17 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsUpdatesChooseDataAction: 'Choose data folder',
   settingsUpdatesChooseBackupAction: 'Choose snapshot export folder',
   settingsUpdatesSkipBackupLabel: 'Skip snapshot export for this update.',
+  settingsUpdatesSkipBackupTitle: 'Skip snapshot export?',
+  settingsUpdatesSkipBackupWarning:
+    'Skipping the snapshot export can lead to data loss for changes made after the latest checkpoint.',
+  settingsUpdatesSkipBackupCheckpoint: 'Latest checkpoint: {checkpoint}',
+  settingsUpdatesSkipBackupUnknownCheckpoint: 'No saved checkpoint found',
+  settingsUpdatesSkipBackupConfirm: 'Skip snapshot export',
+  settingsUpdatesSkipBackupCancel: 'Keep snapshot export',
   settingsUpdatesDataDirectoryStatus: 'Data folder: {path}',
   settingsUpdatesBackupDirectoryStatus: 'Snapshot export folder: {path}',
   settingsUpdatesDefaultDataDirectory: 'current app data folder',
   settingsUpdatesNoBackupDirectory: 'choose a folder or skip export',
-  settingsUpdatesRehydrateHint:
-    'After the new version opens, restore this exported snapshot from Settings / Local data if you selected a custom data folder or need to rehydrate manually.',
   settingsUpdatesInstallAction: 'Build and install {version}',
   settingsUpdatesStarting: 'Starting updater…',
   settingsUpdatesAvailable: 'Update available: v{version}.',
@@ -3224,6 +3243,7 @@ export const enUiCopyV2: EnglishUiCopy = {
       settingsRecommendationOutsideRange:
         'Order suggestion level must stay between the range start and range end.',
       analysisWorkbenchNavWorkbench: 'Main view',
+      analysisWorkbenchNavVariables: 'Variables',
       analysisWorkbenchSelectSurface: 'Select Explain view',
       analysisWorkbenchSettingsSampleSizeTooltip:
         'How much distinct evidence Kaur Khor is effectively using.',
@@ -3236,6 +3256,14 @@ export const enUiCopyV2: EnglishUiCopy = {
         'List of saved updates and the signals each one included.',
       analysisWorkbenchObservationsDescriptor:
         'Review which signals were present in each saved update.',
+      analysisWorkbenchVariablesTitle: 'SENA variables',
+      analysisWorkbenchVariablesTooltip:
+        'Raw analysis artifact fields for the active Explain run.',
+      analysisWorkbenchVariablesDescriptor:
+        'Inspect the persisted SENA artifact and compatibility fields used by diagnostics.',
+      analysisWorkbenchVariablesLoading: 'Loading SENA variables…',
+      analysisWorkbenchVariablesUnavailable: 'No SENA variables available yet.',
+      analysisWorkbenchVariablesError: 'SENA variables could not be loaded.',
       analysisWorkbenchObservedHeader: 'Saved update',
       analysisWorkbenchObservationChannelsHeader: 'Signals recorded',
       analysisWorkbenchSalesPatternLine: 'Sales pattern {value}',

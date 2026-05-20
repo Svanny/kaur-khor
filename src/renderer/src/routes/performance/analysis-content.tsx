@@ -27,6 +27,7 @@ import {
 import { MetricRibbon } from '@/components/system/metric-ribbon';
 import type { InventoryContextValue } from '@/state/inventory';
 import type { AnalysisTimeframe } from './analysis-timeframe';
+import type { SenaAnalysisArtifactRecord } from '@shared/sena';
 
 type AnalysisContentProps = {
   currency: AppCurrency;
@@ -128,6 +129,9 @@ function AnalysisContentInner({
     { icon: EntitySkuIcon, label: t('analysisRouteScopeSkus'), value: 'skus' },
   ] satisfies Array<{ icon: IconComponent; label: string; value: AnalysisScope }>;
   const [isRunningAnalysis, setIsRunningAnalysis] = useState(false);
+  const [analysisArtifact, setAnalysisArtifact] = useState<SenaAnalysisArtifactRecord | null>(null);
+  const [analysisArtifactError, setAnalysisArtifactError] = useState<string | null>(null);
+  const [isAnalysisArtifactLoading, setIsAnalysisArtifactLoading] = useState(false);
   const [expandedLedgerSelection, setExpandedLedgerSelection] = useState<AnalysisSelection>({ type: 'overview' });
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
@@ -162,6 +166,39 @@ function AnalysisContentInner({
     serviceDetailsById,
     skuDetailsById,
   ]);
+
+  useEffect(() => {
+    const runId = inventory.latestRun?.runId ?? inventory.workspaceSummary?.runId ?? null;
+    if (section !== 'variables' || !runId) {
+      setAnalysisArtifact(null);
+      setAnalysisArtifactError(null);
+      setIsAnalysisArtifactLoading(false);
+      return;
+    }
+    let canceled = false;
+    setIsAnalysisArtifactLoading(true);
+    setAnalysisArtifactError(null);
+    void inventory.loadSenaAnalysisArtifact(runId)
+      .then((artifact) => {
+        if (!canceled) {
+          setAnalysisArtifact(artifact);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!canceled) {
+          setAnalysisArtifact(null);
+          setAnalysisArtifactError(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        if (!canceled) {
+          setIsAnalysisArtifactLoading(false);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [inventory, inventory.latestRun?.runId, inventory.workspaceSummary?.runId, section]);
 
   if (!model) {
     return null;
@@ -284,6 +321,9 @@ function AnalysisContentInner({
           customChartResolution={chartController.customChartResolution}
           hasOlderIntervals={hasOlderIntervals}
           isHydratingDetails={showsLoadingIsland}
+          isAnalysisArtifactLoading={isAnalysisArtifactLoading}
+          analysisArtifact={analysisArtifact}
+          analysisArtifactError={analysisArtifactError}
           isVisuallyBusy={heldShowsLoadingIsland}
           isLoadingOlderIntervals={isLoadingOlderIntervals}
           loadOlderIntervals={loadOlderIntervals}

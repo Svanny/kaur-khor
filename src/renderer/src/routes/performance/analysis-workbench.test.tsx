@@ -324,6 +324,9 @@ describe('AnalysisWorkbench', () => {
     expect(screen.getByRole('tab', { name: 'Observations' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Variables' })).toBeInTheDocument();
+    const tabNames = screen.getAllByRole('tab').map((tab) => tab.getAttribute('aria-label') ?? tab.textContent);
+    expect(tabNames.indexOf('Variables')).toBe(tabNames.indexOf('Parameters') + 1);
 
     await screen.findByText('Risk explorer');
     expect(setSection).not.toHaveBeenCalled();
@@ -539,6 +542,57 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getByRole('button', { name: 'Prediction gap help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Coverage level help' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Scope help' })).toBeInTheDocument();
+  });
+
+  test('renders SENA variables from the active run artifact with expandable posterior arrays', async () => {
+    const user = userEvent.setup();
+    render(
+      <AnalysisWorkbench
+        analysisArtifact={{
+          runId: 'run-1',
+          primaryArtifactKey: 'artifact/run-1',
+          synthesized: false,
+          payload: {
+            generatedAt: '2026-04-03T08:00:00.000Z',
+            algorithmVersion: 'sena-analysis-v3',
+            engineParameters: { particleCount: 512, smoothingEnabled: true },
+            diagnostics: { posteriorPredictiveErrorMean: 0.18, regimeHistory: diagnostics.regimeHistory },
+            workspaceSummary,
+            skuSummaries: workspaceSummary.skuSummaries,
+            skuDetails: [{
+              summary: workspaceSummary.skuSummaries[0],
+              inventoryPosterior: skuDetailsById['sku-razor']!.inventoryPosterior,
+              demandPosterior: skuDetailsById['sku-razor']!.demandPosterior,
+              pipelinePosterior: skuDetailsById['sku-razor']!.pipelinePosterior,
+              leadTimePosterior: skuDetailsById['sku-razor']!.leadTimePosterior,
+            }],
+            serviceDetails: [serviceDetailsById['service-haircut']!],
+          },
+        }}
+        model={buildModel()}
+        section="variables"
+        setSection={vi.fn()}
+        showRightRailCards={false}
+      />,
+    );
+
+    expect(screen.getByRole('tab', { name: 'Variables' })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByText('SENA variables')).toBeInTheDocument();
+    expect(screen.getByText('Engine parameters')).toBeInTheDocument();
+    expect(screen.getByText('engineParameters.particleCount')).toBeInTheDocument();
+    expect(screen.getByText('diagnostics.posteriorPredictiveErrorMean')).toBeInTheDocument();
+    expect(screen.getByText('skuDetails[0].inventoryPosterior')).toBeInTheDocument();
+    expect(screen.getAllByText('[2 entries]').length).toBeGreaterThan(0);
+
+    await user.click(screen.getAllByText('[2 entries]')[0]);
+    expect(screen.getAllByText(/"mean": 12/).length).toBeGreaterThan(0);
+  });
+
+  test('renders an empty diagnostic state when SENA variables are unavailable', () => {
+    render(<AnalysisWorkbench model={buildModel()} section="variables" setSection={vi.fn()} showRightRailCards={false} />);
+
+    expect(screen.getByText('No SENA variables available yet.')).toBeInTheDocument();
+    expect(document.querySelector('[data-analysis-inspector="true"]')).toBeNull();
   });
 
   test('renders the shared chart viewport without making the mainview window scroll internally', () => {

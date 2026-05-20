@@ -20,7 +20,7 @@ import { translateUiLiteral } from '@/lib/translations';
 import { formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaQuantity } from '@/routes/sku-detail/format';
 
 export type AnalysisScope = 'all' | 'skus' | 'services';
-export type AnalysisSection = 'workbench' | 'pressure' | 'observations' | 'fragility' | 'settings';
+export type AnalysisSection = 'workbench' | 'pressure' | 'observations' | 'fragility' | 'settings' | 'variables';
 export type AnalysisEntityType = 'sku' | 'service';
 export type AnalysisRiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type AnalysisSelection =
