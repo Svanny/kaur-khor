@@ -639,7 +639,7 @@ Resolve-PhysicalPath "C:\\source\\link-one"
     const realDir = join(root, 'real');
     const linkDir = join(root, 'link');
     mkdirSync(realDir, { recursive: true });
-    symlinkSync(realDir, linkDir, 'dir');
+    symlinkSync(realDir, linkDir, process.platform === 'win32' ? 'junction' : 'dir');
     const modulePath = join(realDir, 'build-from-source.mjs');
     writeFileSync(modulePath, 'fixture');
 
