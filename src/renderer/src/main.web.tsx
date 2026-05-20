@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { getBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
-import { translateUiLiteral } from '@/lib/translations';
 import { embeddedModeForPath } from '@/routes/web/embedded-entry';
+import { WebLoadingFallback } from '@/routes/web/loading-fallback';
 import { WebRoutes } from '@/routes/web/landing';
 import './globals.css';
 
@@ -36,16 +36,7 @@ const app = embeddedMode
   );
 
 const loadingLanguage = getBrowserDesktopBridgeMockState().preferences.language;
-const loadingFallback = (
-  <div className="grid min-h-svh place-items-center bg-background px-6 text-center text-foreground">
-    <div>
-      <p className="text-sm font-semibold text-primary">{translateUiLiteral(loadingLanguage, 'KAUR KHOR')}</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-normal">
-        {translateUiLiteral(loadingLanguage, embeddedMode ? 'Loading workspace…' : 'Loading preferences…')}
-      </h1>
-    </div>
-  </div>
-);
+const loadingFallback = <WebLoadingFallback embeddedMode={Boolean(embeddedMode)} language={loadingLanguage} />;
 
 const rootElement = document.getElementById('root')! as HTMLElement & { __kaurKhorRoot?: Root };
 const root = rootElement.__kaurKhorRoot ?? ReactDOM.createRoot(rootElement);

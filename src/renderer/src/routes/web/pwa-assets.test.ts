@@ -259,9 +259,8 @@ describe('web PWA install assets', () => {
     const entry = readFileSync(resolve(projectRoot, 'src/renderer/src/main.web.tsx'), 'utf8');
     const embeddedApp = readFileSync(resolve(projectRoot, 'src/renderer/src/routes/web/embedded-app.tsx'), 'utf8');
 
-    expect(entry).toContain("translateUiLiteral(loadingLanguage, 'KAUR KHOR')");
-    expect(entry).toContain("translateUiLiteral(loadingLanguage, embeddedMode ? 'Loading workspace…' : 'Loading preferences…')");
-    expect(entry).toContain('Loading preferences…');
+    expect(entry).toContain('<WebLoadingFallback embeddedMode={Boolean(embeddedMode)} language={loadingLanguage} />');
+    expect(entry).toContain("import { WebLoadingFallback } from '@/routes/web/loading-fallback';");
     expect(embeddedApp).toContain('grid min-h-svh place-items-center bg-background px-6 text-center text-foreground');
     expect(embeddedApp).toContain("translateUiLiteral(language, 'Loading workspace…')");
     expect(embeddedApp).not.toContain('Preparing browser workspace');
