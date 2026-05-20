@@ -877,6 +877,7 @@ export function EmbeddedAppBanner({
 export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   const databaseName = databaseForMode(mode);
   const hiddenPhoneOperator = useHiddenPhoneOperatorState();
+  const language = useBrowserWorkspaceLanguage();
   const [storage, setStorage] = useState<StorageUiState>({
     status: 'loading',
     message: 'Opening SQLite WASM storage.',
@@ -1095,8 +1096,8 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-background px-6 text-foreground">
         <div className="w-full max-w-md text-center">
-          <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-normal">Preparing browser workspace...</h1>
+          <p className="text-sm font-semibold text-primary">{translateUiLiteral(language, 'KAUR KHOR')}</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-normal">{translateUiLiteral(language, 'Loading workspace…')}</h1>
         </div>
       </div>
     );
@@ -1136,15 +1137,16 @@ function EmbeddedAppContent({
   onReset: (options?: { skipBrowserConfirm?: boolean }) => void;
 }) {
   const isPhonePortrait = useEmbeddedPhonePortraitViewport();
+  const language = useBrowserWorkspaceLanguage();
 
   if (hiddenPhoneOperator || isPhonePortrait) {
     return (
       <Suspense
         fallback={(
-          <div className="grid min-h-full place-items-center px-4 text-center" data-slot="embedded-phone-loading">
+          <div className="grid min-h-svh place-items-center bg-background px-6 text-center text-foreground" data-slot="embedded-phone-loading">
             <div>
-              <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
-              <p className="mt-2 text-sm text-muted-foreground">Preparing phone workspace...</p>
+              <p className="text-sm font-semibold text-primary">{translateUiLiteral(language, 'KAUR KHOR')}</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-normal">{translateUiLiteral(language, 'Loading workspace…')}</h1>
             </div>
           </div>
         )}

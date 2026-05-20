@@ -1418,6 +1418,8 @@ describe('StockUpdateSessionRoute', () => {
       expect(razorTile).toHaveClass('touch-none');
       expect(razorTile).toHaveClass('select-none');
       expect(razorTile).toHaveClass('cursor-grab');
+      expect(screen.getByRole('button', { name: 'Scroll up' })).toHaveClass('rounded-full');
+      expect(screen.getByRole('button', { name: 'Scroll down' })).toHaveClass('rounded-full');
     } finally {
       vi.useRealTimers();
     }
@@ -1445,11 +1447,14 @@ describe('StockUpdateSessionRoute', () => {
     }
   });
 
-  it('puts embedded phone draft status beside the capture title', () => {
+  it('puts embedded phone draft status on its own capture title row', () => {
     document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'true';
     const header = document.createElement('header');
     header.innerHTML = `
-      <h1 data-slot="embedded-phone-header-title">Products Update <span data-slot="embedded-phone-capture-header-title-meta"></span></h1>
+      <h1 data-slot="embedded-phone-header-title">
+        <span data-slot="embedded-phone-capture-header-title-text">Products Update</span>
+        <span data-slot="embedded-phone-capture-header-title-meta" class="empty:hidden"></span>
+      </h1>
       <div data-slot="embedded-phone-capture-header-actions"></div>
       <div data-slot="embedded-phone-capture-header-meta"></div>
     `;
@@ -1459,11 +1464,18 @@ describe('StockUpdateSessionRoute', () => {
       renderRoute();
       fireEvent.click(getPosWorkbenchTile('Razor refill'));
       const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
+      expect(dialog).toHaveClass('max-h-[calc(var(--kaur-khor-embedded-effective-height,100dvh)-1rem)]', 'overflow-y-auto');
       fireEvent.change(within(dialog).getByLabelText('Units in stock'), { target: { value: '15' } });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
 
       expect(header.querySelector('[data-slot="embedded-phone-capture-header-title-meta"]')).toHaveTextContent('(Draft will save on exit)');
+      expect(header.querySelector('[data-slot="embedded-phone-capture-header-title-meta"]')).toHaveClass('empty:hidden');
+      expect(header.querySelector('[data-slot="embedded-phone-capture-header-meta"]')).toBeEmptyDOMElement();
       expect(header.querySelector('[data-slot="embedded-phone-capture-header-meta"]')).not.toHaveTextContent('Draft will save on exit');
+      fireEvent.click(screen.getByRole('button', { name: 'Capture actions' }));
+      const actionsDialog = screen.getByRole('dialog', { name: 'Capture actions' });
+      expect(within(actionsDialog).getByRole('button', { name: 'Discard changes and leave' })).toBeEnabled();
+      expect(within(actionsDialog).getByRole('button', { name: 'Done' })).toBeEnabled();
     } finally {
       header.remove();
     }

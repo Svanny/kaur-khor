@@ -1922,6 +1922,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByText('Phone operator mode')).toBeInTheDocument();
     expect(within(phoneNav).getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
     expect(within(phoneNav).getByRole('link', { name: 'Queue' })).toHaveAttribute('href', '#/work/queue');
+    expect(within(phoneNav).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '#/settings');
     expect(within(phoneNav).queryByRole('link', { name: 'Insights' })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'false');
@@ -2007,6 +2008,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="embedded-phone-header"]')).not.toBeNull();
     expect(phoneHeaderEyebrow).toHaveTextContent('KAUR KHOR');
     expect(phoneHeaderTitle).toHaveTextContent('Phone operator mode');
+    expect(phoneHeaderTitle).toHaveClass('sr-only');
     expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-next-move"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-primary-action"]')).not.toBeNull();
@@ -2041,6 +2043,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(within(phoneNav).getByRole('link', { name: 'Queue' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/queue`);
     expect(within(phoneNav).getByRole('link', { name: 'Capture' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture`);
     expect(within(phoneNav).getByRole('link', { name: 'Products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
+    expect(within(phoneNav).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings`);
     expect(within(phoneNav).queryByRole('link', { name: 'Insights' })).not.toBeInTheDocument();
     fireEvent.click(within(phoneNav).getByRole('link', { name: 'Queue' }));
     expect(await screen.findByRole('heading', { name: 'Work that needs a decision' })).toBeInTheDocument();
@@ -2167,12 +2170,11 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="phone-explain-fragile-list"]')).not.toBeNull();
     fireEvent.click(screen.getByRole('link', { name: 'Back to insights' }));
     expect(await screen.findByRole('heading', { name: 'Choose an operating lens' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Workspace safety' }));
-    expect(container.querySelector('[data-slot="phone-utility-safety-sheet"]')).not.toBeNull();
-    fireEvent.click(screen.getByRole('link', { name: 'Open settings' }));
+    fireEvent.click(within(phoneNav).getByRole('link', { name: 'Settings' }));
     expect(await screen.findByRole('heading', { name: 'Workspace safety' })).toBeInTheDocument();
     expect(phoneHeaderEyebrow).toHaveTextContent('Settings');
     expect(phoneHeaderTitle).toHaveTextContent('Configurations');
+    expect(phoneHeaderTitle).toHaveClass('sr-only');
     expect(phoneHeaderTitle?.querySelector('[data-slot="embedded-phone-header-title-icon"]')).toBeNull();
     expect(container.querySelector('[data-slot="phone-more-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-workspace-safety"]')).not.toBeNull();
@@ -2263,7 +2265,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveClass('overflow-x-clip');
   });
 
-  test('opens workspace safety from the phone header without a Today safety card', async () => {
+  test('opens workspace safety from the phone settings tab without a Today safety card', async () => {
     window.location.hash = hiddenPhoneOperatorHash;
     mockViewport(390, 844);
     const handle = createOnboardedBrowserStorageHandle('demo');
@@ -2275,10 +2277,12 @@ describe('WebRoutes embedded app fallback state', () => {
     try {
       const { container } = render(<EmbeddedAppRoute mode="demo" />);
 
+      const phoneNav = await screen.findByRole('navigation', { name: 'Phone navigation' });
       await waitFor(() => expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull());
       expect(container.querySelector('[data-slot="phone-workspace-safety-alert"]')).toBeNull();
-      fireEvent.click(screen.getByRole('button', { name: 'Workspace safety' }));
-      expect(container.querySelector('[data-slot="phone-utility-safety-sheet"]')).not.toBeNull();
+      expect(screen.queryByRole('button', { name: 'Workspace safety' })).not.toBeInTheDocument();
+      fireEvent.click(within(phoneNav).getByRole('link', { name: 'Settings' }));
+      expect(await screen.findByRole('heading', { name: 'Workspace safety' })).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Export backup' }));
       await waitFor(() => expect(handle.persistSenaState).toHaveBeenCalled());
       expect(createObjectUrlSpy).toHaveBeenCalled();
@@ -2848,10 +2852,17 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(await screen.findByRole('heading', { name: 'Set up Kaur Khor' })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="embedded-phone-shell"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="onboarding-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveClass('grid', 'items-center', 'pt-0');
+    expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveClass('grid', 'items-center', 'pt-0', 'row-start-1', 'row-end-5');
     expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveStyle({ paddingBottom: '0px' });
     expect(container.querySelector('[data-slot="phone-wide-only-page"]')).toBeNull();
-    expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Set up Kaur Khor');
+    expect(container.querySelector('[data-slot="embedded-phone-header"]')).toBeNull();
+    expect(container.querySelector('[data-slot="embedded-phone-bottom-nav"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByRole('heading', { name: 'Choose interface view' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="interface-view-carousel-viewport"]')).not.toBeNull();
+    expect(screen.getByRole('radiogroup', { name: 'Display view mode' })).toHaveAttribute('data-presentation', 'carousel');
   });
 
   test.each([
@@ -2891,16 +2902,15 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-capture-reduced-nav"]')).toBeNull();
     expect(container.querySelector('[data-slot="phone-capture-session-header"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="embedded-phone-header"] > div')).toHaveClass('flex-wrap', 'gap-y-2');
-    expect(container.querySelector('[data-slot="embedded-phone-header"] > div > div')).toHaveClass('flex-[999_0_max-content]', 'max-w-full');
-    expect(container.querySelector('[data-slot="embedded-phone-header-title"] span')).toHaveClass('whitespace-nowrap', 'min-w-fit');
-    expect(container.querySelector('[data-slot="embedded-phone-capture-header-title-meta"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="embedded-phone-header"] > div')).toHaveClass('relative', 'flex-wrap', 'gap-x-2', 'gap-y-2');
+    expect(container.querySelector('[data-slot="embedded-phone-header"] > div > div')).toHaveClass('w-full', 'max-w-full', 'pr-12');
+    expect(container.querySelector('[data-slot="embedded-phone-capture-header-title-text"]')).toHaveClass('break-words', 'min-w-0');
+    expect(container.querySelector('[data-slot="embedded-phone-capture-header-title-meta"]')).toHaveClass('empty:hidden', 'min-w-0');
     const headerActions = container.querySelector('[data-slot="embedded-phone-capture-header-actions"]');
-    expect(headerActions).toHaveClass('flex-[1_1_26rem]', 'min-w-[min(100%,26rem)]', 'flex-wrap', 'justify-end');
-    expect(headerActions?.firstElementChild).toHaveClass('w-full', 'flex-wrap', 'items-stretch');
-    const buttons = Array.from(headerActions?.querySelectorAll('button') ?? []);
-    expect(buttons[0]).toHaveClass('flex-[1_1_0]', 'min-w-[18rem]', 'whitespace-nowrap');
-    expect(buttons[1]).toHaveClass('w-full', 'min-w-0');
+    expect(headerActions).toHaveClass('absolute', 'top-0', 'right-0');
+    expect(within(headerActions as HTMLElement).getByRole('button', { name: 'Capture actions' })).toHaveClass('rounded-full');
+    expect(within(headerActions as HTMLElement).queryByRole('button', { name: 'Discard changes and leave' })).not.toBeInTheDocument();
+    expect(within(headerActions as HTMLElement).queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Close capture' })).not.toBeInTheDocument();
   });
 
@@ -3248,7 +3258,8 @@ describe('WebRoutes embedded app fallback state', () => {
 
     const { container } = render(<EmbeddedAppRoute mode="demo" />);
 
-    expect(await screen.findByRole('navigation', { name: 'ការរុករកលើទូរស័ព្ទ' })).toBeInTheDocument();
+    const phoneNav = await screen.findByRole('navigation', { name: 'ការរុករកលើទូរស័ព្ទ' });
+    expect(phoneNav).toBeInTheDocument();
     expect(screen.getByText('របៀបប្រតិបត្តិករទូរស័ព្ទ')).toBeInTheDocument();
     expect(screen.getByText('សកម្មភាពបន្ទាប់')).toBeInTheDocument();
     expect(screen.queryByText('ផ្លូវលឿន')).not.toBeInTheDocument();
@@ -3258,8 +3269,8 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(await screen.findByRole('heading', { name: 'ជម្រើសដែលផ្តល់ជូន' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'ស្វែងរកទំនិញ' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'សុវត្ថិភាពកន្លែងធ្វើការ' }));
-    expect(container.querySelector('[data-slot="phone-utility-safety-sheet"]')).not.toBeNull();
+    fireEvent.click(within(phoneNav).getByRole('link', { name: 'ការកំណត់' }));
+    expect(await screen.findByRole('heading', { name: 'សុវត្ថិភាពកន្លែងធ្វើការ' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'នាំចេញច្បាប់បម្រុង' })).toBeEnabled();
   });
 

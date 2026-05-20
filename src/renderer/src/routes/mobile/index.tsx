@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { SenaObservationInput, SenaObservationRecord, SenaTicketEvent, SenaTicketEventType, SenaTicketLine, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
 import {
@@ -198,11 +198,19 @@ function phoneBackHrefFromSearch(searchParams: URLSearchParams, fallback: string
 
 type PhoneTab = {
   href: string;
-  icon: typeof NavigationDashboardIcon;
-  id: 'today' | 'queue' | 'capture' | 'products' | 'insights';
+  icon: IconComponent;
+  id: 'today' | 'queue' | 'capture' | 'products' | 'insights' | 'settings';
   label: string;
   matches: (pathname: string) => boolean;
 };
+
+function phoneLocationCacheKey(location: Pick<ReturnType<typeof useLocation>, 'pathname' | 'search'>) {
+  return `${location.pathname}${location.search}`;
+}
+
+const PhoneChromeStateContext = createContext({
+  markCaptureSessionReady: (_locationKey: string) => {},
+});
 
 const PHONE_INSIGHTS_NAV_ENABLED = false;
 
@@ -242,6 +250,13 @@ function phoneTabs(language: ReturnType<typeof usePreferences>['language']): Pho
       id: 'insights',
       label: translateUiLiteral(language, 'Insights'),
       matches: (pathname) => pathname.startsWith('/insights'),
+    },
+    {
+      href: '/settings',
+      icon: NavigationSettingsIcon,
+      id: 'settings',
+      label: translateUiLiteral(language, 'Settings'),
+      matches: (pathname) => pathname.startsWith('/settings'),
     },
   ];
 
@@ -366,7 +381,7 @@ function PhonePage({
   slot: string;
 }) {
   return (
-    <div className={cn('grid min-w-0 max-w-full gap-4', className)} data-slot={slot}>
+    <div className={cn('grid min-h-full min-w-0 max-w-full gap-4', className)} data-slot={slot}>
       {children}
     </div>
   );
@@ -596,25 +611,56 @@ function PhoneEmptyState({
 }
 
 function PhoneLoadingState({
-  detail,
-  title,
+  detail: _detail,
+  title: _title,
 }: {
   detail?: string;
   title: string;
 }) {
+  return <PhoneWorkspaceLoadingScreen slot="phone-loading-state" />;
+}
+
+function PhoneWorkspaceLoadingScreen({
+  heightMode = 'content',
+  slot,
+}: {
+  heightMode?: 'content' | 'viewport';
+  slot: string;
+}) {
+  const { language } = usePreferences();
+
   return (
-    <PhoneSurface className="grid gap-4" slot="phone-loading-state">
+    <div
+      className={cn(
+        'grid h-full place-items-center bg-background px-4 text-center text-foreground',
+        heightMode === 'viewport' ? 'min-h-svh' : 'min-h-full',
+      )}
+      data-slot={slot}
+    >
       <div>
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-        {detail ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{detail}</p> : null}
+        <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
+        <h1 className="mx-auto mt-3 max-w-[24ch] text-[1.7rem] font-semibold leading-tight tracking-normal">
+          {translateUiLiteral(language, 'Loading workspace…')}
+        </h1>
       </div>
-      <div className="grid gap-2" aria-hidden="true" data-slot="phone-loading-skeleton">
-        <span className="h-12 rounded-[0.8rem] bg-muted/70" />
-        <span className="h-16 rounded-[0.8rem] bg-muted/55" />
-        <span className="h-16 rounded-[0.8rem] bg-muted/45" />
-      </div>
-    </PhoneSurface>
+    </div>
   );
+}
+
+function PhoneCaptureLoadingState() {
+  return <PhoneWorkspaceLoadingScreen slot="phone-capture-loading" />;
+}
+
+function PhoneCaptureSessionChromeReady() {
+  const location = useLocation();
+  const { markCaptureSessionReady } = useContext(PhoneChromeStateContext);
+  const captureLocationKey = phoneLocationCacheKey(location);
+
+  useLayoutEffect(() => {
+    markCaptureSessionReady(captureLocationKey);
+  }, [captureLocationKey, markCaptureSessionReady]);
+
+  return null;
 }
 
 function PhoneStorageFeedback({
@@ -3021,15 +3067,10 @@ function PhoneCaptureRoute() {
   return (
     <Suspense
       fallback={(
-        <PhonePage slot="phone-capture-page">
-          <PhonePageHeader eyebrow="Capture" title="Record what changed" />
-          <PhoneLoadingState
-            title="Preparing capture…"
-            detail="Loading products and saved draft context before opening record lanes."
-          />
-        </PhonePage>
+        <PhoneCaptureLoadingState />
       )}
     >
+      <PhoneCaptureSessionChromeReady />
       <LazyStockUpdateSessionRoute />
     </Suspense>
   );
@@ -6374,13 +6415,22 @@ function PhoneChrome({
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [utilityOpen, setUtilityOpen] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [readyCaptureLocationKey, setReadyCaptureLocationKey] = useState<string | null>(null);
   const ready = storage.status === 'ready';
   const resetLabel = mode === 'demo' ? 'Reset demo' : 'Reset workspace';
   const isDeepCaptureRoute = location.pathname.startsWith('/work/capture/');
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
-  const isSettingsRoute = location.pathname.startsWith('/settings');
+  const captureLocationKey = phoneLocationCacheKey(location);
+  const hidePhoneChrome = isOnboardingRoute || (isDeepCaptureRoute && readyCaptureLocationKey !== captureLocationKey);
   const captureBackHref = sanitizePhoneReturnTo(new URLSearchParams(location.search).get('returnTo'), RECORD_UPDATE_HUB_PATH);
   const shellHeader = phoneShellHeaderCopy(location.pathname, language, activeSenaCatalog(inventory.catalog) ?? inventory.catalog);
+  const chromeState = useMemo(() => ({ markCaptureSessionReady: setReadyCaptureLocationKey }), []);
+
+  useLayoutEffect(() => {
+    if (isDeepCaptureRoute) {
+      setReadyCaptureLocationKey((current) => (current === captureLocationKey ? current : null));
+    }
+  }, [captureLocationKey, isDeepCaptureRoute]);
 
   useEffect(() => {
     const scrollRoot = document.querySelector<HTMLElement>('[data-slot="embedded-auto-zoom-viewport"]');
@@ -6401,12 +6451,13 @@ function PhoneChrome({
   }, [location.pathname]);
 
   return (
-    <div
-      className="grid min-h-[var(--kaur-khor-embedded-effective-height,100dvh)] max-w-full grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-x-clip overscroll-contain bg-background text-foreground"
-      data-language={language}
-      data-slot="embedded-phone-shell"
-      lang={language === 'km' ? 'km' : 'en'}
-    >
+    <PhoneChromeStateContext.Provider value={chromeState}>
+      <div
+        className="grid min-h-[var(--kaur-khor-embedded-effective-height,100dvh)] max-w-full grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-x-clip overscroll-contain bg-background text-foreground"
+        data-language={language}
+        data-slot="embedded-phone-shell"
+        lang={language === 'km' ? 'km' : 'en'}
+      >
       {utilityOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-end bg-foreground/30 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]" data-slot="phone-utility-safety-sheet">
           <PhoneSurface className="w-full max-w-md justify-self-center bg-background">
@@ -6514,64 +6565,61 @@ function PhoneChrome({
       >
         {translateUiLiteral(language, 'Skip to content')}
       </a>
-      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/92 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur" data-slot="embedded-phone-header">
-        <div className={cn(isDeepCaptureRoute ? 'flex flex-wrap items-start gap-x-3 gap-y-2' : 'flex items-start justify-between gap-3')}>
-          <div className={cn('min-w-0', isDeepCaptureRoute && 'flex-[999_0_max-content] max-w-full')}>
-            {!isDeepCaptureRoute ? (
-              <p className="khmer-safe-eyebrow text-xs font-semibold uppercase tracking-[0.14em] text-primary" data-slot="embedded-phone-header-eyebrow">
-                {shellHeader.eyebrow}
-              </p>
-            ) : null}
+      {!hidePhoneChrome ? (
+        <header className="sticky top-0 z-30 border-b border-border/70 bg-background/92 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur" data-slot="embedded-phone-header">
+          <div className={cn(isDeepCaptureRoute ? 'relative flex flex-wrap items-start gap-x-2 gap-y-2' : 'flex items-start justify-between gap-3')}>
+            <div className={cn('min-w-0', isDeepCaptureRoute && 'w-full max-w-full pr-12')}>
+              {!isDeepCaptureRoute ? (
+                <p className="khmer-safe-eyebrow text-xs font-semibold uppercase tracking-[0.14em] text-primary" data-slot="embedded-phone-header-eyebrow">
+                  {shellHeader.eyebrow}
+                </p>
+              ) : null}
+              {isDeepCaptureRoute ? (
+                <h1 className="khmer-safe-display flex min-w-0 flex-1 items-start gap-2 text-2xl font-semibold leading-tight tracking-normal text-foreground" data-slot="embedded-phone-header-title">
+                  <Button asChild aria-label={translateUiLiteral(language, 'Back')} className="size-9 shrink-0 rounded-full p-0" size="icon" variant="ghost">
+                    <Link to={captureBackHref}>
+                      <NavigationBackIcon aria-hidden="true" className="size-4" />
+                    </Link>
+                  </Button>
+                  <span className="grid min-w-0 flex-1 gap-0.5">
+                    <span className="min-w-0 max-w-full break-words" data-slot="embedded-phone-capture-header-title-text">
+                      {shellHeader.title}
+                    </span>
+                    <span
+                      className="min-w-0 text-sm font-medium leading-5 text-muted-foreground empty:hidden"
+                      data-slot="embedded-phone-capture-header-title-meta"
+                    />
+                  </span>
+                </h1>
+              ) : (
+                <p className="sr-only khmer-safe-display" data-slot="embedded-phone-header-title">
+                  <span className="min-w-0 truncate">{shellHeader.title}</span>
+                </p>
+              )}
+            </div>
             {isDeepCaptureRoute ? (
-              <h1 className="khmer-safe-display flex min-w-0 items-center gap-2 text-[1.7rem] font-semibold leading-[1.12] tracking-normal text-foreground" data-slot="embedded-phone-header-title">
-                <Button asChild aria-label={translateUiLiteral(language, 'Back')} className="size-9 shrink-0 rounded-full p-0" size="icon" variant="ghost">
-                  <Link to={captureBackHref}>
-                    <NavigationBackIcon aria-hidden="true" className="size-4" />
-                  </Link>
-                </Button>
-                <span className="min-w-fit max-w-full whitespace-nowrap">
-                  {shellHeader.title}
-                  <span
-                    className="ml-2 align-baseline text-sm font-medium leading-5 text-muted-foreground"
-                    data-slot="embedded-phone-capture-header-title-meta"
-                  />
-                </span>
-              </h1>
-            ) : (
-              <p className="khmer-safe-display flex min-w-0 items-center gap-2 text-[1.7rem] font-semibold leading-[1.12] tracking-normal text-foreground" data-slot="embedded-phone-header-title">
-                <span className="min-w-0 truncate">{shellHeader.title}</span>
-              </p>
-            )}
+              <>
+                <div className="absolute top-0 right-0 flex min-w-0 items-start justify-end [&_button]:min-h-10 [&_button]:rounded-full" data-slot="embedded-phone-capture-header-actions" />
+                <div className="min-w-0 text-sm leading-5 text-muted-foreground [&_p]:max-w-none" data-slot="embedded-phone-capture-header-meta" />
+              </>
+            ) : null}
           </div>
-          {isDeepCaptureRoute ? (
-            <>
-              <div className="flex min-w-[min(100%,26rem)] flex-[1_1_26rem] shrink-0 flex-wrap items-start justify-end gap-2 [&_[data-slot=workspace-action-row]]:gap-2 [&_[data-slot=workspace-action-row]]:[&>span]:inline-flex [&_button]:min-h-10 [&_button]:rounded-full [&_button]:px-3 [&_button]:text-sm" data-slot="embedded-phone-capture-header-actions" />
-              <div className="min-w-0 text-sm leading-5 text-muted-foreground [&_p]:max-w-none" data-slot="embedded-phone-capture-header-meta" />
-            </>
-          ) : isSettingsRoute ? null : (
-            <Button
-              aria-label={translateUiLiteral(language, 'Workspace safety')}
-              className="size-11 rounded-[0.8rem] border-border/70 bg-card"
-              size="icon"
-              type="button"
-              variant="outline"
-              onClick={() => setUtilityOpen(true)}
-            >
-              <NavigationSettingsIcon aria-hidden="true" className="size-4" />
-            </Button>
-          )}
-        </div>
-      </header>
+        </header>
+      ) : null}
       <main
         id="main-content"
-        className={cn('min-w-0 max-w-full overflow-x-clip px-4', isOnboardingRoute ? 'grid items-center pt-0' : 'pt-4', isDeepCaptureRoute ? 'row-start-2' : 'row-start-3')}
+        className={cn(
+          'min-w-0 max-w-full overflow-x-clip px-4',
+          hidePhoneChrome || isOnboardingRoute ? 'grid items-center pt-0' : 'pt-4',
+          hidePhoneChrome ? 'row-start-1 row-end-5' : isDeepCaptureRoute ? 'row-start-2' : 'row-start-3',
+        )}
         data-slot="embedded-phone-main"
-        style={{ paddingBottom: isOnboardingRoute ? 0 : 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+        style={{ paddingBottom: hidePhoneChrome || isOnboardingRoute ? 0 : 'calc(env(safe-area-inset-bottom) + 1rem)' }}
       >
         <PhoneWorkspaceErrorBanner />
         {children}
       </main>
-      {!isDeepCaptureRoute ? (
+      {!isDeepCaptureRoute && !hidePhoneChrome ? (
         <nav
           aria-label={translateUiLiteral(language, 'Phone navigation')}
           className="sticky bottom-0 z-40 row-start-4 h-fit self-end border-t border-border/70 bg-background/95 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-12px_30px_rgba(27,15,7,0.10)] backdrop-blur"
@@ -6585,7 +6633,8 @@ function PhoneChrome({
           </div>
         </nav>
       ) : null}
-    </div>
+      </div>
+    </PhoneChromeStateContext.Provider>
   );
 }
 
@@ -6626,16 +6675,7 @@ function EmbeddedPhoneAppFrame(props: EmbeddedPhoneAppProps) {
   const { isHydrated, language, onboardingCompletedAt } = usePreferences();
 
   if (!isHydrated) {
-    return (
-      <div className="grid min-h-svh place-items-center bg-background px-6 text-center text-foreground">
-        <div>
-          <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-normal">
-            {translateUiLiteral(language, 'Loading preferences…')}
-          </h1>
-        </div>
-      </div>
-    );
+    return <PhoneWorkspaceLoadingScreen heightMode="viewport" slot="embedded-phone-preferences-loading" />;
   }
 
   if (!onboardingCompletedAt) {

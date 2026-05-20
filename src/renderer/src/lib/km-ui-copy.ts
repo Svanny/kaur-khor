@@ -4469,6 +4469,7 @@ const runtimeLiteralTranslations: Record<string, string> = {
   note: 'កំណត់ចំណាំ',
   'No structured signals': 'មិនមានសញ្ញាមានរចនាសម្ព័ន្ធទេ',
   'Loading preferences…': 'កំពុងផ្ទុកចំណូលចិត្ត…',
+  'Loading workspace…': 'កំពុងផ្ទុកកន្លែងធ្វើការ…',
   'supplier order probability': 'លទ្ធភាពបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
   'Supplier receipt': 'ការទទួលទំនិញពីអ្នកផ្គត់ផ្គង់',
   'Supplier order cue': 'សញ្ញាបញ្ជាទិញអ្នកផ្គត់ផ្គង់',

@@ -61,7 +61,7 @@ import {
   EntityWalkInChannelIcon,
   EntityWhatsAppChannelIcon,
 } from '@icons/entities';
-import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
+import { NavigationMoveDownIcon, NavigationMoveUpIcon, NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import {
   StatusDiscountAmountIcon,
   StatusDiscountPercentIcon,
@@ -6177,7 +6177,7 @@ function TicketEntryPrompt({
   const canEdit = options.length > 0;
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 px-4 py-6"
+      className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/30 px-4 py-6"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onDismiss?.();
@@ -6186,7 +6186,7 @@ function TicketEntryPrompt({
     >
       <section
         aria-label={title}
-        className="w-full max-w-lg rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
         role="dialog"
       >
         <div className="space-y-2">
@@ -7054,6 +7054,7 @@ export function StockUpdateSessionRoute() {
   const [hasSavedDraft, setHasSavedDraft] = useState(() => hasStoredStockUpdateDraft(draftStorageKey));
   const [draftWasRestored, setDraftWasRestored] = useState(false);
   const [leaveDraftDialogOpen, setLeaveDraftDialogOpen] = useState(false);
+  const [phoneCaptureActionDialogOpen, setPhoneCaptureActionDialogOpen] = useState(false);
   const workbenchHoldTimerRef = useRef<number | null>(null);
   const workbenchHoldOriginRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const pendingWorkbenchInteractionRef = useRef<null | (() => void)>(null);
@@ -10909,11 +10910,63 @@ export function StockUpdateSessionRoute() {
   const captureReviewActionLabel = translateUiLiteral(language, 'Done');
 
   function renderSessionTitleActions(showDraftStatus: boolean, embeddedPhoneActions = false) {
+    if (embeddedPhoneActions) {
+      const phoneCaptureActionDialog = (
+        <ConfirmActionDialog
+          cancelLabel={translateUiLiteral(language, 'Keep editing')}
+          confirmIcon={<ActionConfirmIcon />}
+          confirmLabel={captureReviewActionLabel}
+          confirmVariant="default"
+          destructiveActionLabel={t('stockUpdateDiscardChanges')}
+          description={translateUiLiteral(language, 'Choose how to finish this capture session.')}
+          hideIcon
+          isConfirmDisabled={submitDisabled}
+          isDestructiveActionDisabled={!canDiscardChanges}
+          open={phoneCaptureActionDialogOpen}
+          title={translateUiLiteral(language, 'Capture actions')}
+          onCancel={() => setPhoneCaptureActionDialogOpen(false)}
+          onConfirm={() => {
+            if (submitDisabled) {
+              flashVisibleSaveErrors();
+              return;
+            }
+            setPhoneCaptureActionDialogOpen(false);
+            if (workbenchReorderMode) {
+              requestWorkbenchReorderPrompt();
+              return;
+            }
+            const form = document.getElementById('stock-update-session-form') as HTMLFormElement | null;
+            form?.requestSubmit();
+          }}
+          onDestructiveAction={() => {
+            setPhoneCaptureActionDialogOpen(false);
+            handleDiscardChanges();
+          }}
+        />
+      );
+
+      return (
+        <>
+          <Button
+            aria-label={translateUiLiteral(language, 'Capture actions')}
+            className="size-10 shrink-0 rounded-full p-0"
+            size="icon"
+            type="button"
+            variant="outline"
+            onClick={() => setPhoneCaptureActionDialogOpen(true)}
+          >
+            <EntityOverflowMenuIcon aria-hidden="true" className="size-4" />
+          </Button>
+          {typeof document !== 'undefined' ? createPortal(phoneCaptureActionDialog, document.body) : phoneCaptureActionDialog}
+        </>
+      );
+    }
+
     return (
       <WorkspaceActionRow className={embeddedPhoneActions ? 'w-full flex-wrap items-stretch gap-2' : undefined}>
         {showDraftStatus && draftStatusLabel ? <span className="px-1 text-sm text-muted-foreground">{draftStatusLabel}</span> : null}
         <Button
-          className={cn(discardChangesButtonClassName, embeddedPhoneActions && 'min-h-10 min-w-[18rem] flex-[1_1_0] whitespace-nowrap px-3 py-2 text-center leading-tight')}
+          className={cn(discardChangesButtonClassName, embeddedPhoneActions && 'min-h-10 min-w-0 flex-[1_1_12rem] whitespace-normal px-3 py-2 text-center leading-tight')}
           disabled={!canDiscardChanges}
           title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
           type="button"
@@ -11565,6 +11618,19 @@ export function StockUpdateSessionRoute() {
     requestWorkbenchReorderPrompt(pendingAction);
     return true;
   }, [requestWorkbenchReorderPrompt, workbenchReorderMode]);
+  const scrollEmbeddedPhoneReorder = useCallback((direction: 'down' | 'up') => {
+    const scrollRoot = document.querySelector<HTMLElement>('[data-slot="embedded-auto-zoom-viewport"]');
+    const target = scrollRoot ?? document.scrollingElement ?? document.documentElement;
+    const distance = Math.max(180, Math.round((scrollRoot?.clientHeight ?? window.innerHeight) * 0.68));
+    const top = direction === 'up' ? -distance : distance;
+
+    if ('scrollBy' in target && typeof target.scrollBy === 'function') {
+      target.scrollBy({ behavior: 'smooth', top });
+      return;
+    }
+
+    target.scrollTop += top;
+  }, []);
   useEffect(() => {
     if (!workbenchReorderMode) {
       return;
@@ -12967,9 +13033,6 @@ export function StockUpdateSessionRoute() {
             : t('stockUpdateDescriptorIntervalSuffix', { days: intervalDays }),
       })
     : t('stockUpdateDescriptorFirst');
-  const phoneCaptureHeaderMetaTarget = embeddedPhonePortrait && typeof document !== 'undefined'
-    ? document.querySelector('[data-slot="embedded-phone-capture-header-meta"]')
-    : null;
   const phoneCaptureHeaderActionsTarget = embeddedPhonePortrait && typeof document !== 'undefined'
     ? document.querySelector('[data-slot="embedded-phone-capture-header-actions"]')
     : null;
@@ -12982,12 +13045,6 @@ export function StockUpdateSessionRoute() {
         ? createPortal(
             draftStatusLabel ? <span>({draftStatusLabel})</span> : null,
             phoneCaptureHeaderTitleMetaTarget,
-          )
-        : null}
-      {phoneCaptureHeaderMetaTarget
-        ? createPortal(
-            <p>{sessionDescriptor}</p>,
-            phoneCaptureHeaderMetaTarget,
           )
         : null}
       {phoneCaptureHeaderActionsTarget
@@ -13280,6 +13337,14 @@ export function StockUpdateSessionRoute() {
     embeddedPhonePortrait && typeof document !== 'undefined'
       ? createPortal(dialog, document.body)
       : dialog;
+  const posTileDialogContentClassName = cn(
+    'fixed left-1/2 top-1/2 z-[100] grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-6 overflow-y-auto rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]',
+    embeddedPhonePortrait && 'max-h-[calc(var(--kaur-khor-embedded-effective-height,100dvh)-1rem)] w-[calc(100vw-1rem)] gap-4 overflow-y-auto rounded-[1.25rem] p-4',
+  );
+  const posReviewDialogContentClassName = cn(
+    'fixed left-1/2 top-1/2 z-[100] grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]',
+    embeddedPhonePortrait && 'max-h-[calc(var(--kaur-khor-embedded-effective-height,100dvh)-1rem)] w-[calc(100vw-1rem)] rounded-[1.25rem] p-4',
+  );
 
   return (
     <SaveErrorFlashKeyContext.Provider value={saveErrorFlashKey}>
@@ -13911,6 +13976,39 @@ export function StockUpdateSessionRoute() {
           onClick={() => requestWorkbenchReorderPrompt()}
         />
       ) : null}
+      {embeddedPhonePortrait && sessionViewMode === 'pos' && workbenchReorderMode
+        ? createPortal(
+            <div className="fixed right-4 bottom-[max(env(safe-area-inset-bottom),1rem)] z-40 grid gap-2" data-slot="phone-reorder-scroll-controls">
+              <Button
+                aria-label={translateUiLiteral(language, 'Scroll up')}
+                className="size-11 rounded-full border-border/70 bg-card p-0 shadow-[0_12px_32px_rgba(48,31,20,0.18)]"
+                size="icon"
+                type="button"
+                variant="outline"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  scrollEmbeddedPhoneReorder('up');
+                }}
+              >
+                <NavigationMoveUpIcon aria-hidden="true" className="size-4" />
+              </Button>
+              <Button
+                aria-label={translateUiLiteral(language, 'Scroll down')}
+                className="size-11 rounded-full border-border/70 bg-card p-0 shadow-[0_12px_32px_rgba(48,31,20,0.18)]"
+                size="icon"
+                type="button"
+                variant="outline"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  scrollEmbeddedPhoneReorder('down');
+                }}
+              >
+                <NavigationMoveDownIcon aria-hidden="true" className="size-4" />
+              </Button>
+            </div>,
+            document.body,
+          )
+        : null}
       <DialogPrimitive.Root
         open={sessionViewMode === 'pos' && activePosTile != null && (stockCountPosMode ? activePosStockCountRow != null || activePosServiceUpdate != null : activePosTileLine != null)}
         onOpenChange={(open) => {
@@ -13922,7 +14020,7 @@ export function StockUpdateSessionRoute() {
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="fixed inset-0 z-[90] bg-[rgba(29,20,12,0.42)] backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
           {activePosTile && stockCountPosMode && activePosStockCountRow ? (
-            <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[100] grid w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]">
+            <DialogPrimitive.Content className={posTileDialogContentClassName}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-4">
                   <ItemAvatar imagePath={activePosTile.imagePath} name={activePosTile.title} size="hero" type={activePosTile.itemType} />
@@ -14114,7 +14212,7 @@ export function StockUpdateSessionRoute() {
               </div>
             </DialogPrimitive.Content>
           ) : activePosTile && activePosServiceUpdate ? (
-            <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[100] grid w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]">
+            <DialogPrimitive.Content className={posTileDialogContentClassName}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-4">
                   <ItemAvatar imagePath={activePosTile.imagePath} name={activePosTile.title} size="hero" type={activePosTile.itemType} />
@@ -14240,7 +14338,7 @@ export function StockUpdateSessionRoute() {
               </div>
             </DialogPrimitive.Content>
           ) : activePosTile && activePosTileLine ? (
-            <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[100] grid w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]">
+            <DialogPrimitive.Content className={posTileDialogContentClassName}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-4">
                   <ItemAvatar imagePath={activePosTile.imagePath} name={activePosTile.title} size="hero" type={activePosTile.itemType} />
@@ -14374,7 +14472,7 @@ export function StockUpdateSessionRoute() {
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="fixed inset-0 z-[90] bg-[rgba(29,20,12,0.42)] backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
           <DialogPrimitive.Content
-            className="fixed left-1/2 top-1/2 z-[100] grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]"
+            className={posReviewDialogContentClassName}
             onOpenAutoFocus={(event) => {
               event.preventDefault();
               window.requestAnimationFrame(() => {

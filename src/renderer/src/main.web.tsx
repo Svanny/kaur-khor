@@ -2,7 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { getBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
 import { embeddedModeForPath } from '@/routes/web/embedded-entry';
+import { WebLoadingFallback } from '@/routes/web/loading-fallback';
 import { WebRoutes } from '@/routes/web/landing';
 import './globals.css';
 
@@ -33,16 +35,8 @@ const app = embeddedMode
     </BrowserRouter>
   );
 
-const loadingFallback = (
-  <div className="grid min-h-svh place-items-center bg-background px-6 text-center text-foreground">
-    <div>
-      <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-normal">
-        Loading preferences…
-      </h1>
-    </div>
-  </div>
-);
+const loadingLanguage = getBrowserDesktopBridgeMockState().preferences.language;
+const loadingFallback = <WebLoadingFallback embeddedMode={Boolean(embeddedMode)} language={loadingLanguage} />;
 
 const rootElement = document.getElementById('root')! as HTMLElement & { __kaurKhorRoot?: Root };
 const root = rootElement.__kaurKhorRoot ?? ReactDOM.createRoot(rootElement);

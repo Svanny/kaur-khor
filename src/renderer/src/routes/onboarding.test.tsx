@@ -72,6 +72,7 @@ describe('OnboardingRoute', () => {
   });
 
   afterEach(() => {
+    delete document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait;
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
       writable: true,
@@ -339,6 +340,35 @@ describe('OnboardingRoute', () => {
       expect(wireframe).not.toHaveAttribute('style');
       expect(wireframe.firstElementChild).not.toHaveAttribute('style');
     }
+  });
+
+  it('uses the one-wireframe carousel picker in embedded phone portrait onboarding only', async () => {
+    document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'true';
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByRole('radiogroup', { name: 'Display view mode' })).toHaveAttribute(
+      'data-presentation',
+      'carousel',
+    );
+    expect(document.querySelector('[data-slot="interface-view-carousel-viewport"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="interface-view-carousel-track"]')).toHaveStyle({
+      transform: 'translateX(-0%)',
+    });
+  });
+
+  it('keeps the desktop and landscape onboarding picker as a grid', async () => {
+    document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'false';
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByRole('radiogroup', { name: 'Display view mode' })).toHaveAttribute(
+      'data-presentation',
+      'grid',
+    );
+    expect(document.querySelector('[data-slot="interface-view-carousel-viewport"]')).toBeNull();
   });
 
   it('renders stable onboarding copy when reduced motion is requested', async () => {

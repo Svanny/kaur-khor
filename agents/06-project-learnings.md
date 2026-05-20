@@ -13,6 +13,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Interface view preset cards must keep fixed square card tracks with even outer gutters, and their wireframes must fill the preview/title space with proportional internal density rather than leaving blank frame area.
 - Khmer Kaur Khor app UI translations must not render Latin letters; transliterate product and technical tokens and keep tests scanning the full Khmer map.
 - Khmer web landing copy must use Khmer pronunciations for app, browser, desktop, backup, snapshots, automations, and code; keep proper nouns and platform/tool names like GitHub, Terminal, macOS, OPFS, and Bash in English.
+- `KAUR KHOR` is intentionally localized as `កខ` in Khmer UI via `translateUiLiteral`; do not replace that translation with the Latin brand literal.
 - Explain layout fixes must be verified at the full route or Electron geometry level; component-only class assertions can miss collapsed tab rows and clipped right rails.
 - Inventory layout fixes must be verified in the desktop Electron app because browser-mode evidence can miss right-rail and table geometry issues.
 - Inventory Chrome tab alignment must follow Explain's pattern: keep tab wrappers unshifted, pull the window surface up with the Chrome overlap variable, and stack the window with `relative z-[1]`.
@@ -35,6 +36,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Release workflow notes must be generated from the current tag diff; do not hardcode feature highlights that will become stale in later releases.
 - Release workflow Cargo caches must include the packaging `build/cargo-target` directory because `scripts/stage-desktop-core.mjs` sets `CARGO_TARGET_DIR` there.
 - Source-build and update scripts must resolve their own script directories physically so symlinked source/update folders still run the intended local script.
+- Release workflow cache fixes must account for GitHub Actions cache scope: tag-created caches do not warm the next tag, so release cache producers must also run on `main` to populate default-branch caches.
 - Keep script-level Vitest files inside `vitest.config.ts` include globs, and route `pnpm test` through the project wrapper so `pnpm test -- path/to/file.test.*` stays file-targeted.
 - Test runtime parallelism must keep dependent UI-matrix flows ordered, keep benchmark Playwright workers at one, and provide serial escape hatches for shared-state diagnosis.
 - Source-build updates must keep versioned source folders under a stable `kaur-khor/` parent, ask before pruning old source-build versions, and default Settings / Updates to `latest` while allowing a specific release.

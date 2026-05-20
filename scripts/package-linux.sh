@@ -22,9 +22,15 @@ esac
 
 export KAUR_KHOR_ARTIFACT_ARCH="${target_arch}"
 release_dir="$(pwd)/release"
+skip_installer_handoff=false
+if [[ "${KAUR_KHOR_SKIP_INSTALLER_HANDOFF:-0}" == "1" || "${GITHUB_ACTIONS:-}" == "true" || "${CI:-}" == "true" ]]; then
+  skip_installer_handoff=true
+fi
 
 can_install_deb=true
-if [[ "${KAUR_KHOR_LINUX_INSTALL_PRECHECK:-}" == "ready" ]]; then
+if [[ "${skip_installer_handoff}" == "true" ]]; then
+  can_install_deb=false
+elif [[ "${KAUR_KHOR_LINUX_INSTALL_PRECHECK:-}" == "ready" ]]; then
   :
 elif [[ "${KAUR_KHOR_LINUX_INSTALL_PRECHECK:-}" == "unavailable" ]]; then
   can_install_deb=false
@@ -66,6 +72,12 @@ if [[ -z "${deb_installer}" ]]; then
   echo "Could not find Linux .deb installer in ${release_dir}; opening release folder instead." >&2
   open_release_folder
   exit 1
+fi
+
+if [[ "${skip_installer_handoff}" == "true" ]]; then
+  echo "Linux installer is ready at ${deb_installer}."
+  echo "Skipping installer launch because this build is running in CI or non-interactive mode."
+  exit 0
 fi
 
 if [[ "${can_install_deb}" != "true" ]]; then
