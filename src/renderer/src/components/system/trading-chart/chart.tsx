@@ -3210,7 +3210,9 @@ export function SkuTradingChart({
   const activeAdditionalPaneCount = Math.max(0, paneLayout.length - 1);
   const minimumRenderHeight = baseMinRenderHeight + Math.max(0, activeAdditionalPaneCount) * additionalPaneMinRenderHeight;
   const chartRenderStyle: CSSProperties = chartRenderHeight == null
-    ? { minHeight: minimumRenderHeight }
+    ? fillAvailableHeight
+      ? { minHeight: minimumRenderHeight }
+      : { height: minimumRenderHeight, minHeight: minimumRenderHeight }
     : { height: chartRenderHeight, minHeight: minimumRenderHeight };
   const regimeSetting = editableIndicatorSettings.regime;
   const regimeIndicatorEnabled = isEnabled(editableIndicatorSettings, chartModel.availability, 'regime');
@@ -3305,7 +3307,10 @@ export function SkuTradingChart({
     paneHeightUpdateFrameRef.current = null;
     const currentPaneCount = Math.max(0, paneLayout.length - 1);
     const currentMinimumRenderHeight = baseMinRenderHeight + Math.max(0, currentPaneCount) * additionalPaneMinRenderHeight;
-    const totalHeight = Math.max(currentMinimumRenderHeight, chartContainerRef.current?.clientHeight || currentMinimumRenderHeight);
+    const measuredHeight = chartContainerRef.current?.clientHeight || currentMinimumRenderHeight;
+    const totalHeight = chartRenderHeight == null && !fillAvailableHeight
+      ? currentMinimumRenderHeight
+      : Math.max(currentMinimumRenderHeight, measuredHeight);
     const paneIds = paneLayout.map((pane) => pane.id);
     applyPaneHeights(
       chartRef.current,
@@ -4538,7 +4543,7 @@ export function SkuTradingChart({
       const clipWidth = plotAreaWidth || container.clientWidth;
       for (const point of chartModel.points) {
         const coordinate = chart.timeScale().timeToCoordinate(point.time);
-        if (coordinate == null || !Number.isFinite(coordinate) || coordinate < -clipWidth || coordinate > clipWidth * 2) {
+        if (coordinate == null || !Number.isFinite(coordinate) || coordinate < 0 || coordinate > clipWidth) {
           continue;
         }
         nextPositions.set(point.intervalIndex, coordinate);
@@ -5651,7 +5656,7 @@ export function SkuTradingChart({
         className={cn(
           'relative min-h-[420px] flex-1 rounded-lg border border-border/70 bg-white transition-opacity duration-200 motion-reduce:transition-none',
           expanded && 'min-h-0',
-          chartRenderHeight != null && 'shrink-0 flex-none',
+          (chartRenderHeight != null || !fillAvailableHeight) && 'shrink-0 flex-none',
           shouldDimChartWhileBusy && 'opacity-45',
         )}
         data-busy={showBusyState || undefined}

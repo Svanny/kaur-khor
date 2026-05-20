@@ -107,6 +107,7 @@ export function SkuDetailLedger({
       customChartResolution={customChartResolution}
       customTimeframeRange={customTimeframeRange}
       expanded={expanded}
+      fillAvailableHeight={expanded}
       hasOlderIntervals={hasOlderIntervals}
       isBusy={isHydratingDetails || isLoadingOlderIntervals}
       isVisuallyBusy={isVisuallyBusy}

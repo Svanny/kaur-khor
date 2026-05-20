@@ -141,6 +141,27 @@ describe('SkuDetailLedger', () => {
     window.localStorage.clear();
   });
 
+  it('labels the chart window eyebrow as chart view', () => {
+    render(
+      <SkuDetailLedger
+        chartLayoutPreferences={defaultChartLayoutPreferences()}
+        hasOlderIntervals={false}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={async () => null}
+        model={buildModel('sku-1')}
+        onResetCharts={vi.fn()}
+        onTimeframeChange={vi.fn()}
+        selectedIntervalIndex={null}
+        setSelectedIntervalIndex={vi.fn()}
+        timeframe="Recent"
+      />,
+    );
+
+    expect(screen.getByText('Chart View')).toBeInTheDocument();
+    expect(screen.queryByText('កខ')).not.toBeInTheDocument();
+  });
+
   it('remembers chart settings for same sku across remounts', async () => {
     const user = userEvent.setup();
     const props = {
