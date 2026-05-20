@@ -3,11 +3,14 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-r
 import {
   ActionDatabaseDownloadIcon,
   ActionDatabaseUploadIcon,
+  ActionDownloadIcon,
   ActionExplosionIcon,
+  ActionOpenExternalIcon,
   ActionOpenFolderIcon,
   ActionRefreshIcon,
   ActionResumeIcon,
   ActionSaveIcon,
+  ActionSkipForwardIcon,
   ActionSquareDashedIcon,
   ActionSquareIcon,
   ActionUndoIcon,
@@ -38,6 +41,7 @@ import {
 import type { InterfaceViewMode } from '@shared/interface-view';
 import { AttentionFlash } from '@/components/system/attention-flash';
 import { CheckboxRow } from '@/components/system/checkbox-row';
+import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { InterfaceViewModeCards } from '@/components/system/interface-view-cards';
 import { SaveErrorFlash } from '@/components/system/save-error-flash';
@@ -530,6 +534,40 @@ function LocalDataLocationLink({
           <ActionOpenFolderIcon className="mt-0.5 size-4 shrink-0 self-start" />
           <span>{path}</span>
         </Button>
+      )}
+    </div>
+  );
+}
+
+function SettingsDirectoryDisplay({
+  label,
+  path,
+  placeholder,
+}: {
+  label: string;
+  path: string | null;
+  placeholder: string;
+}) {
+  const displayPath = path ?? placeholder;
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-foreground">{label}</p>
+      {path ? (
+        <Button
+          className="h-auto justify-start px-0 py-0 text-left text-sm font-normal text-muted-foreground whitespace-normal break-all hover:text-foreground"
+          type="button"
+          variant="link"
+          onClick={() => void window.kaurKhorDesktop.system.revealPath(path)}
+        >
+          <ActionOpenFolderIcon className="mt-0.5 size-4 shrink-0 self-start" />
+          <span>{displayPath}</span>
+        </Button>
+      ) : (
+        <p className="mt-1 inline-flex items-start gap-2 break-all text-sm text-muted-foreground">
+          <ActionOpenFolderIcon className="mt-0.5 size-4 shrink-0" />
+          <span>{displayPath}</span>
+        </p>
       )}
     </div>
   );
@@ -1315,14 +1353,14 @@ function DangerZonePage({
 function DesktopUpdatesPage({
   backupDirectoryPath,
   dataDirectoryPath,
+  latestBackupSnapshotCreatedAt,
   isBrowserRuntime,
   isCheckingUpdate,
   isStartingUpdate,
+  language,
   updateCheck,
   updateStatus,
   handleCheckForUpdate,
-  handleChooseBackupDirectory,
-  handleChooseDataDirectory,
   handleRunUpdate,
   selectedUpdateVersion,
   setSelectedUpdateVersion,
@@ -1332,14 +1370,14 @@ function DesktopUpdatesPage({
 }: {
   backupDirectoryPath: string | null;
   dataDirectoryPath: string | null;
+  latestBackupSnapshotCreatedAt: string | null;
   isBrowserRuntime: boolean;
   isCheckingUpdate: boolean;
   isStartingUpdate: boolean;
+  language: 'en' | 'km';
   updateCheck: DesktopUpdateCheckResult | null;
   updateStatus: string | null;
   handleCheckForUpdate: () => Promise<void>;
-  handleChooseBackupDirectory: () => Promise<void>;
-  handleChooseDataDirectory: () => Promise<void>;
   handleRunUpdate: () => Promise<void>;
   selectedUpdateVersion: string;
   setSelectedUpdateVersion: (value: string) => void;
@@ -1347,11 +1385,15 @@ function DesktopUpdatesPage({
   skipUpdateBackup: boolean;
   t: TranslateFn;
 }) {
+  const [skipBackupConfirmOpen, setSkipBackupConfirmOpen] = useState(false);
+
   if (isBrowserRuntime) {
     return <Navigate replace to="/settings/local-data" />;
   }
 
   const canStartUpdate = !isStartingUpdate && (skipUpdateBackup || Boolean(backupDirectoryPath));
+  const latestCheckpointLabel = formatSettingsCheckpointDateTime(latestBackupSnapshotCreatedAt, language)
+    ?? t('settingsUpdatesSkipBackupUnknownCheckpoint');
   const updateVersionOptions = updateCheck?.availableVersions.length
     ? updateCheck.availableVersions
     : [{
@@ -1365,11 +1407,8 @@ function DesktopUpdatesPage({
   return (
     <WorkspacePanel>
       <div className="grid gap-4">
-        <div className="grid gap-2 text-sm leading-6 text-muted-foreground">
-          <p>
-            {t('settingsUpdatesBody')}
-          </p>
-          {updateCheck ? (
+        {updateCheck ? (
+          <div className="grid gap-2 text-sm leading-6 text-muted-foreground">
             <dl className="grid gap-2 rounded-xl border border-border/70 bg-background/70 p-4 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <dt className="font-medium text-foreground">{t('settingsUpdatesCurrentVersion')}</dt>
@@ -1381,85 +1420,79 @@ function DesktopUpdatesPage({
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <dt className="font-medium text-foreground">{t('settingsUpdatesRelease')}</dt>
-                <dd className="break-all">{updateCheck.releaseUrl}</dd>
+                <dd className="break-all">
+                  <a
+                    className="inline-flex items-center gap-1.5 text-muted-foreground underline decoration-border underline-offset-4 hover:text-primary"
+                    href={updateCheck.releaseUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void window.kaurKhorDesktop.system.openExternalUrl(updateCheck.releaseUrl);
+                    }}
+                  >
+                    {updateCheck.releaseUrl}
+                    <ActionOpenExternalIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                  </a>
+                </dd>
               </div>
             </dl>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
-        <div className="grid gap-2 rounded-xl border border-border/70 bg-background/70 p-4 text-sm">
+        <div className="grid gap-2 text-sm">
           <label className="font-medium text-foreground" htmlFor="settings-update-version">
             {t('settingsUpdatesVersionPickerLabel')}
           </label>
-          <Select
-            disabled={isStartingUpdate}
-            value={selectedUpdateVersion}
-            onValueChange={setSelectedUpdateVersion}
-          >
-            <SelectTrigger
-              aria-label={t('settingsUpdatesVersionPickerLabel')}
-              className={preferenceSelectTriggerClassName}
-              id="settings-update-version"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="start" position="popper">
-              {updateVersionOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <p className="text-muted-foreground">{t('settingsUpdatesVersionPickerHelp')}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              disabled={isStartingUpdate}
+              value={selectedUpdateVersion}
+              onValueChange={setSelectedUpdateVersion}
+            >
+              <SelectTrigger
+                aria-label={t('settingsUpdatesVersionPickerLabel')}
+                className={`${preferenceSelectTriggerClassName} w-auto min-w-[12rem] max-w-full`}
+                id="settings-update-version"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                {updateVersionOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              disabled={isCheckingUpdate || isStartingUpdate}
+              type="button"
+              variant="outline"
+              onClick={() => void handleCheckForUpdate()}
+            >
+              <ActionRefreshIcon data-icon="inline-start" />
+              {isCheckingUpdate ? t('settingsUpdatesChecking') : t('settingsUpdatesCheckAction')}
+            </Button>
+          </div>
         </div>
 
-        <WorkspaceActionRow>
-          <Button
-            disabled={isCheckingUpdate || isStartingUpdate}
-            type="button"
-            variant="outline"
-            onClick={() => void handleCheckForUpdate()}
-          >
-            <ActionRefreshIcon data-icon="inline-start" />
-            {isCheckingUpdate ? t('settingsUpdatesChecking') : t('settingsUpdatesCheckAction')}
-          </Button>
-          <Button
-            disabled={isStartingUpdate}
-            type="button"
-            variant="outline"
-            onClick={() => void handleChooseDataDirectory()}
-          >
-            <ActionOpenFolderIcon data-icon="inline-start" />
-            {t('settingsUpdatesChooseDataAction')}
-          </Button>
-          <Button
-            disabled={isStartingUpdate || skipUpdateBackup}
-            type="button"
-            variant="outline"
-            onClick={() => void handleChooseBackupDirectory()}
-          >
-            <EntityBackupIcon data-icon="inline-start" />
-            {t('settingsUpdatesChooseBackupAction')}
-          </Button>
-        </WorkspaceActionRow>
-
-        <label className="flex items-start gap-3 rounded-xl border border-border/70 bg-background/70 p-4 text-sm leading-6">
-          <input
-            checked={skipUpdateBackup}
-            className="mt-1"
-            disabled={isStartingUpdate}
-            type="checkbox"
-            onChange={(event) => setSkipUpdateBackup(event.currentTarget.checked)}
-          />
-          <span>{t('settingsUpdatesSkipBackupLabel')}</span>
-        </label>
-
-        <div className="grid gap-1 text-sm text-muted-foreground">
-          <p>{t('settingsUpdatesDataDirectoryStatus', { path: dataDirectoryPath ?? t('settingsUpdatesDefaultDataDirectory') })}</p>
-          <p>{t('settingsUpdatesBackupDirectoryStatus', { path: backupDirectoryPath ?? t('settingsUpdatesNoBackupDirectory') })}</p>
-          <p>{t('settingsUpdatesRehydrateHint')}</p>
-        </div>
+        <CheckboxRow
+          checked={skipUpdateBackup}
+          className="rounded-xl border border-border/70 bg-background/70 p-4"
+          disabled={isStartingUpdate}
+          icon={<ActionSkipForwardIcon className="size-4" />}
+          label={t('settingsUpdatesSkipBackupLabel')}
+          onCheckedChange={(checked) => {
+            if (!checked) {
+              setSkipUpdateBackup(false);
+              return;
+            }
+            setSkipBackupConfirmOpen(true);
+          }}
+          variant="flat"
+        />
 
         <WorkspaceActionRow>
           <Button
@@ -1467,16 +1500,69 @@ function DesktopUpdatesPage({
             type="button"
             onClick={() => void handleRunUpdate()}
           >
-            <ActionRefreshIcon data-icon="inline-start" />
+            <ActionDownloadIcon data-icon="inline-start" />
             {isStartingUpdate
               ? t('settingsUpdatesStarting')
               : t('settingsUpdatesInstallAction', { version: selectedUpdateVersion === 'latest' ? 'latest' : selectedUpdateVersion })}
           </Button>
         </WorkspaceActionRow>
+
+        <div className="grid gap-4">
+          <SettingsDirectoryDisplay
+            label={translateUiLiteral(language, 'Data folder')}
+            path={dataDirectoryPath}
+            placeholder={t('settingsUpdatesDefaultDataDirectory')}
+          />
+          <SettingsDirectoryDisplay
+            label={translateUiLiteral(language, 'Snapshot export folder')}
+            path={backupDirectoryPath}
+            placeholder={t('settingsUpdatesNoBackupDirectory')}
+          />
+        </div>
         {updateStatus ? <p className="text-sm text-muted-foreground">{updateStatus}</p> : null}
       </div>
+      <ConfirmActionDialog
+        cancelLabel={t('settingsUpdatesSkipBackupCancel')}
+        confirmIcon={<ActionSkipForwardIcon />}
+        confirmLabel={t('settingsUpdatesSkipBackupConfirm')}
+        description={(
+          <div className="grid gap-2">
+            <p>
+              {t('settingsUpdatesSkipBackupWarning', {
+                checkpoint: latestCheckpointLabel,
+              })}
+            </p>
+            <p className="font-medium text-foreground">
+              {t('settingsUpdatesSkipBackupCheckpoint', {
+                checkpoint: latestCheckpointLabel,
+              })}
+            </p>
+          </div>
+        )}
+        open={skipBackupConfirmOpen}
+        title={t('settingsUpdatesSkipBackupTitle')}
+        onCancel={() => setSkipBackupConfirmOpen(false)}
+        onConfirm={() => {
+          setSkipUpdateBackup(true);
+          setSkipBackupConfirmOpen(false);
+        }}
+      />
     </WorkspacePanel>
   );
+}
+
+function formatSettingsCheckpointDateTime(createdAt: string | null, language: 'en' | 'km') {
+  if (!createdAt) {
+    return null;
+  }
+  const date = new Date(createdAt);
+  if (!Number.isFinite(date.getTime())) {
+    return null;
+  }
+  return new Intl.DateTimeFormat(language === 'km' ? 'km-KH' : 'en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 export function SettingsRoute() {
@@ -1538,12 +1624,13 @@ export function SettingsRoute() {
   const [restoreInFlight, setRestoreInFlight] = useState(false);
   const [updateCheck, setUpdateCheck] = useState<DesktopUpdateCheckResult | null>(null);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
-  const [updateBackupDirectoryPath, setUpdateBackupDirectoryPath] = useState<string | null>(null);
-  const [updateDataDirectoryPath, setUpdateDataDirectoryPath] = useState<string | null>(null);
   const [selectedUpdateVersion, setSelectedUpdateVersion] = useState('latest');
   const [skipUpdateBackup, setSkipUpdateBackup] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isStartingUpdate, setIsStartingUpdate] = useState(false);
+  const effectiveUpdateDataDirectoryPath = localDataInfo?.dataDirectoryPath ?? null;
+  const effectiveUpdateBackupDirectoryPath = localDataInfo?.backupDirectoryPath ?? null;
+  const latestBackupSnapshotCreatedAt = localDataInfo?.latestBackupSnapshotCreatedAt ?? null;
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [clearConfirmValue, setClearConfirmValue] = useState('');
   const [clearInFlight, setClearInFlight] = useState(false);
@@ -1715,6 +1802,7 @@ export function SettingsRoute() {
     try {
       setBackupInFlight(true);
       setBackupStatus(await createBackupSnapshotAction(t));
+      setLocalDataInfo(await window.kaurKhorDesktop.system.getLocalDataInfo());
     } catch (error) {
       setBackupStatus(error instanceof Error ? error.message : t('settingsBackupSnapshotFailed'));
     } finally {
@@ -1755,27 +1843,12 @@ export function SettingsRoute() {
     }
   }
 
-  async function handleChooseUpdateBackupDirectory() {
-    const path = await window.kaurKhorDesktop.system.chooseUpdateBackupDirectory();
-    if (path) {
-      setUpdateBackupDirectoryPath(path);
-      setSkipUpdateBackup(false);
-    }
-  }
-
-  async function handleChooseUpdateDataDirectory() {
-    const path = await window.kaurKhorDesktop.system.chooseUpdateDataDirectory();
-    if (path) {
-      setUpdateDataDirectoryPath(path);
-    }
-  }
-
   async function handleRunSourceBuildUpdate() {
     try {
       setIsStartingUpdate(true);
       const result = await window.kaurKhorDesktop.system.runSourceBuildUpdate({
-        backupDirectoryPath: updateBackupDirectoryPath,
-        dataDirectoryPath: updateDataDirectoryPath ?? localDataInfo?.dataDirectoryPath ?? null,
+        backupDirectoryPath: effectiveUpdateBackupDirectoryPath,
+        dataDirectoryPath: effectiveUpdateDataDirectoryPath,
         oldSourceBuilds: 'ask',
         sourceVersion: selectedUpdateVersion,
         skipBackup: skipUpdateBackup,
@@ -2045,15 +2118,15 @@ export function SettingsRoute() {
             <Route
               element={
                 <DesktopUpdatesPage
-                  backupDirectoryPath={updateBackupDirectoryPath}
-                  dataDirectoryPath={updateDataDirectoryPath ?? localDataInfo?.dataDirectoryPath ?? null}
+                  backupDirectoryPath={effectiveUpdateBackupDirectoryPath}
+                  dataDirectoryPath={effectiveUpdateDataDirectoryPath}
+                  latestBackupSnapshotCreatedAt={latestBackupSnapshotCreatedAt}
                   handleCheckForUpdate={handleCheckForUpdate}
-                  handleChooseBackupDirectory={handleChooseUpdateBackupDirectory}
-                  handleChooseDataDirectory={handleChooseUpdateDataDirectory}
                   handleRunUpdate={handleRunSourceBuildUpdate}
                   isBrowserRuntime={isBrowserRuntime}
                   isCheckingUpdate={isCheckingUpdate}
                   isStartingUpdate={isStartingUpdate}
+                  language={language}
                   selectedUpdateVersion={selectedUpdateVersion}
                   setSelectedUpdateVersion={setSelectedUpdateVersion}
                   setSkipUpdateBackup={setSkipUpdateBackup}
