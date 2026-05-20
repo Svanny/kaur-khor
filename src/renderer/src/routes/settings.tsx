@@ -84,9 +84,9 @@ const preferenceSelectTriggerClassName =
 const compactPreferenceSelectTriggerClassName =
   'h-9 w-full rounded-full border border-border/70 bg-card px-3.5 text-sm font-medium text-foreground shadow-xs data-[size=default]:h-9 [&_svg]:opacity-100';
 const exportSelectTriggerClassName =
-  'h-11 w-11 rounded-l-none rounded-r-2xl border border-l-0 border-border/70 bg-background/80 px-0 text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground data-[size=default]:h-11 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:mx-auto [&_svg]:opacity-100';
+  'h-9 w-9 rounded-l-none rounded-r-md border border-l-0 border-border/70 bg-background/80 px-0 text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground data-[size=default]:h-9 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:mx-auto [&_svg]:opacity-100';
 const exportActionButtonClassName =
-  'h-11 rounded-l-2xl rounded-r-none border-border/70 bg-background/80 text-foreground shadow-xs';
+  'h-9 rounded-l-md rounded-r-none border-border/70 bg-background/80 text-foreground shadow-xs';
 const CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN = 'DELETE CURRENT DATA';
 const WORKSPACE_STORAGE_KEY_PREFIXES = [
   'kaur-khor:record-update:draft:',
@@ -1453,7 +1453,7 @@ function DesktopUpdatesPage({
             >
               <SelectTrigger
                 aria-label={t('settingsUpdatesVersionPickerLabel')}
-                className={`${preferenceSelectTriggerClassName} w-auto min-w-[12rem] max-w-full`}
+                className={`${preferenceSelectTriggerClassName} w-full max-w-full xl:w-[58rem]`}
                 id="settings-update-version"
               >
                 <SelectValue />

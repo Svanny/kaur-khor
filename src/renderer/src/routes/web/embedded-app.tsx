@@ -1141,10 +1141,10 @@ function EmbeddedAppContent({
     return (
       <Suspense
         fallback={(
-          <div className="grid min-h-full place-items-center px-4 text-center" data-slot="embedded-phone-loading">
+          <div className="grid min-h-svh place-items-center bg-background px-6 text-center text-foreground" data-slot="embedded-phone-loading">
             <div>
               <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
-              <p className="mt-2 text-sm text-muted-foreground">Preparing phone workspace...</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-normal">Loading workspace…</h1>
             </div>
           </div>
         )}

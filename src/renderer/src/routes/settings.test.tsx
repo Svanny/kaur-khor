@@ -1669,6 +1669,20 @@ describe('SettingsRoute', () => {
     expect(revealPath).toHaveBeenNthCalledWith(4, '/tmp/kaur-khor/backup-snapshots');
   });
 
+  it('keeps local data export split buttons aligned with the other action buttons', async () => {
+    renderSettingsRoute('/settings/local-data');
+
+    const exportLogsButton = await screen.findByRole('button', { name: /Export Logs: Excel/i });
+    const exportPlanningButton = screen.getByRole('button', { name: /Export planning data: Excel/i });
+    const exportLogsFormat = screen.getByRole('combobox', { name: 'Export logs format' });
+    const exportPlanningFormat = screen.getByRole('combobox', { name: 'Planning data format' });
+
+    expect(exportLogsButton).toHaveClass('h-9', 'rounded-l-md', 'rounded-r-none');
+    expect(exportPlanningButton).toHaveClass('h-9', 'rounded-l-md', 'rounded-r-none');
+    expect(exportLogsFormat).toHaveClass('h-9', 'w-9', 'rounded-l-none', 'rounded-r-md');
+    expect(exportPlanningFormat).toHaveClass('h-9', 'w-9', 'rounded-l-none', 'rounded-r-md');
+  });
+
   it('shows browser local data guidance without native reveal or snapshot actions', async () => {
     getAppContext.mockResolvedValue({ appVersion: 'browser-test', platform: 'web' });
     getLocalDataInfo.mockResolvedValue({
@@ -1757,7 +1771,7 @@ describe('SettingsRoute', () => {
     expect(versionSelect).toHaveTextContent('Latest (v0.3.5)');
     expect(versionHelp.compareDocumentPosition(versionSelect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(versionSelect.closest('div.rounded-xl')).toBeNull();
-    expect(versionSelect).toHaveClass('w-auto');
+    expect(versionSelect).toHaveClass('w-full', 'xl:w-[58rem]');
     expect(versionSelect.parentElement).toContainElement(screen.getByRole('button', { name: /check latest release/i }));
     expect(skipCheckbox.compareDocumentPosition(installButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(installButton.compareDocumentPosition(screen.getByText('Data folder')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

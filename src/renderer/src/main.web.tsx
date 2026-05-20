@@ -38,7 +38,7 @@ const loadingFallback = (
     <div>
       <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
       <h1 className="mt-3 text-3xl font-semibold tracking-normal">
-        Loading preferences…
+        {embeddedMode ? 'Loading workspace…' : 'Loading preferences…'}
       </h1>
     </div>
   </div>

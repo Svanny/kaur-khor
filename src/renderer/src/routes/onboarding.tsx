@@ -16,6 +16,7 @@ import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { useRuntimeMode } from '@/hooks/use-runtime-mode';
+import { useEmbeddedPhonePortraitViewport } from '@/routes/web/embedded-viewport';
 
 const selectTriggerClassName =
   'h-14 w-full rounded-2xl border border-border bg-background px-4 text-base shadow-none data-[size=default]:h-14';
@@ -214,6 +215,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
   const seededPreferencesRef = useRef(false);
   const prefersReducedMotion = usePrefersReducedMotion();
   const { isBrowserDemoRuntime } = useRuntimeMode();
+  const isEmbeddedPhonePortrait = useEmbeddedPhonePortraitViewport();
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
     preferencesTitle: onboardingCopy('Set up Kaur Khor'),
@@ -487,7 +489,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
               language={selectedLanguage}
               modes={['default', 'minimal', 'maximal']}
               onDisplayViewModeChange={setSelectedViewMode}
-              presentation="grid"
+              presentation={isEmbeddedPhonePortrait ? 'carousel' : 'grid'}
             />
           </div>
         )}
