@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -11,6 +12,29 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function findPowerShell() {
+  for (const command of process.platform === 'win32' ? ['powershell.exe', 'pwsh.exe'] : ['pwsh', 'powershell']) {
+    const result = spawnSync(command, ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()'], {
+      encoding: 'utf8',
+    });
+    if (result.status === 0) {
+      return command;
+    }
+  }
+
+  return null;
+}
+
+function extractPowerShellResolver(script: string) {
+  const start = script.indexOf('function Resolve-PhysicalPath');
+  const end = script.indexOf('Set-Location (Resolve-PhysicalPath $PSScriptRoot)', start);
+  if (start < 0 || end < 0) {
+    throw new Error('Resolve-PhysicalPath helper not found');
+  }
+
+  return script.slice(start, end);
+}
+
 describe('desktop source-build updater', () => {
   it('verifies the downloaded source-build checksum before extracting on shell platforms', async () => {
     const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
@@ -18,6 +42,7 @@ describe('desktop source-build updater', () => {
     const shellScriptEnd = source.indexOf('function windowsUpdateScript', shellScriptStart);
     const shellScriptSource = source.slice(shellScriptStart, shellScriptEnd);
 
+    expect(shellScriptSource).toContain('cd "$(pwd -P)"');
     expect(shellScriptSource).toContain('sourceArchiveName');
     expect(shellScriptSource).toContain('sha256sum -c ${shellQuote(`${sourceArchiveName}.sha256`)}');
     expect(shellScriptSource).toContain('shasum -a 256 -c ${shellQuote(`${sourceArchiveName}.sha256`)}');
@@ -37,6 +62,20 @@ describe('desktop source-build updater', () => {
     const windowsScriptEnd = source.indexOf('function launchScriptInTerminal', windowsScriptStart);
     const windowsScriptSource = source.slice(windowsScriptStart, windowsScriptEnd);
 
+    expect(windowsScriptSource).toContain('function Resolve-PhysicalPath');
+    expect(windowsScriptSource).toContain('$CurrentPath = $Path');
+    expect(windowsScriptSource).toContain('$SeenPaths = @{}');
+    expect(windowsScriptSource).toContain('while ($true)');
+    expect(windowsScriptSource).toContain('$Item.PSObject.Methods.Name -contains "ResolveLinkTarget"');
+    expect(windowsScriptSource).toContain('$ResolvedItem = $Item.ResolveLinkTarget($true)');
+    expect(windowsScriptSource).toContain('$TargetProperty = $Item.PSObject.Properties["Target"]');
+    expect(windowsScriptSource).toContain('$SeenPaths.ContainsKey($ItemPath)');
+    expect(windowsScriptSource).toContain('Refusing to resolve circular Kaur Khor update path');
+    expect(windowsScriptSource).toContain('$Target = @($TargetProperty.Value)[0]');
+    expect(windowsScriptSource).toContain('$TargetBase = [System.IO.Path]::GetDirectoryName($Item.FullName)');
+    expect(windowsScriptSource).toContain('$Target = Join-Path $TargetBase $Target');
+    expect(windowsScriptSource).toContain('$CurrentPath = $Target');
+    expect(windowsScriptSource).toContain('Set-Location (Resolve-PhysicalPath $PSScriptRoot)');
     expect(windowsScriptSource).toContain('Get-FileHash -Algorithm SHA256');
     expect(windowsScriptSource).toContain('SHA-256 mismatch for Kaur Khor source-build archive');
     expect(windowsScriptSource).toContain('$archiveEntries = tar -tf "${sourceArchiveName}"');
@@ -47,6 +86,105 @@ describe('desktop source-build updater', () => {
     expect(windowsScriptSource.indexOf('$archiveEntries = tar -tf "${sourceArchiveName}"')).toBeLessThan(
       windowsScriptSource.indexOf('tar -xzf "${sourceArchiveName}"'),
     );
+  });
+
+  it('executes the generated PowerShell resolver fallback for chained relative targets', async () => {
+    if (process.platform !== 'win32') {
+      return;
+    }
+    const powershell = findPowerShell();
+    if (!powershell) {
+      expect.soft(powershell, 'PowerShell is required for this behavioral resolver test').toBeNull();
+      return;
+    }
+
+    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+    const windowsScriptStart = source.indexOf('function windowsUpdateScript');
+    const windowsScriptEnd = source.indexOf('function launchScriptInTerminal', windowsScriptStart);
+    const windowsScriptSource = source.slice(windowsScriptStart, windowsScriptEnd);
+    const resolver = extractPowerShellResolver(windowsScriptSource);
+    const probe = `${resolver}
+function New-LinkItem($FullName, $Target) {
+  [pscustomobject]@{
+    FullName = $FullName
+    Target = $Target
+  }
+}
+function New-RealItem($FullName) {
+  [pscustomobject]@{
+    FullName = $FullName
+  }
+}
+function Get-Item {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $LiteralPath,
+    [switch] $Force
+  )
+  switch ($LiteralPath) {
+    "C:\\update\\link-one" { return New-LinkItem "C:\\update\\link-one" ".\\link-two" }
+    "C:\\update\\link-two" { return New-LinkItem "C:\\update\\link-two" "..\\real-update" }
+    "C:\\real-update" { return New-RealItem "C:\\real-update" }
+    default { throw "Unexpected path: $LiteralPath" }
+  }
+}
+Set-StrictMode -Version Latest
+$Resolved = Resolve-PhysicalPath "C:\\update\\link-one"
+if ($Resolved -ne "C:\\real-update") {
+  throw "Expected C:\\real-update, got $Resolved"
+}
+`;
+    const result = spawnSync(powershell, ['-NoProfile', '-Command', probe], {
+      encoding: 'utf8',
+    });
+
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+  });
+
+  it('executes the generated PowerShell resolver cycle guard', async () => {
+    if (process.platform !== 'win32') {
+      return;
+    }
+    const powershell = findPowerShell();
+    if (!powershell) {
+      expect.soft(powershell, 'PowerShell is required for this behavioral resolver test').toBeNull();
+      return;
+    }
+
+    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+    const windowsScriptStart = source.indexOf('function windowsUpdateScript');
+    const windowsScriptEnd = source.indexOf('function launchScriptInTerminal', windowsScriptStart);
+    const windowsScriptSource = source.slice(windowsScriptStart, windowsScriptEnd);
+    const resolver = extractPowerShellResolver(windowsScriptSource);
+    const probe = `${resolver}
+function New-LinkItem($FullName, $Target) {
+  [pscustomobject]@{
+    FullName = $FullName
+    Target = $Target
+  }
+}
+function Get-Item {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $LiteralPath,
+    [switch] $Force
+  )
+  switch ($LiteralPath) {
+    "C:\\update\\link-one" { return New-LinkItem "C:\\update\\link-one" ".\\link-two" }
+    "C:\\update\\link-two" { return New-LinkItem "C:\\update\\link-two" ".\\link-one" }
+    default { throw "Unexpected path: $LiteralPath" }
+  }
+}
+Set-StrictMode -Version Latest
+Resolve-PhysicalPath "C:\\update\\link-one"
+`;
+    const result = spawnSync(powershell, ['-NoProfile', '-Command', probe], {
+      encoding: 'utf8',
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain('Refusing to resolve circular Kaur Khor update path');
   });
 
   it('builds latest and versioned source-build archive URLs', async () => {

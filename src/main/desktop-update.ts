@@ -380,6 +380,7 @@ function shellUpdateScript({
   return `#!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
+cd "$(pwd -P)"
 echo "Updating Kaur Khor from v${appVersion} to ${sourceVersion}..."
 curl -fL ${shellQuote(sourceArchiveUrl)} -o ${shellQuote(sourceArchiveName)}
 curl -fL ${shellQuote(sourceArchiveChecksumUrl)} -o ${shellQuote(`${sourceArchiveName}.sha256`)}
@@ -434,7 +435,43 @@ function windowsUpdateScript({
       : '';
   const skipArg = skipBackup ? ' --skip-backup' : '';
   return `$ErrorActionPreference = "Stop"
-Set-Location $PSScriptRoot
+function Resolve-PhysicalPath {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $Path
+  )
+
+  $CurrentPath = $Path
+  $SeenPaths = @{}
+  while ($true) {
+    $Item = Get-Item -LiteralPath $CurrentPath -Force
+    if ($Item.PSObject.Methods.Name -contains "ResolveLinkTarget") {
+      $ResolvedItem = $Item.ResolveLinkTarget($true)
+      if ($ResolvedItem) {
+        return $ResolvedItem.FullName
+      }
+    }
+
+    $TargetProperty = $Item.PSObject.Properties["Target"]
+    if (-not $TargetProperty -or -not $TargetProperty.Value) {
+      return $Item.FullName
+    }
+
+    $ItemPath = $Item.FullName.ToLowerInvariant()
+    if ($SeenPaths.ContainsKey($ItemPath)) {
+      throw "Refusing to resolve circular Kaur Khor update path: $Item.FullName"
+    }
+    $SeenPaths[$ItemPath] = $true
+
+    $Target = @($TargetProperty.Value)[0]
+    if (-not [System.IO.Path]::IsPathRooted($Target)) {
+      $TargetBase = [System.IO.Path]::GetDirectoryName($Item.FullName)
+      $Target = Join-Path $TargetBase $Target
+    }
+    $CurrentPath = $Target
+  }
+}
+Set-Location (Resolve-PhysicalPath $PSScriptRoot)
 Write-Host "Updating Kaur Khor to ${sourceVersion}..."
 Invoke-WebRequest -Uri "${sourceArchiveUrl}" -OutFile "${sourceArchiveName}"
 $expectedHash = (Invoke-WebRequest -Uri "${sourceArchiveChecksumUrl}").Content.Trim().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant()

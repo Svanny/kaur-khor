@@ -34,6 +34,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Floating title action geometry reads must be coalesced through `requestAnimationFrame`; keep initial measurement immediate and keep scroll/resize handlers light.
 - Release workflow notes must be generated from the current tag diff; do not hardcode feature highlights that will become stale in later releases.
 - Release workflow Cargo caches must include the packaging `build/cargo-target` directory because `scripts/stage-desktop-core.mjs` sets `CARGO_TARGET_DIR` there.
+- Source-build and update scripts must resolve their own script directories physically so symlinked source/update folders still run the intended local script.
 - Keep script-level Vitest files inside `vitest.config.ts` include globs, and route `pnpm test` through the project wrapper so `pnpm test -- path/to/file.test.*` stays file-targeted.
 - Test runtime parallelism must keep dependent UI-matrix flows ordered, keep benchmark Playwright workers at one, and provide serial escape hatches for shared-state diagnosis.
 - Source-build updates must keep versioned source folders under a stable `kaur-khor/` parent, ask before pruning old source-build versions, and default Settings / Updates to `latest` while allowing a specific release.

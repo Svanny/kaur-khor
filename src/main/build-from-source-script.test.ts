@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -23,6 +23,29 @@ function runShellBootstrap(args: string[], env: NodeJS.ProcessEnv = process.env)
     encoding: 'utf8',
     env,
   });
+}
+
+function findPowerShell() {
+  for (const command of process.platform === 'win32' ? ['powershell.exe', 'pwsh.exe'] : ['pwsh', 'powershell']) {
+    const result = spawnSync(command, ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()'], {
+      encoding: 'utf8',
+    });
+    if (result.status === 0) {
+      return command;
+    }
+  }
+
+  return null;
+}
+
+function extractPowerShellResolver(script: string) {
+  const start = script.indexOf('function Resolve-PhysicalPath');
+  const end = script.indexOf('$ScriptDir = Resolve-PhysicalPath', start);
+  if (start < 0 || end < 0) {
+    throw new Error('Resolve-PhysicalPath helper not found');
+  }
+
+  return script.slice(start, end);
 }
 
 function writeExecutable(path: string, content: string) {
@@ -461,6 +484,123 @@ chmod +x "$node_dir/node"
     expect(script).toContain("runPnpm(pnpm, ['install', '--frozen-lockfile'], sourceRoot, {");
   });
 
+  test('shell source-build bootstrap resolves its script directory physically', () => {
+    const script = readFileSync(shellBootstrapPath, 'utf8');
+
+    expect(script).toContain('pwd -P');
+  });
+
+  test('PowerShell source-build bootstrap resolves its script directory before invoking Node', () => {
+    const script = readFileSync(powershellBootstrapPath, 'utf8');
+
+    expect(script).toContain('function Resolve-PhysicalPath');
+    expect(script).toContain('$CurrentPath = $Path');
+    expect(script).toContain('$SeenPaths = @{}');
+    expect(script).toContain('while ($true)');
+    expect(script).toContain('$Item.PSObject.Methods.Name -contains "ResolveLinkTarget"');
+    expect(script).toContain('$ResolvedItem = $Item.ResolveLinkTarget($true)');
+    expect(script).toContain('$TargetProperty = $Item.PSObject.Properties["Target"]');
+    expect(script).toContain('$SeenPaths.ContainsKey($ItemPath)');
+    expect(script).toContain('Refusing to resolve circular Kaur Khor source-build path');
+    expect(script).toContain('$Target = @($TargetProperty.Value)[0]');
+    expect(script).toContain('$TargetBase = [System.IO.Path]::GetDirectoryName($Item.FullName)');
+    expect(script).toContain('$Target = Join-Path $TargetBase $Target');
+    expect(script).toContain('$CurrentPath = $Target');
+    expect(script).toContain('$ScriptDir = Resolve-PhysicalPath $PSScriptRoot');
+    expect(script).toContain('& $NodeCommand (Join-Path $ScriptDir "build-from-source.mjs") @args');
+  });
+
+  test('PowerShell source-build resolver follows chained relative targets under strict mode', () => {
+    if (process.platform !== 'win32') {
+      return;
+    }
+    const powershell = findPowerShell();
+    if (!powershell) {
+      expect.soft(powershell, 'PowerShell is required for this behavioral resolver test').toBeNull();
+      return;
+    }
+
+    const resolver = extractPowerShellResolver(readFileSync(powershellBootstrapPath, 'utf8'));
+    const probe = `${resolver}
+function New-LinkItem($FullName, $Target) {
+  [pscustomobject]@{
+    FullName = $FullName
+    Target = $Target
+  }
+}
+function New-RealItem($FullName) {
+  [pscustomobject]@{
+    FullName = $FullName
+  }
+}
+function Get-Item {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $LiteralPath,
+    [switch] $Force
+  )
+  switch ($LiteralPath) {
+    "C:\\source\\link-one" { return New-LinkItem "C:\\source\\link-one" ".\\link-two" }
+    "C:\\source\\link-two" { return New-LinkItem "C:\\source\\link-two" "..\\real-source" }
+    "C:\\real-source" { return New-RealItem "C:\\real-source" }
+    default { throw "Unexpected path: $LiteralPath" }
+  }
+}
+Set-StrictMode -Version Latest
+$Resolved = Resolve-PhysicalPath "C:\\source\\link-one"
+if ($Resolved -ne "C:\\real-source") {
+  throw "Expected C:\\real-source, got $Resolved"
+}
+`;
+    const result = spawnSync(powershell, ['-NoProfile', '-Command', probe], {
+      encoding: 'utf8',
+    });
+
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+  });
+
+  test('PowerShell source-build resolver rejects circular fallback targets', () => {
+    if (process.platform !== 'win32') {
+      return;
+    }
+    const powershell = findPowerShell();
+    if (!powershell) {
+      expect.soft(powershell, 'PowerShell is required for this behavioral resolver test').toBeNull();
+      return;
+    }
+
+    const resolver = extractPowerShellResolver(readFileSync(powershellBootstrapPath, 'utf8'));
+    const probe = `${resolver}
+function New-LinkItem($FullName, $Target) {
+  [pscustomobject]@{
+    FullName = $FullName
+    Target = $Target
+  }
+}
+function Get-Item {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $LiteralPath,
+    [switch] $Force
+  )
+  switch ($LiteralPath) {
+    "C:\\source\\link-one" { return New-LinkItem "C:\\source\\link-one" ".\\link-two" }
+    "C:\\source\\link-two" { return New-LinkItem "C:\\source\\link-two" ".\\link-one" }
+    default { throw "Unexpected path: $LiteralPath" }
+  }
+}
+Set-StrictMode -Version Latest
+Resolve-PhysicalPath "C:\\source\\link-one"
+`;
+    const result = spawnSync(powershell, ['-NoProfile', '-Command', probe], {
+      encoding: 'utf8',
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain('Refusing to resolve circular Kaur Khor source-build path');
+  });
+
   test('source build prefers production release archives before GitHub codeload archives', () => {
     const script = readFileSync(scriptPath, 'utf8');
 
@@ -489,6 +629,29 @@ chmod +x "$node_dir/node"
       expect(organizedRoot).toBe(join(root, 'kaur-khor', 'kaur-khor-v0.5.2-source-build'));
       expect(existsSync(organizedRoot)).toBe(true);
       expect(existsSync(sourceRoot)).toBe(false);
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test('source build entrypoint treats symlinked temp paths as direct execution', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'kaur-khor-source-direct-'));
+    const realDir = join(root, 'real');
+    const linkDir = join(root, 'link');
+    mkdirSync(realDir, { recursive: true });
+    symlinkSync(realDir, linkDir, process.platform === 'win32' ? 'junction' : 'dir');
+    const modulePath = join(realDir, 'build-from-source.mjs');
+    writeFileSync(modulePath, 'fixture');
+
+    try {
+      const { isDirectExecution } = await import(pathToFileURL(scriptPath).href) as {
+        isDirectExecution: (argvPath: string, moduleUrl: string) => boolean;
+      };
+
+      expect(isDirectExecution(
+        join(linkDir, 'build-from-source.mjs'),
+        pathToFileURL(modulePath).href,
+      )).toBe(true);
     } finally {
       rmSync(root, { force: true, recursive: true });
     }

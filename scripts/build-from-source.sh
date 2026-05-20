@@ -3,7 +3,7 @@ set -eu
 
 NODE_VERSION="${KAUR_KHOR_NODE_VERSION:-22.21.1}"
 TOOLS_DIR="${KAUR_KHOR_BUILD_TOOLS_DIR:-"${HOME}/.kaur-khor-build-tools"}"
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 
 find_node() {
   if command -v node >/dev/null 2>&1; then
