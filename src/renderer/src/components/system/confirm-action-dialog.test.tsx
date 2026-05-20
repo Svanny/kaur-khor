@@ -66,13 +66,16 @@ describe('ConfirmActionDialog', () => {
     );
 
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveClass('w-fit');
+    expect(dialog).toHaveClass('w-full');
     expect(dialog).toHaveClass('max-w-2xl');
+    expect(dialog.querySelector('[data-slot="confirm-action-dialog-actions"]')).toHaveClass('flex-wrap');
     expect(within(dialog).getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Discard changes',
       'Keep editing',
       'Save changes',
     ]);
+    expect(screen.getByRole('button', { name: 'Discard changes' })).toHaveClass('flex-[1_0_max-content]');
+    expect(screen.getByRole('button', { name: 'Keep editing' })).toHaveClass('flex-[1_0_max-content]');
     expect(screen.getByRole('button', { name: 'Discard changes' })).toHaveAttribute('data-variant', 'destructive-outline');
     expect(screen.getByRole('button', { name: 'Save changes' })).toHaveAttribute('data-variant', 'default');
 
@@ -98,6 +101,22 @@ describe('ConfirmActionDialog', () => {
     );
 
     expect(screen.getByTestId('save-confirm-icon')).toBeInTheDocument();
+  });
+
+  it('can hide the leading title icon', () => {
+    render(
+      <ConfirmActionDialog
+        confirmLabel="Done"
+        hideIcon
+        open
+        title="Capture actions"
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Capture actions' });
+    expect(dialog.querySelector('[data-slot="confirm-action-dialog-icon"]')).not.toBeInTheDocument();
   });
 
   it('disables dialog actions while submitting', () => {

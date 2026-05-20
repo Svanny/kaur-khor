@@ -13,6 +13,7 @@ export function ConfirmActionDialog({
   destructiveActionLabel,
   confirmVariant = 'destructive',
   hideCancel = false,
+  hideIcon = false,
   isDestructiveActionDisabled = false,
   isConfirmDisabled = false,
   isSubmitting = false,
@@ -31,6 +32,7 @@ export function ConfirmActionDialog({
   destructiveActionLabel?: string;
   confirmVariant?: 'default' | 'destructive';
   hideCancel?: boolean;
+  hideIcon?: boolean;
   isDestructiveActionDisabled?: boolean;
   isConfirmDisabled?: boolean;
   isSubmitting?: boolean;
@@ -45,6 +47,7 @@ export function ConfirmActionDialog({
   }
 
   const hasDestructiveAction = Boolean(destructiveActionLabel && onDestructiveAction);
+  const wrappedActionClassName = 'min-w-max flex-[1_0_max-content] justify-center';
 
   return (
     <div
@@ -57,23 +60,27 @@ export function ConfirmActionDialog({
       }}
     >
       <div
+        aria-label={title}
         aria-modal="true"
-        className={`rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)] ${hasDestructiveAction ? 'w-fit max-w-2xl' : 'w-full max-w-md'}`}
+        className={`max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)] ${hasDestructiveAction ? 'w-full max-w-2xl' : 'w-full max-w-md'}`}
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start gap-3">
-          <span
-            className={`mt-0.5 rounded-full p-2 ${
-              iconTone === 'success'
-                ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-700'
-                : iconTone === 'default'
-                  ? 'border border-border/70 bg-muted/50 text-foreground'
-                  : 'border border-destructive/20 bg-destructive/10 text-destructive'
-            }`}
-          >
-            {icon ?? (iconTone === 'success' ? <ActionConfirmIcon className="size-4" /> : <StatusAlertIcon className="size-4" />)}
-          </span>
+          {hideIcon ? null : (
+            <span
+              className={`mt-0.5 rounded-full p-2 ${
+                iconTone === 'success'
+                  ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-700'
+                  : iconTone === 'default'
+                    ? 'border border-border/70 bg-muted/50 text-foreground'
+                    : 'border border-destructive/20 bg-destructive/10 text-destructive'
+              }`}
+              data-slot="confirm-action-dialog-icon"
+            >
+              {icon ?? (iconTone === 'success' ? <ActionConfirmIcon className="size-4" /> : <StatusAlertIcon className="size-4" />)}
+            </span>
+          )}
           <div className={hasDestructiveAction ? 'min-w-0 max-w-lg' : 'min-w-0'}>
             <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{title}</p>
             {description ? (
@@ -81,10 +88,13 @@ export function ConfirmActionDialog({
             ) : null}
           </div>
         </div>
-        <div className={hasDestructiveAction ? 'mt-6 flex flex-nowrap items-center gap-3' : 'mt-6 flex justify-end gap-3'}>
+        <div
+          className={hasDestructiveAction ? 'mt-6 flex flex-wrap items-center gap-3' : 'mt-6 flex flex-wrap justify-end gap-3'}
+          data-slot="confirm-action-dialog-actions"
+        >
           {hasDestructiveAction ? (
             <Button
-              className="min-w-0"
+              className={wrappedActionClassName}
               disabled={isDestructiveActionDisabled || isSubmitting}
               type="button"
               variant="destructive-outline"
@@ -96,7 +106,7 @@ export function ConfirmActionDialog({
           ) : null}
           {hideCancel ? null : (
             <Button
-              className={hasDestructiveAction ? 'ml-auto min-w-0' : undefined}
+              className={hasDestructiveAction ? wrappedActionClassName : undefined}
               disabled={isSubmitting}
               type="button"
               variant="ghost"
@@ -106,9 +116,9 @@ export function ConfirmActionDialog({
               {cancelLabel}
             </Button>
           )}
-          <div>
+          <div className={hasDestructiveAction ? wrappedActionClassName : undefined}>
             <Button
-              className="min-w-0"
+              className={hasDestructiveAction ? 'w-full min-w-max justify-center' : 'min-w-0'}
               disabled={isConfirmDisabled || isSubmitting}
               type="button"
               variant={confirmVariant}
