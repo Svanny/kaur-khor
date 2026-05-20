@@ -22,7 +22,9 @@ async function telegramFetch(input: string, init?: RequestInit) {
   const timeout = signalWithTimeout(init?.signal, TELEGRAM_REQUEST_TIMEOUT_MS);
   const fetchInit = { ...init, signal: timeout.signal };
 
-  if (process.versions.electron) {
+  const useElectronFetch = process.versions.electron && process.env.NODE_ENV !== 'test' && !process.env.VITEST;
+
+  if (useElectronFetch) {
     let electronFetch: typeof fetch | null = null;
     try {
       const electron = await import('electron');
