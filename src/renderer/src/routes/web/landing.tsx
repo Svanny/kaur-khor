@@ -136,9 +136,9 @@ const screenshotSlides = [
     height: screenshotHeight,
   },
   {
-    alt: 'Kaur Khor analysis workspace showing inventory insight tools',
+    alt: 'Kaur Khor Insights Explain workspace showing inventory insight tools',
     image: publicPath('/screenshots/web-current-analysis.webp'),
-    label: 'Insights',
+    label: 'Insights / Explain',
     width: screenshotWidth,
     height: screenshotHeight,
   },
