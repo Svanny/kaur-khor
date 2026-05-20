@@ -32,20 +32,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/git
             ~/.cargo/registry
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-${{ hashFiles('apps/desktop-core/Cargo.lock', 'apps/desktop-core/Cargo.toml', 'apps/sena-core/Cargo.lock', 'apps/sena-core/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-
+
+      - name: Cache Cargo targets
+        uses: actions/cache@v4
+        with:
+          path: |
             apps/desktop-core/target
             apps/sena-core/target
             build/cargo-target
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('apps/desktop-core/Cargo.lock', 'apps/desktop-core/Cargo.toml', 'apps/sena-core/Cargo.lock', 'apps/sena-core/Cargo.toml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-target-${{ hashFiles('apps/desktop-core/Cargo.lock', 'apps/desktop-core/Cargo.toml', 'apps/sena-core/Cargo.lock', 'apps/sena-core/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-cargo-
-            ${{ runner.os }}-cargo-
-            cargo-
+            ${{ runner.os }}-${{ runner.arch }}-cargo-target-
 
       - name: Install dependencies
         shell: bash
@@ -114,20 +120,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo dependencies
+      - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/git
             ~/.cargo/registry
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-${{ hashFiles('apps/desktop-core/Cargo.lock', 'apps/desktop-core/Cargo.toml', 'apps/sena-core/Cargo.lock', 'apps/sena-core/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-
+
+      - name: Cache Cargo targets
+        uses: actions/cache@v4
+        with:
+          path: |
             apps/desktop-core/target
             apps/sena-core/target
             build/cargo-target
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('apps/desktop-core/Cargo.lock', 'apps/desktop-core/Cargo.toml', 'apps/sena-core/Cargo.lock', 'apps/sena-core/Cargo.toml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-target-${{ hashFiles('apps/desktop-core/Cargo.lock', 'apps/desktop-core/Cargo.toml', 'apps/sena-core/Cargo.lock', 'apps/sena-core/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-cargo-
-            ${{ runner.os }}-cargo-
-            cargo-
+            ${{ runner.os }}-${{ runner.arch }}-cargo-target-
 
       - name: Cache Electron downloads
         if: matrix.platform == 'mac'
@@ -140,8 +152,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
             ${{ runner.os }}-${{ runner.arch }}-electron-
-            ${{ runner.os }}-electron-
-            electron-
 
       - name: Cache Electron downloads
         if: matrix.platform == 'linux'
@@ -154,8 +164,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
             ${{ runner.os }}-${{ runner.arch }}-electron-
-            ${{ runner.os }}-electron-
-            electron-
 
       - name: Cache Electron downloads
         if: matrix.platform == 'win'
@@ -168,8 +176,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
             ${{ runner.os }}-${{ runner.arch }}-electron-
-            ${{ runner.os }}-electron-
-            electron-
 
       - name: Install dependencies
         shell: bash
