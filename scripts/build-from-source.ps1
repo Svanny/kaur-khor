@@ -3,7 +3,45 @@ $ErrorActionPreference = "Stop"
 
 $NodeVersion = if ($env:KAUR_KHOR_NODE_VERSION) { $env:KAUR_KHOR_NODE_VERSION } else { "22.21.1" }
 $ToolsDir = if ($env:KAUR_KHOR_BUILD_TOOLS_DIR) { $env:KAUR_KHOR_BUILD_TOOLS_DIR } else { Join-Path $HOME ".kaur-khor-build-tools" }
-$ScriptDir = $PSScriptRoot
+
+function Resolve-PhysicalPath {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $Path
+  )
+
+  $CurrentPath = $Path
+  $SeenPaths = @{}
+  while ($true) {
+    $Item = Get-Item -LiteralPath $CurrentPath -Force
+    if ($Item.PSObject.Methods.Name -contains "ResolveLinkTarget") {
+      $ResolvedItem = $Item.ResolveLinkTarget($true)
+      if ($ResolvedItem) {
+        return $ResolvedItem.FullName
+      }
+    }
+
+    $TargetProperty = $Item.PSObject.Properties["Target"]
+    if (-not $TargetProperty -or -not $TargetProperty.Value) {
+      return $Item.FullName
+    }
+
+    $ItemPath = $Item.FullName.ToLowerInvariant()
+    if ($SeenPaths.ContainsKey($ItemPath)) {
+      throw "Refusing to resolve circular Kaur Khor source-build path: $Item.FullName"
+    }
+    $SeenPaths[$ItemPath] = $true
+
+    $Target = @($TargetProperty.Value)[0]
+    if (-not [System.IO.Path]::IsPathRooted($Target)) {
+      $TargetBase = [System.IO.Path]::GetDirectoryName($Item.FullName)
+      $Target = Join-Path $TargetBase $Target
+    }
+    $CurrentPath = $Target
+  }
+}
+
+$ScriptDir = Resolve-PhysicalPath $PSScriptRoot
 
 function Get-ExpectedNodeSha256 {
   param(

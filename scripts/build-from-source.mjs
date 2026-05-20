@@ -9,6 +9,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
@@ -19,7 +20,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import { request as httpsRequest } from 'node:https';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import {
   latestDownloadSnippetArchiveName,
@@ -154,8 +155,16 @@ function prepareLinuxInstallPrivilege(target) {
   return { KAUR_KHOR_LINUX_INSTALL_PRECHECK: 'ready' };
 }
 
-function isDirectExecution() {
-  return process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+export function isDirectExecution(argvPath = process.argv[1], moduleUrl = import.meta.url) {
+  if (!argvPath) {
+    return false;
+  }
+
+  try {
+    return realpathSync(fileURLToPath(moduleUrl)) === realpathSync(argvPath);
+  } catch {
+    return moduleUrl === pathToFileURL(argvPath).href;
+  }
 }
 
 function parseArgs(args) {
