@@ -188,12 +188,12 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
-            ~/AppData/Local/electron/Cache
-            ~/AppData/Local/electron-builder/Cache
-          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-v2-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
-            ${{ runner.os }}-${{ runner.arch }}-electron-
+            ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-v2-
+            ${{ runner.os }}-${{ runner.arch }}-electron-v2-
 
       - name: Install dependencies
         shell: bash
