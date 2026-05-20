@@ -216,6 +216,7 @@ function createInventory(overrides: Partial<InventoryContextValue> = {}): Invent
     clearSenaServiceDetailCache: vi.fn(async () => {}),
     loadSenaDiagnostics: vi.fn(async () => null),
     loadSenaRunStatus: vi.fn(async () => null),
+    loadSenaAnalysisArtifact: vi.fn(async () => null),
     updateSenaMeta: vi.fn(),
     ...overrides,
   };

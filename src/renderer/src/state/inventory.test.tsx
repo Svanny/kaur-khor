@@ -377,6 +377,7 @@ describe('InventoryProvider', () => {
         getServiceDetail: vi.fn(async () => makeServiceDetailPage(1)),
         clearDetailCache: vi.fn(async () => undefined),
         getRunStatus: vi.fn(async () => sampleRun),
+        getAnalysisArtifact: vi.fn(async () => null),
       },
     };
     window.kaurKhorDesktop = bridge;

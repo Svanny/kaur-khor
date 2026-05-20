@@ -11,6 +11,7 @@ import {
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaEngineParameters } from '@shared/ipc';
 import type {
+  SenaAnalysisArtifactRecord,
   SenaAnalysisRunRecord,
   SenaCatalog,
   SenaCreateOrderBatchPayload,
@@ -72,6 +73,7 @@ type ReadCacheValue =
   | SenaServiceDetailPage
   | SenaDiagnostics
   | SenaAnalysisRunRecord
+  | SenaAnalysisArtifactRecord
   | SenaStartupWorkspace
   | null;
 
@@ -173,6 +175,7 @@ export interface InventoryContextValue {
   clearSenaServiceDetailCache: (serviceId: string) => Promise<void>;
   loadSenaDiagnostics: () => Promise<SenaDiagnostics | null>;
   loadSenaRunStatus: (runId: string) => Promise<SenaAnalysisRunRecord | null>;
+  loadSenaAnalysisArtifact: (runId: string) => Promise<SenaAnalysisArtifactRecord | null>;
   updateSenaMeta: (next: Partial<SenaMetaCache>) => void;
 }
 
@@ -1449,6 +1452,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }
         return run;
       },
+      loadSenaAnalysisArtifact: (runId) =>
+        loadWithCache(`sena:analysis-artifact:${runId}`, () => window.kaurKhorDesktop.sena.getAnalysisArtifact({ runId })),
     }),
     [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadSenaDetailPage, loadWithCache, refreshRecordUpdateContext, reload, runSavingTask, runWorkspacePreparation, setStatePartial, syncPersistentSenaDetailCache, updateSenaMeta, withSaving],
   );

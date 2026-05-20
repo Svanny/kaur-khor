@@ -4,6 +4,7 @@ import type {
 } from './inventory';
 import type { InterfaceViewMode } from './interface-view';
 import type {
+  SenaAnalysisArtifactRecord,
   SenaAnalysisRunRecord,
   SenaCatalog,
   SenaCreateOrderBatchPayload,
@@ -57,6 +58,7 @@ export interface DesktopLocalDataInfo {
   workspaceStorePath: string;
   preferencesPath: string;
   backupDirectoryPath: string;
+  latestBackupSnapshotCreatedAt: string | null;
   assetDirectoryPath: string;
   storageFormat: 'sqlite';
 }
@@ -239,6 +241,7 @@ export interface DesktopSenaBridge {
   clearDetailCache: (payload: SenaDetailCacheClearPayload) => Promise<void>;
   getDiagnostics: () => Promise<SenaDiagnostics | null>;
   getRunStatus: (payload: SenaRunLookupPayload) => Promise<SenaAnalysisRunRecord | null>;
+  getAnalysisArtifact: (payload: SenaRunLookupPayload) => Promise<SenaAnalysisArtifactRecord | null>;
 }
 
 export interface DesktopPreferencesBridge {
@@ -429,6 +432,7 @@ export const IPC_CHANNELS = {
   senaGetServiceDetail: 'kaur-khor:sena:get-service-detail',
   senaClearDetailCache: 'kaur-khor:sena:clear-detail-cache',
   senaGetRunStatus: 'kaur-khor:sena:get-run-status',
+  senaGetAnalysisArtifact: 'kaur-khor:sena:get-analysis-artifact',
   preferencesGet: 'kaur-khor:preferences:get',
   preferencesSave: 'kaur-khor:preferences:save',
   benchmarkRecordEvent: 'kaur-khor:benchmark:record-event',

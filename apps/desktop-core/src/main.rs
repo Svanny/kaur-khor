@@ -322,6 +322,13 @@ fn handle_command_inner(command: &str, payload: Value) -> Result<Option<Value>> 
                 &request.run_id,
             )?)?))
         }
+        "sena.getAnalysisArtifact" => {
+            let request: RunLookupPayload = serde_json::from_value(payload)
+                .context("invalid sena.getAnalysisArtifact payload")?;
+            Ok(Some(serde_json::to_value(store::get_analysis_artifact(
+                &request.run_id,
+            )?)?))
+        }
         other => anyhow::bail!("unknown desktop core command '{other}'"),
     }
 }

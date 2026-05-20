@@ -92,6 +92,7 @@ function createInventory(overrides?: Partial<InventoryContextValue>): InventoryC
     clearSenaServiceDetailCache: async () => {},
     loadSenaDiagnostics: async () => null,
     loadSenaRunStatus: async () => null,
+    loadSenaAnalysisArtifact: async () => null,
     updateSenaMeta: () => {},
     ...overrides,
   };
@@ -210,6 +211,30 @@ describe('command palette descriptors', () => {
       },
       title: 'Hide guidance labels',
     });
+  });
+
+  test('matches Riel when searching for the KHR currency command', () => {
+    const commands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'custom',
+      inventory: createInventory(),
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      t: (key) => key,
+    });
+
+    const results = searchCommandDescriptors({
+      commands,
+      currentPathname: '/',
+      query: 'riel',
+    });
+
+    expect(results[0]?.id).toBe('settings:currency:khr');
   });
 
   test('builds static, entity, and overview workflow commands', () => {

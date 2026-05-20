@@ -13,6 +13,7 @@ import {
   createCloseSafetyDesktopBackupSnapshot,
   createDesktopBackupSnapshot,
   desktopBackupDirectoryPath,
+  readLatestDesktopBackupSnapshotCreatedAt,
   restoreDesktopBackupSnapshot,
 } from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
@@ -105,6 +106,7 @@ import type {
 } from '@shared/automation';
 import { isAutomationEligibleExposureRow } from '@shared/automation-sellables';
 import type {
+  SenaAnalysisArtifactRecord,
   SenaAnalysisRunRecord,
   SenaCatalog,
   SenaCreateOrderBatchPayload,
@@ -1447,6 +1449,7 @@ ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, benchmarkIpcHandle(IPC_CHANN
     workspaceStorePath: join(desktopDataPath, SENA_STORE_FILENAME),
     preferencesPath: join(desktopDataPath, PREFERENCES_STORE_FILENAME),
     backupDirectoryPath: desktopBackupDirectoryPath(desktopDataPath),
+    latestBackupSnapshotCreatedAt: await readLatestDesktopBackupSnapshotCreatedAt(desktopDataPath),
     assetDirectoryPath: desktopAssetDirectoryPath(),
     storageFormat: 'sqlite',
   };
@@ -2016,6 +2019,15 @@ ipcMain.handle(IPC_CHANNELS.senaGetRunStatus, benchmarkIpcHandle(IPC_CHANNELS.se
   return loadCachedSenaRead(`run-status:${runPayload.runId}`, () =>
     managedCore.invoke<SenaAnalysisRunRecord | null>('sena.getRunStatus', runPayload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+  );
+}));
+ipcMain.handle(IPC_CHANNELS.senaGetAnalysisArtifact, benchmarkIpcHandle(IPC_CHANNELS.senaGetAnalysisArtifact, async (_event, payload: SenaRunLookupPayload) => {
+  const runPayload = normalizeSenaRunLookupPayload(payload);
+  return loadCachedSenaRead(`analysis-artifact:${runPayload.runId}`, () =>
+    managedCore.invoke<SenaAnalysisArtifactRecord | null>('sena.getAnalysisArtifact', runPayload, {
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+      readPriority: 'background',
     }),
   );
 }));

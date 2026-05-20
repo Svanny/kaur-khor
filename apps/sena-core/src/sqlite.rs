@@ -2,16 +2,17 @@ use crate::{
     benchmark,
     service::{now_rfc3339, SenaRepository},
     types::{
-        SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaCreateOrderBatchPayload,
-        SenaDiagnostics, SenaObservationFingerprint, SenaObservationInput, SenaObservationPage,
-        SenaObservationPageCursor, SenaObservationPageRequest, SenaObservationRecord,
-        SenaOrderBatchRecord, SenaOrderBatchStatus, SenaOrderChildRecord, SenaOrderChildStatus,
-        SenaOrderFieldValues, SenaOrderLookupPayload, SenaRecordActivityEntry,
-        SenaRecordActivityType, SenaRecordUpdateAnchor, SenaRecordUpdateContext,
-        SenaRecordUpdateOpenTickets, SenaRunStatus, SenaServiceDetail, SenaSkuDetail,
-        SenaSkuSummary, SenaSplitOrderChildPayload, SenaTicketEvent, SenaTicketFamily,
-        SenaTicketLifecycle, SenaTicketSummary, SenaUpdateOrderBatchPayload,
-        SenaUpdateOrderChildPayload, SenaWorkspaceSummary,
+        SenaAnalysisArtifactRecord, SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog,
+        SenaCreateOrderBatchPayload, SenaDiagnostics, SenaObservationFingerprint,
+        SenaObservationInput, SenaObservationPage, SenaObservationPageCursor,
+        SenaObservationPageRequest, SenaObservationRecord, SenaOrderBatchRecord,
+        SenaOrderBatchStatus, SenaOrderChildRecord, SenaOrderChildStatus, SenaOrderFieldValues,
+        SenaOrderLookupPayload, SenaRecordActivityEntry, SenaRecordActivityType,
+        SenaRecordUpdateAnchor, SenaRecordUpdateContext, SenaRecordUpdateOpenTickets,
+        SenaRunStatus, SenaServiceDetail, SenaSkuDetail, SenaSkuSummary,
+        SenaSplitOrderChildPayload, SenaTicketEvent, SenaTicketFamily, SenaTicketLifecycle,
+        SenaTicketSummary, SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
+        SenaWorkspaceSummary,
     },
     PreprocessedWorkspace, SenaAnalysisCheckpoint, SenaEngineParameters,
 };
@@ -19,7 +20,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fs;
@@ -105,6 +106,7 @@ impl SqliteSenaRepository {
               diagnostics_json TEXT,
               primary_artifact_key TEXT,
               engine_parameters_json TEXT,
+              artifact_payload_json TEXT,
               error TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_sena_run_owner_created_at
@@ -240,6 +242,12 @@ impl SqliteSenaRepository {
             "sena_run",
             "engine_parameters_json",
             "ALTER TABLE sena_run ADD COLUMN engine_parameters_json TEXT",
+        )?;
+        ensure_column(
+            &connection,
+            "sena_run",
+            "artifact_payload_json",
+            "ALTER TABLE sena_run ADD COLUMN artifact_payload_json TEXT",
         )?;
         if previous_user_version < 3 {
             backfill_record_update_anchors_locked(&connection)?;
@@ -2519,6 +2527,7 @@ impl SenaRepository for SqliteSenaRepository {
         run_id: &str,
         result: &SenaAnalysisResult,
         artifact_key: Option<&str>,
+        artifact_payload: Option<&Value>,
     ) -> Result<()> {
         let completed_at = now_rfc3339();
         let mut connection = self
@@ -2538,6 +2547,7 @@ impl SenaRepository for SqliteSenaRepository {
                 summary_json = ?3,
                 diagnostics_json = ?4,
                 primary_artifact_key = ?5,
+                artifact_payload_json = ?6,
                 error = NULL
             WHERE run_id = ?1
             "#,
@@ -2547,6 +2557,7 @@ impl SenaRepository for SqliteSenaRepository {
                 serde_json::to_string(&summary)?,
                 serde_json::to_string(&result.diagnostics)?,
                 artifact_key.map(str::to_string),
+                artifact_payload.map(serde_json::to_string).transpose()?,
             ],
         )?;
         transaction.execute(
@@ -3004,6 +3015,167 @@ impl SenaRepository for SqliteSenaRepository {
             .map(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
             .transpose()
     }
+}
+
+impl SqliteSenaRepository {
+    pub async fn load_analysis_artifact(
+        &self,
+        run_id: &str,
+    ) -> Result<Option<SenaAnalysisArtifactRecord>> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let row = connection
+            .query_row(
+                r#"
+                SELECT owner_sub, algorithm_version, created_at, completed_at,
+                       summary_json, diagnostics_json, primary_artifact_key,
+                       engine_parameters_json, artifact_payload_json
+                FROM sena_run
+                WHERE run_id = ?1
+                "#,
+                params![run_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, Option<String>>(7)?,
+                        row.get::<_, Option<String>>(8)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        if let Some(raw_payload) = row.8 {
+            return Ok(Some(SenaAnalysisArtifactRecord {
+                run_id: run_id.to_string(),
+                primary_artifact_key: row.6,
+                synthesized: false,
+                payload: serde_json::from_str(&raw_payload)?,
+            }));
+        }
+
+        let summary = row
+            .4
+            .as_deref()
+            .map(serde_json::from_str::<Value>)
+            .transpose()?
+            .or_else(|| {
+                match connection
+                    .query_row(
+                        "SELECT workspace_summary_json FROM sena_read_model WHERE owner_sub = ?1",
+                        params![&row.0],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()
+                {
+                    Ok(Some(raw)) => serde_json::from_str(&raw).ok(),
+                    _ => None,
+                }
+            });
+        let diagnostics = row
+            .5
+            .as_deref()
+            .map(serde_json::from_str::<Value>)
+            .transpose()?
+            .or_else(|| {
+                match connection
+                    .query_row(
+                        "SELECT diagnostics_json FROM sena_read_model WHERE owner_sub = ?1",
+                        params![&row.0],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()
+                {
+                    Ok(Some(raw)) => serde_json::from_str(&raw).ok(),
+                    _ => None,
+                }
+            });
+        let engine_parameters = row
+            .7
+            .as_deref()
+            .map(serde_json::from_str::<Value>)
+            .transpose()?;
+
+        let sku_details =
+            load_artifact_detail_values(&connection, "sena_sku_detail", "sku_id", &row.0, run_id)?;
+        let service_details = load_artifact_detail_values(
+            &connection,
+            "sena_service_detail",
+            "service_id",
+            &row.0,
+            run_id,
+        )?;
+        let sku_summaries = summary
+            .as_ref()
+            .and_then(|value| value.get("skuSummaries").cloned())
+            .unwrap_or_else(|| Value::Array(Vec::new()));
+
+        Ok(Some(SenaAnalysisArtifactRecord {
+            run_id: run_id.to_string(),
+            primary_artifact_key: row.6.clone(),
+            synthesized: true,
+            payload: json!({
+                "generatedAt": row.3.as_ref().unwrap_or(&row.2),
+                "algorithmVersion": row.1,
+                "run": {
+                    "runId": run_id,
+                    "ownerSub": &row.0,
+                    "createdAt": &row.2,
+                    "completedAt": &row.3,
+                    "primaryArtifactKey": &row.6,
+                    "synthesized": true,
+                },
+                "engineParameters": engine_parameters,
+                "workspaceSummary": summary,
+                "skuSummaries": sku_summaries,
+                "skuDetails": sku_details,
+                "serviceDetails": service_details,
+                "diagnostics": diagnostics,
+            }),
+        }))
+    }
+}
+
+fn load_artifact_detail_values(
+    connection: &Connection,
+    table_name: &str,
+    id_column: &str,
+    owner_sub: &str,
+    run_id: &str,
+) -> Result<Vec<Value>> {
+    let run_specific_sql = format!(
+        "SELECT payload_json FROM {table_name} WHERE owner_sub = ?1 AND run_id = ?2 ORDER BY {id_column}"
+    );
+    let mut statement = connection.prepare(&run_specific_sql)?;
+    let rows = statement.query_map(params![owner_sub, run_id], |row| row.get::<_, String>(0))?;
+    let run_specific = rows
+        .map(|row| {
+            row.map_err(anyhow::Error::new)
+                .and_then(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
+        })
+        .collect::<Result<Vec<Value>>>()?;
+    if !run_specific.is_empty() {
+        return Ok(run_specific);
+    }
+
+    let fallback_sql =
+        format!("SELECT payload_json FROM {table_name} WHERE owner_sub = ?1 ORDER BY {id_column}");
+    let mut statement = connection.prepare(&fallback_sql)?;
+    let rows = statement.query_map(params![owner_sub], |row| row.get::<_, String>(0))?;
+    rows.map(|row| {
+        row.map_err(anyhow::Error::new)
+            .and_then(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
+    })
+    .collect::<Result<Vec<Value>>>()
 }
 
 fn parse_run_status(value: &str) -> SenaRunStatus {
@@ -4480,7 +4652,7 @@ mod tests {
 
         let first_run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
             .expect("first run should create");
-        block_on(repo.persist_completed_run(&first_run.run_id, &first, None))
+        block_on(repo.persist_completed_run(&first_run.run_id, &first, None, None))
             .expect("first run should persist");
         assert!(block_on(repo.load_sku_detail("owner", "sku-stale"))
             .expect("stale sku should load before refresh")
@@ -4498,7 +4670,7 @@ mod tests {
         second.service_details = vec![refreshed_service];
         let second_run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
             .expect("second run should create");
-        block_on(repo.persist_completed_run(&second_run.run_id, &second, None))
+        block_on(repo.persist_completed_run(&second_run.run_id, &second, None, None))
             .expect("second run should persist");
 
         assert!(block_on(repo.load_sku_detail("owner", "sku-stale"))
@@ -4568,6 +4740,83 @@ mod tests {
     }
 
     #[test]
+    fn analysis_artifact_payload_round_trips_through_sqlite() {
+        let path = temp_store_path("analysis-artifact");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let (catalog, observations, preprocessed) = sample_preprocessed_workspace();
+        let result = crate::run_preprocessed_analysis(
+            "owner",
+            &catalog,
+            &observations,
+            "sena-analysis-v3",
+            &preprocessed,
+            None,
+            None,
+        )
+        .expect("analysis should succeed")
+        .result;
+        let run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
+            .expect("run should create");
+        let payload = serde_json::json!({
+            "engineParameters": { "particleCount": 64 },
+            "diagnostics": { "posteriorPredictiveErrorMean": 0.25 },
+            "skuDetails": [{ "summary": { "skuId": "sku-1" } }],
+        });
+
+        block_on(repo.persist_completed_run(
+            &run.run_id,
+            &result,
+            Some("artifact/run"),
+            Some(&payload),
+        ))
+        .expect("run should persist");
+
+        let loaded = block_on(repo.load_analysis_artifact(&run.run_id))
+            .expect("artifact should load")
+            .expect("artifact should exist");
+        assert!(!loaded.synthesized);
+        assert_eq!(loaded.primary_artifact_key.as_deref(), Some("artifact/run"));
+        assert_eq!(loaded.payload, payload);
+    }
+
+    #[test]
+    fn analysis_artifact_synthesizes_legacy_payload_from_read_models() {
+        let path = temp_store_path("analysis-artifact-legacy");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let (catalog, observations, preprocessed) = sample_preprocessed_workspace();
+        let result = crate::run_preprocessed_analysis(
+            "owner",
+            &catalog,
+            &observations,
+            "sena-analysis-v3",
+            &preprocessed,
+            None,
+            None,
+        )
+        .expect("analysis should succeed")
+        .result;
+        let run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
+            .expect("run should create");
+        block_on(repo.persist_completed_run(&run.run_id, &result, Some("artifact/run"), None))
+            .expect("run should persist");
+
+        let loaded = block_on(repo.load_analysis_artifact(&run.run_id))
+            .expect("artifact should load")
+            .expect("artifact should exist");
+        assert!(loaded.synthesized);
+        assert_eq!(
+            loaded
+                .payload
+                .get("skuDetails")
+                .and_then(|value| value.as_array())
+                .map(Vec::len),
+            Some(result.sku_details.len())
+        );
+        assert!(loaded.payload.get("engineParameters").is_some());
+        assert!(loaded.payload.get("diagnostics").is_some());
+    }
+
+    #[test]
     fn run_loading_rejects_negative_persisted_counts() {
         let path = temp_store_path("run-negative-count");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
@@ -4610,7 +4859,7 @@ mod tests {
         .result;
         let run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
             .expect("run should create");
-        block_on(repo.persist_completed_run(&run.run_id, &result, None))
+        block_on(repo.persist_completed_run(&run.run_id, &result, None, None))
             .expect("completed run should persist");
         {
             let connection = repo

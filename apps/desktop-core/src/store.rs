@@ -4,13 +4,13 @@ use futures::executor::block_on;
 use kaur_khor_sena_core::{
     classify_relative_width, derive_relative_width, execute_analysis_run,
     execute_analysis_run_with_parameters, trigger_analysis_run,
-    trigger_analysis_run_with_parameters, SenaAdjustmentSignal, SenaAnalysisRunRecord, SenaBundle,
-    SenaCatalog, SenaCreateOrderBatchPayload, SenaDiagnostics, SenaEngineParameters,
-    SenaLeadTimeHint, SenaObservationFingerprint, SenaObservationInput, SenaObservationPage,
-    SenaObservationPageRequest, SenaObservationRecord, SenaObservationRegimeHint,
-    SenaOrderBatchRecord, SenaOrderLookupPayload, SenaOrderSignal, SenaRecipeUsageHint,
-    SenaRecordUpdateContext, SenaRepository, SenaRetailPriceObservation, SenaService,
-    SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
+    trigger_analysis_run_with_parameters, SenaAdjustmentSignal, SenaAnalysisArtifactRecord,
+    SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaCreateOrderBatchPayload, SenaDiagnostics,
+    SenaEngineParameters, SenaLeadTimeHint, SenaObservationFingerprint, SenaObservationInput,
+    SenaObservationPage, SenaObservationPageRequest, SenaObservationRecord,
+    SenaObservationRegimeHint, SenaOrderBatchRecord, SenaOrderLookupPayload, SenaOrderSignal,
+    SenaRecipeUsageHint, SenaRecordUpdateContext, SenaRepository, SenaRetailPriceObservation,
+    SenaService, SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
     SenaSkuDetail, SenaSplitOrderChildPayload, SenaStockSnapshot, SenaUpdateOrderBatchPayload,
     SenaUpdateOrderChildPayload, SenaWorkspaceSummary, SqliteSenaRepository,
 };
@@ -1549,6 +1549,10 @@ pub fn get_diagnostics(owner_sub: &str) -> Result<Option<SenaDiagnostics>> {
 
 pub fn get_run(run_id: &str) -> Result<Option<SenaAnalysisRunRecord>> {
     block_on(repository()?.get_run(run_id))
+}
+
+pub fn get_analysis_artifact(run_id: &str) -> Result<Option<SenaAnalysisArtifactRecord>> {
+    block_on(repository()?.load_analysis_artifact(run_id))
 }
 
 pub fn ensure_dev_seed(owner_sub: &str) -> Result<bool> {

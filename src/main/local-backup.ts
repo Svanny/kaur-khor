@@ -42,6 +42,45 @@ export function desktopBackupDirectoryPath(userDataPath: string) {
   return join(userDataPath, BACKUP_DIRECTORY_NAME);
 }
 
+export async function readLatestDesktopBackupSnapshotCreatedAt(
+  userDataPath: string,
+  fileOps: FileOps = fs,
+) {
+  const backupDirectoryPath = desktopBackupDirectoryPath(userDataPath);
+  const entries = await fileOps.readdir(backupDirectoryPath, { withFileTypes: true }).catch(() => []);
+  let latestCreatedAt: string | null = null;
+  let latestTimestamp = Number.NEGATIVE_INFINITY;
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const manifestPath = join(backupDirectoryPath, entry.name, SNAPSHOT_MANIFEST_FILENAME);
+    const manifestJson = await fileOps.readFile(manifestPath, 'utf8').catch(() => null);
+    if (!manifestJson) {
+      continue;
+    }
+
+    try {
+      const manifest = JSON.parse(manifestJson) as { createdAt?: unknown };
+      if (typeof manifest.createdAt !== 'string') {
+        continue;
+      }
+      const timestamp = Date.parse(manifest.createdAt);
+      if (!Number.isFinite(timestamp) || timestamp <= latestTimestamp) {
+        continue;
+      }
+      latestTimestamp = timestamp;
+      latestCreatedAt = manifest.createdAt;
+    } catch {
+      // Ignore malformed manifests; a valid snapshot manifest is required for checkpoint warnings.
+    }
+  }
+
+  return latestCreatedAt;
+}
+
 function timestampToken(value: Date) {
   return value.toISOString().replace(/[:.]/g, '-');
 }

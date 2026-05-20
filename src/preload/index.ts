@@ -260,6 +260,8 @@ const desktopBridge: DesktopBridge = {
       invokeWithBenchmark(IPC_CHANNELS.senaClearDetailCache, payload),
     getRunStatus: (payload: SenaRunLookupPayload): Promise<SenaAnalysisRunRecord | null> =>
       invokeWithBenchmark(IPC_CHANNELS.senaGetRunStatus, payload),
+    getAnalysisArtifact: (payload: SenaRunLookupPayload) =>
+      invokeWithBenchmark(IPC_CHANNELS.senaGetAnalysisArtifact, payload),
   },
   preferences: {
     get: (): Promise<DesktopPreferences> => invokeWithBenchmark(IPC_CHANNELS.preferencesGet),
