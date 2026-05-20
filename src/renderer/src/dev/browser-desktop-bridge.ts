@@ -50,6 +50,7 @@ import type {
 import { isAutomationEligibleExposureRow } from '@shared/automation-sellables';
 import { normalizeTicketLookupValue } from '@/lib/ticketing';
 import type {
+  SenaAnalysisArtifactRecord,
   SenaAnalysisRunRecord,
   SenaCatalog,
   SenaDiagnostics,
@@ -337,6 +338,39 @@ function applyBrowserSenaAnalysis(output: BrowserSenaAnalysisOutput) {
   browserMockState.skuDetails = clone(output.skuDetails);
   browserMockState.serviceDetails = clone(output.serviceDetails);
   browserMockState.latestRun = clone(output.run);
+  const artifact = synthesizeBrowserAnalysisArtifact(output.run.runId);
+  if (artifact) {
+    browserMockState.analysisArtifacts[output.run.runId] = artifact;
+  }
+}
+
+function synthesizeBrowserAnalysisArtifact(runId: string): SenaAnalysisArtifactRecord | null {
+  if (browserMockState.latestRun.runId !== runId) {
+    return null;
+  }
+  return {
+    runId,
+    primaryArtifactKey: browserMockState.latestRun.primaryArtifactKey,
+    synthesized: true,
+    payload: {
+      generatedAt: browserMockState.latestRun.completedAt ?? browserMockState.latestRun.createdAt,
+      algorithmVersion: browserMockState.latestRun.algorithmVersion,
+      run: {
+        runId,
+        ownerSub: browserMockState.latestRun.ownerSub,
+        createdAt: browserMockState.latestRun.createdAt,
+        completedAt: browserMockState.latestRun.completedAt,
+        primaryArtifactKey: browserMockState.latestRun.primaryArtifactKey,
+        synthesized: true,
+      },
+      engineParameters: browserMockState.preferences.senaEngineParameters,
+      workspaceSummary: clone(browserMockState.workspaceSummary),
+      skuSummaries: clone(browserMockState.workspaceSummary.skuSummaries),
+      skuDetails: Object.values(browserMockState.skuDetails).map((detail) => clone(detail)),
+      serviceDetails: Object.values(browserMockState.serviceDetails).map((detail) => clone(detail)),
+      diagnostics: clone(browserMockState.diagnostics),
+    },
+  };
 }
 
 function runBrowserSenaStateAnalysis(runId: string, payload?: SenaTriggerRunPayload) {
@@ -832,11 +866,13 @@ const mockLocalDataInfo: DesktopLocalDataInfo = {
   workspaceStorePath: '/tmp/kaur-khor-browser-mock/sena.sqlite',
   preferencesPath: '/tmp/kaur-khor-browser-mock/preferences.json',
   backupDirectoryPath: '/tmp/kaur-khor-browser-mock/backup-snapshots',
+  latestBackupSnapshotCreatedAt: '2026-04-10T10:00:00.000Z',
   assetDirectoryPath: '/tmp/kaur-khor-browser-mock/assets',
   storageFormat: 'sqlite',
 };
 
 export type BrowserMockState = {
+  analysisArtifacts: Record<string, SenaAnalysisArtifactRecord>;
   appContext: DesktopAppContext;
   automation: AutomationWorkspace;
   automationMessages: Record<string, AutomationMessageRecord[]>;
@@ -979,6 +1015,31 @@ export function createMockState(): BrowserMockState {
     appContext: {
       appVersion: 'browser-mock',
       platform: 'browser',
+    },
+    analysisArtifacts: {
+      [latestRun.runId]: {
+        runId: latestRun.runId,
+        primaryArtifactKey: latestRun.primaryArtifactKey,
+        synthesized: true,
+        payload: {
+          generatedAt: latestRun.completedAt,
+          algorithmVersion: latestRun.algorithmVersion,
+          run: {
+            runId: latestRun.runId,
+            ownerSub: latestRun.ownerSub,
+            createdAt: latestRun.createdAt,
+            completedAt: latestRun.completedAt,
+            primaryArtifactKey: latestRun.primaryArtifactKey,
+            synthesized: true,
+          },
+          engineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+          workspaceSummary: clone(mockWorkspaceSummary),
+          skuSummaries: clone(mockWorkspaceSummary.skuSummaries),
+          skuDetails: Object.values(mockSkuDetails).map((detail) => clone(detail)),
+          serviceDetails: Object.values(serviceDetails).map((detail) => clone(detail)),
+          diagnostics: clone(mockDiagnostics),
+        },
+      },
     },
     automation,
     automationMessages: {
@@ -1335,6 +1396,7 @@ async function pollBrowserTelegramOnce() {
 
 export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockState {
   const state = createMockState();
+  state.analysisArtifacts = {};
   state.appContext = {
     appVersion: 'browser-opfs',
     platform: 'web',
@@ -1419,6 +1481,7 @@ export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockSt
     workspaceStorePath: 'kaur_khor_browser_app_v1.sqlite3',
     preferencesPath: 'SQLite preferences table',
     backupDirectoryPath: 'downloaded backups',
+    latestBackupSnapshotCreatedAt: null,
     assetDirectoryPath: 'Browser image storage unavailable in this release',
     storageFormat: 'sqlite',
   };
@@ -2024,6 +2087,8 @@ function installBrowserDesktopBridge() {
       getDiagnostics: async () => clone(browserMockState.diagnostics),
       getRunStatus: async ({ runId }: SenaRunLookupPayload) =>
         clone(browserMockState.latestRun.runId === runId ? browserMockState.latestRun : null),
+      getAnalysisArtifact: async ({ runId }: SenaRunLookupPayload) =>
+        clone(browserMockState.analysisArtifacts[runId] ?? synthesizeBrowserAnalysisArtifact(runId)),
       clearDetailCache: async () => undefined,
     },
   };

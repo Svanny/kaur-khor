@@ -459,6 +459,13 @@ export interface SenaAnalysisRunRecord {
   error: string | null;
 }
 
+export interface SenaAnalysisArtifactRecord {
+  runId: string;
+  primaryArtifactKey: string | null;
+  synthesized: boolean;
+  payload: unknown;
+}
+
 export interface SenaWorkspaceSummary {
   ownerSub: string;
   runId: string;

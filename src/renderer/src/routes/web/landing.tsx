@@ -136,9 +136,9 @@ const screenshotSlides = [
     height: screenshotHeight,
   },
   {
-    alt: 'Kaur Khor analysis workspace showing inventory insight tools',
+    alt: 'Kaur Khor Insights Explain workspace showing inventory insight tools',
     image: publicPath('/screenshots/web-current-analysis.webp'),
-    label: 'Insights',
+    label: 'Insights / Explain',
     width: screenshotWidth,
     height: screenshotHeight,
   },
@@ -332,7 +332,7 @@ const landingKhmerCopy: Record<string, string> = {
   'Show Business health': 'បង្ហាញសុខភាពអាជីវកម្ម',
   'Show Customer queue': 'បង្ហាញជួរអតិថិជន',
   'Show Products': 'បង្ហាញទំនិញ',
-  'Show Insights': 'បង្ហាញការយល់ដឹង',
+  'Show Insights / Explain': 'បង្ហាញការយល់ដឹង / ពន្យល់',
   'Show Mission Control': 'បង្ហាញផ្ទាំងបញ្ជា',
   'Show Point-of-Sale and updates': 'បង្ហាញការលក់ផ្ទាល់ និងអាប់ដេត',
   'Show Stock count': 'បង្ហាញការរាប់ស្តុក',
@@ -376,8 +376,8 @@ const landingKhmerCopy: Record<string, string> = {
     'រូបភាពវគ្គកត់ត្រាការបញ្ជាទិញអតិថិជន កខ សម្រាប់តម្រូវការអតិថិជនកំពុងរង់ចាំ',
   'Kaur Khor business health dashboard showing pressure and diagnostics':
     'រូបភាពផ្ទាំងសុខភាពអាជីវកម្ម កខ បង្ហាញសម្ពាធ និងការពិនិត្យបញ្ហា',
-  'Kaur Khor analysis workspace showing inventory insight tools':
-    'រូបភាពកន្លែងវិភាគ កខ បង្ហាញឧបករណ៍យល់ដឹងអំពីស្តុក',
+  'Kaur Khor Insights Explain workspace showing inventory insight tools':
+    'រូបភាពការយល់ដឹង / ពន្យល់ កខ បង្ហាញឧបករណ៍យល់ដឹងអំពីស្តុក',
   'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.':
     'ការសាងសង់នៅលើម៉ាស៊ីនផ្ទាល់ជៀសវាងការទាញយកអេបដែលបានសាងសង់រួច ប៉ុន្តែមិនធ្វើឱ្យកម្មវិធីមានសុវត្ថិភាពដោយស្វ័យប្រវត្តិទេ។',
   'Verify SHA256SUMS when available and keep normal OS safety prompts on.':

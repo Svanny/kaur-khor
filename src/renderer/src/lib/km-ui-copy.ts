@@ -493,12 +493,17 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsUpdatesChooseDataAction: 'ជ្រើសថតទិន្នន័យ',
   settingsUpdatesChooseBackupAction: 'ជ្រើសថតនាំចេញស្នេបស្ហត',
   settingsUpdatesSkipBackupLabel: 'រំលងការនាំចេញស្នេបស្ហតសម្រាប់អាប់ដេតនេះ។',
+  settingsUpdatesSkipBackupTitle: 'រំលងការនាំចេញស្នេបស្ហត?',
+  settingsUpdatesSkipBackupWarning:
+    'ការរំលងការនាំចេញស្នេបស្ហតអាចបណ្តាលឱ្យបាត់បង់ទិន្នន័យ សម្រាប់ការផ្លាស់ប្តូរបន្ទាប់ពី checkpoint ចុងក្រោយ។',
+  settingsUpdatesSkipBackupCheckpoint: 'Checkpoint ចុងក្រោយ៖ {checkpoint}',
+  settingsUpdatesSkipBackupUnknownCheckpoint: 'រកមិនឃើញ checkpoint ដែលបានរក្សាទុក',
+  settingsUpdatesSkipBackupConfirm: 'រំលងការនាំចេញស្នេបស្ហត',
+  settingsUpdatesSkipBackupCancel: 'រក្សាការនាំចេញស្នេបស្ហត',
   settingsUpdatesDataDirectoryStatus: 'ថតទិន្នន័យ៖ {path}',
   settingsUpdatesBackupDirectoryStatus: 'ថតនាំចេញស្នេបស្ហត៖ {path}',
   settingsUpdatesDefaultDataDirectory: 'ថតទិន្នន័យកម្មវិធីបច្ចុប្បន្ន',
   settingsUpdatesNoBackupDirectory: 'ជ្រើសថត ឬរំលងការនាំចេញ',
-  settingsUpdatesRehydrateHint:
-    'បន្ទាប់ពីកំណែថ្មីបើកឡើងវិញ សូមស្តារស្នេបស្ហតដែលបាននាំចេញនេះពី ការកំណត់ / ទិន្នន័យ ប្រសិនបើអ្នកបានជ្រើសថតទិន្នន័យផ្ទាល់ខ្លួន ឬត្រូវការស្តារដោយដៃ។',
   settingsUpdatesInstallAction: 'បង្កើត និងដំឡើង {version}',
   settingsUpdatesStarting: 'កំពុងចាប់ផ្តើមកម្មវិធីអាប់ដេត…',
   settingsUpdatesAvailable: 'មានកំណែអាប់ដេត៖ {version}។',
@@ -1685,6 +1690,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     analysisWorkbenchNavObservations: 'ភស្តុតាង',
     analysisWorkbenchNavFragility: 'ចំណុចរារាំង',
     analysisWorkbenchNavSettings: 'ប៉ារ៉ាម៉ែត្រ',
+    analysisWorkbenchNavVariables: 'អថេរ',
     analysisWorkbenchSelectSurface: 'ជ្រើសទិដ្ឋភាពការពន្យល់',
     analysisWorkbenchSettingsSampleSizeTooltip:
       'បង្ហាញថា កខ កំពុងប្រើភស្តុតាងខុសៗគ្នាប៉ុន្មាន។',
@@ -1697,6 +1703,14 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       'កខនៃការអាប់ដេតដែលបានរក្សាទុក និងសញ្ញាដែលមានក្នុងការអាប់ដេតនីមួយៗ។',
     analysisWorkbenchObservationsDescriptor:
       'ពិនិត្យមើលថា សញ្ញាអ្វីខ្លះ បានកើតមានក្នុងការអាប់ដេតនីមួយៗ។',
+    analysisWorkbenchVariablesTitle: 'អថេរ SENA',
+    analysisWorkbenchVariablesTooltip:
+      'វាលទិន្នន័យដើមពីការវិភាគសម្រាប់ជុំការពន្យល់សកម្ម។',
+    analysisWorkbenchVariablesDescriptor:
+      'ពិនិត្យវាល artifact ដែលបានរក្សាទុក និងវាលភាពត្រូវគ្នាសម្រាប់រោគវិនិច្ឆ័យ។',
+    analysisWorkbenchVariablesLoading: 'កំពុងផ្ទុកអថេរ SENA…',
+    analysisWorkbenchVariablesUnavailable: 'មិនទាន់មានអថេរ SENA ទេ។',
+    analysisWorkbenchVariablesError: 'មិនអាចផ្ទុកអថេរ SENA បានទេ។',
     analysisWorkbenchObservedHeader: 'ការអាប់ដេតដែលបានរក្សាទុក',
     analysisWorkbenchObservationChannelsHeader: 'សញ្ញាដែលបានកត់ត្រា',
     analysisWorkbenchSalesPatternLine: 'លំនាំលក់ {value}',

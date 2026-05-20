@@ -82,6 +82,7 @@ pub trait SenaRepository {
         run_id: &str,
         result: &SenaAnalysisResult,
         artifact_key: Option<&str>,
+        artifact_payload: Option<&serde_json::Value>,
     ) -> Result<()>;
     async fn load_preprocessed_workspace(
         &self,
@@ -234,8 +235,13 @@ pub async fn execute_analysis_run_with_parameters<R: SenaRepository>(
     }
     let result = output.result;
     let artifacts = output.artifacts;
-    repo.persist_completed_run(run_id, &result, Some(&artifacts.primary_artifact_key))
-        .await?;
+    repo.persist_completed_run(
+        run_id,
+        &result,
+        Some(&artifacts.primary_artifact_key),
+        Some(&artifacts.payload),
+    )
+    .await?;
     let completed = repo
         .get_run(run_id)
         .await?

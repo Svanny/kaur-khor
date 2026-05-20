@@ -10,6 +10,7 @@ import {
   createCloseSafetyDesktopBackupSnapshot,
   createDesktopBackupSnapshot,
   desktopBackupDirectoryPath,
+  readLatestDesktopBackupSnapshotCreatedAt,
   restoreWorkspaceFiles,
   restoreDesktopBackupSnapshot,
   clearCurrentDesktopData,
@@ -37,6 +38,26 @@ describe('desktop local backup snapshots', () => {
     await expect(readFile(join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('sqlite-data');
     await expect(readFile(join(snapshot.snapshotPath, 'desktop-preferences.json'), 'utf8')).resolves.toBe('{"language":"en"}');
     await expect(readFile(join(snapshot.snapshotPath, 'snapshot-manifest.json'), 'utf8')).resolves.toContain('"trigger": "manual"');
+  });
+
+  it('reads the newest backup snapshot checkpoint timestamp', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-latest-'));
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
+
+    await createDesktopBackupSnapshot({
+      now: () => new Date('2026-04-10T10:00:00.000Z'),
+      reason: 'settings',
+      trigger: 'manual',
+      userDataPath,
+    });
+    await createDesktopBackupSnapshot({
+      now: () => new Date('2026-04-10T10:05:00.000Z'),
+      reason: 'settings',
+      trigger: 'manual',
+      userDataPath,
+    });
+
+    await expect(readLatestDesktopBackupSnapshotCreatedAt(userDataPath)).resolves.toBe('2026-04-10T10:05:00.000Z');
   });
 
   it('throttles automatic snapshots and prunes old snapshot directories', async () => {

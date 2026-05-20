@@ -804,6 +804,10 @@ Scope describes which products entities, supplier filters, and time window were 
 
 Smoothing controls how strongly the run softens noisy observations. More smoothing reduces jumps from one-off events; less smoothing reacts faster to new evidence. Use it to understand why a fresh update may not fully dominate the chart.
 
+### SENA Variables {#explain-variables}
+
+SENA variables are the raw diagnostic fields stored for the active Explain run. They include run metadata, engine parameters, diagnostics, workspace summary, SKU posterior arrays, service details, and service contributors. Use this tab for debugging or audit checks when the formatted Explain views do not show enough detail.
+
 ## Automations
 
 Automations covers configuration and customer-facing exposure for automation. Use it to manage the Telegram connection, decide what sellables the bot may offer, and keep customer-facing products data ready. Intake review has its own Help section because it is a Work subpage, not just a configuration panel.

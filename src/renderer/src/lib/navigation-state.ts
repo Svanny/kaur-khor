@@ -122,7 +122,7 @@ export type AutomationHealthValue = typeof automationHealthValues[number];
 export const analysisScopeValues = ['all', 'services', 'skus'] as const;
 export type AnalysisScopeValue = typeof analysisScopeValues[number];
 
-export const analysisSectionValues = ['workbench', 'pressure', 'observations', 'fragility', 'settings'] as const;
+export const analysisSectionValues = ['workbench', 'pressure', 'observations', 'fragility', 'settings', 'variables'] as const;
 export type AnalysisSectionValue = typeof analysisSectionValues[number];
 
 export const analysisTimeframeValues = ['Recent', '1M', '3M', 'YTD', '1Y', 'MAX'] as const;

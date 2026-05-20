@@ -66,10 +66,12 @@ vi.mock('@/state/preferences', () => ({
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve;
+    reject = nextReject;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 function makeRun(runId: string): SenaAnalysisRunRecord {
@@ -216,12 +218,150 @@ function createInventory(overrides: Partial<InventoryContextValue> = {}): Invent
     clearSenaServiceDetailCache: vi.fn(async () => {}),
     loadSenaDiagnostics: vi.fn(async () => null),
     loadSenaRunStatus: vi.fn(async () => null),
+    loadSenaAnalysisArtifact: vi.fn(async () => null),
     updateSenaMeta: vi.fn(),
     ...overrides,
   };
 }
 
 describe('AnalysisContent', () => {
+  it('loads SENA analysis artifacts only for the variables section', async () => {
+    analysisWorkbenchMock.mockClear();
+    const loadSenaAnalysisArtifact = vi.fn(async () => null);
+    const variablesInventory = createInventory({ loadSenaAnalysisArtifact });
+
+    render(
+      <AnalysisContent
+        currency="USD"
+        hasOlderIntervals={false}
+        inventory={variablesInventory}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        language="en"
+        loadOlderIntervals={vi.fn(async () => 0)}
+        resetHydratedDetails={vi.fn(async () => {})}
+        scope="all"
+        section="variables"
+        serviceDetailsById={{}}
+        setScope={vi.fn()}
+        setSection={vi.fn()}
+        showRightRailCards={false}
+        skuDetailsById={{}}
+        timeframeHydrationProgress={null}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(loadSenaAnalysisArtifact).toHaveBeenCalledWith('run-1');
+    });
+
+    loadSenaAnalysisArtifact.mockClear();
+    render(
+      <AnalysisContent
+        currency="USD"
+        hasOlderIntervals={false}
+        inventory={createInventory({ loadSenaAnalysisArtifact })}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        language="en"
+        loadOlderIntervals={vi.fn(async () => 0)}
+        resetHydratedDetails={vi.fn(async () => {})}
+        scope="all"
+        section="workbench"
+        serviceDetailsById={{}}
+        setScope={vi.fn()}
+        setSection={vi.fn()}
+        showRightRailCards={false}
+        skuDetailsById={{}}
+        timeframeHydrationProgress={null}
+      />,
+    );
+
+    expect(loadSenaAnalysisArtifact).not.toHaveBeenCalled();
+  });
+
+  it('forwards SENA artifact loading and error state to the workbench', async () => {
+    analysisWorkbenchMock.mockClear();
+    const pendingArtifact = deferred<null>();
+    const loadSenaAnalysisArtifact = vi.fn(() => pendingArtifact.promise);
+
+    render(
+      <AnalysisContent
+        currency="USD"
+        hasOlderIntervals={false}
+        inventory={createInventory({ loadSenaAnalysisArtifact })}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        language="en"
+        loadOlderIntervals={vi.fn(async () => 0)}
+        resetHydratedDetails={vi.fn(async () => {})}
+        scope="all"
+        section="variables"
+        serviceDetailsById={{}}
+        setScope={vi.fn()}
+        setSection={vi.fn()}
+        showRightRailCards={false}
+        skuDetailsById={{}}
+        timeframeHydrationProgress={null}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(analysisWorkbenchMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isAnalysisArtifactLoading: true }),
+      );
+    });
+
+    pendingArtifact.reject(new Error('artifact failed'));
+
+    await waitFor(() => {
+      expect(analysisWorkbenchMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          analysisArtifact: null,
+          analysisArtifactError: 'artifact failed',
+          isAnalysisArtifactLoading: false,
+        }),
+      );
+    });
+  });
+
+  it('prefers the latest run id when loading SENA analysis artifacts', async () => {
+    const loadSenaAnalysisArtifact = vi.fn(async () => null);
+
+    render(
+      <AnalysisContent
+        currency="USD"
+        hasOlderIntervals={false}
+        inventory={createInventory({
+          latestRun: makeRun('latest-run'),
+          loadSenaAnalysisArtifact,
+          workspaceSummary: {
+            ...createInventory().workspaceSummary!,
+            runId: 'summary-run',
+          },
+        })}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        language="en"
+        loadOlderIntervals={vi.fn(async () => 0)}
+        resetHydratedDetails={vi.fn(async () => {})}
+        scope="all"
+        section="variables"
+        serviceDetailsById={{}}
+        setScope={vi.fn()}
+        setSection={vi.fn()}
+        showRightRailCards={false}
+        skuDetailsById={{}}
+        timeframeHydrationProgress={null}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(loadSenaAnalysisArtifact).toHaveBeenCalledWith('latest-run');
+    });
+    expect(loadSenaAnalysisArtifact).not.toHaveBeenCalledWith('summary-run');
+  });
+
   it('resets chart zoom fitting when the timeframe changes', async () => {
     const user = userEvent.setup();
     const setTimeframe = vi.fn();

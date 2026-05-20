@@ -138,6 +138,7 @@ describe('SettingsRoute', () => {
   const chooseUpdateDataDirectory = vi.fn();
   const runSourceBuildUpdate = vi.fn();
   const revealPath = vi.fn();
+  const openExternalUrl = vi.fn();
   const triggerRun = vi.fn();
   const benchmarkAvailability = vi.fn();
   const benchmarkListRuns = vi.fn();
@@ -165,6 +166,7 @@ describe('SettingsRoute', () => {
     chooseUpdateDataDirectory.mockReset();
     runSourceBuildUpdate.mockReset();
     revealPath.mockReset();
+    openExternalUrl.mockReset();
     triggerRun.mockReset();
     benchmarkAvailability.mockReset();
     benchmarkListRuns.mockReset();
@@ -271,6 +273,7 @@ describe('SettingsRoute', () => {
       workspaceStorePath: '/tmp/kaur-khor/workspace.sqlite',
       preferencesPath: '/tmp/kaur-khor/desktop-preferences.json',
       backupDirectoryPath: '/tmp/kaur-khor/backup-snapshots',
+      latestBackupSnapshotCreatedAt: '2026-04-10T10:00:00.000Z',
       assetDirectoryPath: '/tmp/kaur-khor/assets',
       storageFormat: 'sqlite',
     });
@@ -335,6 +338,7 @@ describe('SettingsRoute', () => {
       started: true,
       message: 'Kaur Khor will close while the updater builds and installs the latest release.',
     });
+    openExternalUrl.mockResolvedValue(undefined);
     benchmarkAvailability.mockResolvedValue({
       available: true,
       reason: null,
@@ -420,6 +424,7 @@ describe('SettingsRoute', () => {
         chooseUpdateDataDirectory,
         runSourceBuildUpdate,
         revealPath,
+        openExternalUrl,
       },
       benchmarkRunner: {
         getAvailability: benchmarkAvailability,
@@ -1671,6 +1676,7 @@ describe('SettingsRoute', () => {
       workspaceStorePath: 'kaur_khor_browser_app_v1.sqlite3',
       preferencesPath: 'SQLite preferences table',
       backupDirectoryPath: 'downloaded backups',
+      latestBackupSnapshotCreatedAt: null,
       assetDirectoryPath: 'Browser image storage unavailable in this release',
       storageFormat: 'sqlite',
     });
@@ -1734,25 +1740,97 @@ describe('SettingsRoute', () => {
     expect(reloadLocation).toHaveBeenCalledTimes(1);
   });
 
-  it('runs the desktop update flow after choosing a snapshot export folder', async () => {
+  it('runs the desktop update flow against Local Data folders without folder pickers', async () => {
     renderSettingsRoute('/settings/updates');
+    expect(screen.getAllByText('Kaur Khor updates replace the desktop app only. Your workspace data stays separate, and you can export a snapshot to a folder you choose before installing.')).toHaveLength(1);
 
     fireEvent.click(await screen.findByRole('button', { name: /check latest release/i }));
     await screen.findByText('Update available: v0.3.5.');
-    expect(screen.getByRole('combobox', { name: /source-build version/i })).toHaveTextContent('Latest (v0.3.5)');
-
-    fireEvent.click(screen.getByRole('button', { name: /choose data folder/i }));
-    await screen.findByText('Data folder: /tmp/custom-kaur-khor-data');
-
-    fireEvent.click(screen.getByRole('button', { name: /choose snapshot export folder/i }));
-    await screen.findByText('Snapshot export folder: /tmp/kaur-khor-update-backups');
+    const releaseLink = screen.getByRole('link', { name: /github\.com\/Svanny\/kaur-khor\/releases\/tag\/v0\.3\.5/i });
+    expect(releaseLink).toHaveAttribute('href', 'https://github.com/Svanny/kaur-khor/releases/tag/v0.3.5');
+    fireEvent.click(releaseLink);
+    expect(openExternalUrl).toHaveBeenCalledWith('https://github.com/Svanny/kaur-khor/releases/tag/v0.3.5');
+    const versionSelect = screen.getByRole('combobox', { name: /source-build version/i });
+    const skipCheckbox = screen.getByRole('checkbox', { name: /skip snapshot export/i });
+    const installButton = screen.getByRole('button', { name: /build and install latest/i });
+    const versionHelp = screen.getByText('Latest stays selected by default. Choose a specific release when you need to rebuild or roll back.');
+    expect(versionSelect).toHaveTextContent('Latest (v0.3.5)');
+    expect(versionHelp.compareDocumentPosition(versionSelect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(versionSelect.closest('div.rounded-xl')).toBeNull();
+    expect(versionSelect).toHaveClass('w-auto');
+    expect(versionSelect.parentElement).toContainElement(screen.getByRole('button', { name: /check latest release/i }));
+    expect(skipCheckbox.compareDocumentPosition(installButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(installButton.compareDocumentPosition(screen.getByText('Data folder')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await screen.findByText('Data folder');
+    await screen.findByRole('button', { name: /^\/tmp\/kaur-khor$/i });
+    await screen.findByText('Snapshot export folder');
+    await screen.findByRole('button', { name: /^\/tmp\/kaur-khor\/backup-snapshots$/i });
+    expect(screen.queryByRole('button', { name: /choose data folder/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /choose snapshot export folder/i })).not.toBeInTheDocument();
+    expect(chooseUpdateDataDirectory).not.toHaveBeenCalled();
+    expect(chooseUpdateBackupDirectory).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: /build and install latest/i }));
 
     await waitFor(() => {
       expect(runSourceBuildUpdate).toHaveBeenCalledWith({
-        backupDirectoryPath: '/tmp/kaur-khor-update-backups',
-        dataDirectoryPath: '/tmp/custom-kaur-khor-data',
+        backupDirectoryPath: '/tmp/kaur-khor/backup-snapshots',
+        dataDirectoryPath: '/tmp/kaur-khor',
+        oldSourceBuilds: 'ask',
+        sourceVersion: 'latest',
+        skipBackup: false,
+      });
+    });
+  });
+
+  it('warns with the latest checkpoint before skipping update snapshot export', async () => {
+    renderSettingsRoute('/settings/updates');
+
+    const skipCheckbox = await screen.findByRole('checkbox', { name: /skip snapshot export/i });
+    const skipRow = skipCheckbox.closest('[data-slot="checkbox-row"]');
+    expect(skipRow).toBeInTheDocument();
+    expect(skipRow).toHaveAttribute('data-variant', 'flat');
+    expect(skipRow?.querySelector('svg')).toBeInTheDocument();
+
+    fireEvent.click(skipCheckbox);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Skip snapshot export?')).toBeInTheDocument();
+    expect(screen.getByText('Skipping the snapshot export can lead to data loss for changes made after the latest checkpoint.')).toBeInTheDocument();
+    expect(screen.getByText((content) => content.startsWith('Latest checkpoint:') && content.includes('Apr 10, 2026'))).toBeInTheDocument();
+    expect(screen.queryByText((content) => content.includes('checkpoint: Apr 10, 2026') && !content.startsWith('Latest checkpoint:'))).not.toBeInTheDocument();
+    expect(skipCheckbox).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: /^skip snapshot export$/i }));
+    expect(skipCheckbox).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: /build and install latest/i }));
+
+    await waitFor(() => {
+      expect(runSourceBuildUpdate).toHaveBeenCalledWith({
+        backupDirectoryPath: '/tmp/kaur-khor/backup-snapshots',
+        dataDirectoryPath: '/tmp/kaur-khor',
+        oldSourceBuilds: 'ask',
+        sourceVersion: 'latest',
+        skipBackup: true,
+      });
+    });
+  });
+
+  it('defaults desktop source-build updates to latest and Local Data folders', async () => {
+    renderSettingsRoute('/settings/updates');
+
+    await screen.findByText('Data folder');
+    await screen.findByRole('button', { name: /^\/tmp\/kaur-khor$/i });
+    await screen.findByText('Snapshot export folder');
+    await screen.findByRole('button', { name: /^\/tmp\/kaur-khor\/backup-snapshots$/i });
+
+    fireEvent.click(screen.getByRole('button', { name: /build and install latest/i }));
+
+    await waitFor(() => {
+      expect(runSourceBuildUpdate).toHaveBeenCalledWith({
+        backupDirectoryPath: '/tmp/kaur-khor/backup-snapshots',
+        dataDirectoryPath: '/tmp/kaur-khor',
         oldSourceBuilds: 'ask',
         sourceVersion: 'latest',
         skipBackup: false,
@@ -1770,14 +1848,11 @@ describe('SettingsRoute', () => {
     fireEvent.click(versionSelect);
     fireEvent.click(screen.getByRole('option', { name: 'v0.3.4' }));
 
-    fireEvent.click(screen.getByRole('button', { name: /choose snapshot export folder/i }));
-    await screen.findByText('Snapshot export folder: /tmp/kaur-khor-update-backups');
-
     fireEvent.click(screen.getByRole('button', { name: /build and install v0.3.4/i }));
 
     await waitFor(() => {
       expect(runSourceBuildUpdate).toHaveBeenCalledWith({
-        backupDirectoryPath: '/tmp/kaur-khor-update-backups',
+        backupDirectoryPath: '/tmp/kaur-khor/backup-snapshots',
         dataDirectoryPath: '/tmp/kaur-khor',
         oldSourceBuilds: 'ask',
         sourceVersion: 'v0.3.4',

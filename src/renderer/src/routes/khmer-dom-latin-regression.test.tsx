@@ -423,6 +423,7 @@ describe('Khmer DOM Latin guardrail', () => {
           getLocalDataInfo: vi.fn().mockResolvedValue({
             backupDirectoryPath: '/tmp/kaur-khor/backups',
             dataDirectoryPath: '/tmp/kaur-khor',
+            latestBackupSnapshotCreatedAt: null,
             preferencesPath: '/tmp/kaur-khor/preferences.json',
             workspaceStorePath: '/tmp/kaur-khor/workspace.json',
           }),

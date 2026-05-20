@@ -704,6 +704,15 @@ pub struct SenaAnalysisRunRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct SenaAnalysisArtifactRecord {
+    pub run_id: String,
+    pub primary_artifact_key: Option<String>,
+    pub synthesized: bool,
+    pub payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SenaWorkspaceSummary {
     pub owner_sub: String,
     pub run_id: String,

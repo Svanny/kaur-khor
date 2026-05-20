@@ -70,10 +70,11 @@ directory is present, it skips that export because there is nothing to back up.
 The export copies regular workspace files and folders and skips symlinks so a
 workspace path cannot pull unrelated files into the update snapshot.
 Settings / Updates also defaults to the latest source-build release, lets you
-choose a specific release version, verifies the downloaded source-build archive
-against the release `.sha256` file, rejects unsafe archive paths before
-extracting it, and starts the updater only after Kaur Khor accepts the quit
-handoff. If your workspace data lives in a custom folder, pass
+choose a specific release version, and pre-fills the update data folder and
+snapshot export folder from Settings / Local data. It verifies the downloaded
+source-build archive against the release `.sha256` file, rejects unsafe archive
+paths before extracting it, and starts the updater only after Kaur Khor accepts
+the quit handoff. If your workspace data lives in a custom folder, pass
 `--data-dir=/path/to/your/kaur-khor-data` or use Settings / Updates in the
 desktop app to choose the folder. After installing the new version, restore the
 exported snapshot from Settings / Local data if you need to rehydrate from that

@@ -245,6 +245,7 @@ describe('KaurKhorShell', () => {
     expect(versionPill).toHaveClass('border-destructive/40');
     expect(versionPill).toHaveClass('bg-destructive/10');
     expect(versionPill).toHaveClass('w-full');
+    expect(versionPill.querySelector('svg')).toBeInTheDocument();
     expect(versionPill.compareDocumentPosition(screen.getByText('Main')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Search')).toBeInTheDocument();
     expect(screen.getByLabelText('Command')).toBeInTheDocument();
