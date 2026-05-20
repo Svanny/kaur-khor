@@ -166,19 +166,21 @@ function AnalysisContentInner({
     serviceDetailsById,
     skuDetailsById,
   ]);
+  const analysisArtifactRunId = inventory.latestRun?.runId ?? inventory.workspaceSummary?.runId ?? null;
+  const loadSenaAnalysisArtifact = inventory.loadSenaAnalysisArtifact;
 
   useEffect(() => {
-    const runId = inventory.latestRun?.runId ?? inventory.workspaceSummary?.runId ?? null;
-    if (section !== 'variables' || !runId) {
+    if (section !== 'variables' || !analysisArtifactRunId) {
       setAnalysisArtifact(null);
       setAnalysisArtifactError(null);
       setIsAnalysisArtifactLoading(false);
       return;
     }
     let canceled = false;
-    setIsAnalysisArtifactLoading(true);
+    setAnalysisArtifact(null);
     setAnalysisArtifactError(null);
-    void inventory.loadSenaAnalysisArtifact(runId)
+    setIsAnalysisArtifactLoading(true);
+    void loadSenaAnalysisArtifact(analysisArtifactRunId)
       .then((artifact) => {
         if (!canceled) {
           setAnalysisArtifact(artifact);
@@ -198,7 +200,7 @@ function AnalysisContentInner({
     return () => {
       canceled = true;
     };
-  }, [inventory, inventory.latestRun?.runId, inventory.workspaceSummary?.runId, section]);
+  }, [analysisArtifactRunId, loadSenaAnalysisArtifact, section]);
 
   if (!model) {
     return null;

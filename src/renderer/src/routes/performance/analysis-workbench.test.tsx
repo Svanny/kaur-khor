@@ -517,6 +517,10 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getByRole('tab', { name: 'ភស្តុតាង' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'ចំណុចរារាំង' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'ប៉ារ៉ាម៉ែត្រ' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'អថេរ' })).toBeInTheDocument();
+    const tabNames = screen.getAllByRole('tab').map((tab) => tab.getAttribute('aria-label') ?? tab.textContent);
+    expect(tabNames.indexOf('អថេរ')).toBe(tabNames.indexOf('ប៉ារ៉ាម៉ែត្រ') + 1);
+    expect(tabNames).not.toContain('Variables');
     expect(screen.queryByRole('tab', { name: 'Risks' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Blockers' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Parameters' })).not.toBeInTheDocument();

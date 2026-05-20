@@ -1396,6 +1396,7 @@ async function pollBrowserTelegramOnce() {
 
 export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockState {
   const state = createMockState();
+  state.analysisArtifacts = {};
   state.appContext = {
     appVersion: 'browser-opfs',
     platform: 'web',

@@ -2508,7 +2508,7 @@ function deriveVariableGroups(artifact: SenaAnalysisArtifactRecord | null): Vari
   ].filter((row) => row.value !== undefined);
   const workspaceRows = buildRecordRows(payload, 'workspace', 'workspaceSummary');
   const skuSummaries = artifactArray(payload, 'skuSummaries')
-    .concat(workspaceRows.find((row) => row.path === 'workspaceSummary.skuSummaries') ? [] : artifactArray(payload, 'workspaceSummary.skuSummaries'))
+    .concat(workspaceRows.find((row) => row.path === 'workspaceSummary.skuSummaries') ? artifactArray(payload, 'workspaceSummary.skuSummaries') : [])
     .map((value, index) => ({
       key: `sku-summary:${index}`,
       label: isJsonRecord(value) && typeof value.skuId === 'string' ? value.skuId : `SKU summary ${index + 1}`,

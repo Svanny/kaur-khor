@@ -3022,38 +3022,76 @@ impl SqliteSenaRepository {
         &self,
         run_id: &str,
     ) -> Result<Option<SenaAnalysisArtifactRecord>> {
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
-        let row = connection
-            .query_row(
-                r#"
-                SELECT owner_sub, algorithm_version, created_at, completed_at,
-                       summary_json, diagnostics_json, primary_artifact_key,
-                       engine_parameters_json, artifact_payload_json
-                FROM sena_run
-                WHERE run_id = ?1
-                "#,
-                params![run_id],
-                |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, String>(2)?,
-                        row.get::<_, Option<String>>(3)?,
-                        row.get::<_, Option<String>>(4)?,
-                        row.get::<_, Option<String>>(5)?,
-                        row.get::<_, Option<String>>(6)?,
-                        row.get::<_, Option<String>>(7)?,
-                        row.get::<_, Option<String>>(8)?,
-                    ))
-                },
+        let (row, read_model_summary_json, read_model_diagnostics_json, sku_detail_json, service_detail_json) = {
+            let connection = self
+                .connection
+                .lock()
+                .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+            let row = connection
+                .query_row(
+                    r#"
+                    SELECT owner_sub, algorithm_version, created_at, completed_at,
+                           summary_json, diagnostics_json, primary_artifact_key,
+                           engine_parameters_json, artifact_payload_json
+                    FROM sena_run
+                    WHERE run_id = ?1
+                    "#,
+                    params![run_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, Option<String>>(3)?,
+                            row.get::<_, Option<String>>(4)?,
+                            row.get::<_, Option<String>>(5)?,
+                            row.get::<_, Option<String>>(6)?,
+                            row.get::<_, Option<String>>(7)?,
+                            row.get::<_, Option<String>>(8)?,
+                        ))
+                    },
+                )
+                .optional()?;
+            let Some(row) = row else {
+                return Ok(None);
+            };
+            let read_model_summary_json = connection
+                .query_row(
+                    "SELECT workspace_summary_json FROM sena_read_model WHERE owner_sub = ?1",
+                    params![&row.0],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            let read_model_diagnostics_json = connection
+                .query_row(
+                    "SELECT diagnostics_json FROM sena_read_model WHERE owner_sub = ?1",
+                    params![&row.0],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            let sku_detail_json = load_artifact_detail_json(
+                &connection,
+                "sena_sku_detail",
+                "sku_id",
+                &row.0,
+                run_id,
+            )?;
+            let service_detail_json = load_artifact_detail_json(
+                &connection,
+                "sena_service_detail",
+                "service_id",
+                &row.0,
+                run_id,
+            )?;
+            (
+                row,
+                read_model_summary_json,
+                read_model_diagnostics_json,
+                sku_detail_json,
+                service_detail_json,
             )
-            .optional()?;
-        let Some(row) = row else {
-            return Ok(None);
         };
+
         if let Some(raw_payload) = row.8 {
             return Ok(Some(SenaAnalysisArtifactRecord {
                 run_id: run_id.to_string(),
@@ -3068,52 +3106,27 @@ impl SqliteSenaRepository {
             .as_deref()
             .map(serde_json::from_str::<Value>)
             .transpose()?
-            .or_else(|| {
-                match connection
-                    .query_row(
-                        "SELECT workspace_summary_json FROM sena_read_model WHERE owner_sub = ?1",
-                        params![&row.0],
-                        |row| row.get::<_, String>(0),
-                    )
-                    .optional()
-                {
-                    Ok(Some(raw)) => serde_json::from_str(&raw).ok(),
-                    _ => None,
-                }
-            });
+            .or_else(|| read_model_summary_json.and_then(|raw| serde_json::from_str(&raw).ok()));
         let diagnostics = row
             .5
             .as_deref()
             .map(serde_json::from_str::<Value>)
             .transpose()?
-            .or_else(|| {
-                match connection
-                    .query_row(
-                        "SELECT diagnostics_json FROM sena_read_model WHERE owner_sub = ?1",
-                        params![&row.0],
-                        |row| row.get::<_, String>(0),
-                    )
-                    .optional()
-                {
-                    Ok(Some(raw)) => serde_json::from_str(&raw).ok(),
-                    _ => None,
-                }
-            });
+            .or_else(|| read_model_diagnostics_json.and_then(|raw| serde_json::from_str(&raw).ok()));
         let engine_parameters = row
             .7
             .as_deref()
             .map(serde_json::from_str::<Value>)
             .transpose()?;
 
-        let sku_details =
-            load_artifact_detail_values(&connection, "sena_sku_detail", "sku_id", &row.0, run_id)?;
-        let service_details = load_artifact_detail_values(
-            &connection,
-            "sena_service_detail",
-            "service_id",
-            &row.0,
-            run_id,
-        )?;
+        let sku_details = sku_detail_json
+            .into_iter()
+            .map(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
+            .collect::<Result<Vec<Value>>>()?;
+        let service_details = service_detail_json
+            .into_iter()
+            .map(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
+            .collect::<Result<Vec<Value>>>()?;
         let sku_summaries = summary
             .as_ref()
             .and_then(|value| value.get("skuSummaries").cloned())
@@ -3145,37 +3158,20 @@ impl SqliteSenaRepository {
     }
 }
 
-fn load_artifact_detail_values(
+fn load_artifact_detail_json(
     connection: &Connection,
     table_name: &str,
     id_column: &str,
     owner_sub: &str,
     run_id: &str,
-) -> Result<Vec<Value>> {
+) -> Result<Vec<String>> {
     let run_specific_sql = format!(
         "SELECT payload_json FROM {table_name} WHERE owner_sub = ?1 AND run_id = ?2 ORDER BY {id_column}"
     );
     let mut statement = connection.prepare(&run_specific_sql)?;
     let rows = statement.query_map(params![owner_sub, run_id], |row| row.get::<_, String>(0))?;
-    let run_specific = rows
-        .map(|row| {
-            row.map_err(anyhow::Error::new)
-                .and_then(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
-        })
-        .collect::<Result<Vec<Value>>>()?;
-    if !run_specific.is_empty() {
-        return Ok(run_specific);
-    }
-
-    let fallback_sql =
-        format!("SELECT payload_json FROM {table_name} WHERE owner_sub = ?1 ORDER BY {id_column}");
-    let mut statement = connection.prepare(&fallback_sql)?;
-    let rows = statement.query_map(params![owner_sub], |row| row.get::<_, String>(0))?;
-    rows.map(|row| {
-        row.map_err(anyhow::Error::new)
-            .and_then(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
-    })
-    .collect::<Result<Vec<Value>>>()
+    rows.map(|row| row.map_err(anyhow::Error::new))
+        .collect::<Result<Vec<String>>>()
 }
 
 fn parse_run_status(value: &str) -> SenaRunStatus {
