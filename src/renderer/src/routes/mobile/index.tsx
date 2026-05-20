@@ -204,8 +204,12 @@ type PhoneTab = {
   matches: (pathname: string) => boolean;
 };
 
+function phoneLocationCacheKey(location: Pick<ReturnType<typeof useLocation>, 'pathname' | 'search'>) {
+  return `${location.pathname}${location.search}`;
+}
+
 const PhoneChromeStateContext = createContext({
-  markCaptureSessionReady: (_pathname: string) => {},
+  markCaptureSessionReady: (_locationKey: string) => {},
 });
 
 const PHONE_INSIGHTS_NAV_ENABLED = false;
@@ -635,7 +639,7 @@ function PhoneWorkspaceLoadingScreen({
     >
       <div>
         <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
-        <h1 className="mt-3 whitespace-nowrap text-[clamp(1.5rem,7vw,1.875rem)] font-semibold leading-tight tracking-normal">
+        <h1 className="mx-auto mt-3 max-w-[24ch] text-[1.7rem] font-semibold leading-tight tracking-normal">
           {translateUiLiteral(language, 'Loading workspace…')}
         </h1>
       </div>
@@ -650,10 +654,11 @@ function PhoneCaptureLoadingState() {
 function PhoneCaptureSessionChromeReady() {
   const location = useLocation();
   const { markCaptureSessionReady } = useContext(PhoneChromeStateContext);
+  const captureLocationKey = phoneLocationCacheKey(location);
 
   useLayoutEffect(() => {
-    markCaptureSessionReady(location.pathname);
-  }, [location.pathname, markCaptureSessionReady]);
+    markCaptureSessionReady(captureLocationKey);
+  }, [captureLocationKey, markCaptureSessionReady]);
 
   return null;
 }
@@ -6410,15 +6415,22 @@ function PhoneChrome({
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [utilityOpen, setUtilityOpen] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
-  const [readyCapturePathname, setReadyCapturePathname] = useState<string | null>(null);
+  const [readyCaptureLocationKey, setReadyCaptureLocationKey] = useState<string | null>(null);
   const ready = storage.status === 'ready';
   const resetLabel = mode === 'demo' ? 'Reset demo' : 'Reset workspace';
   const isDeepCaptureRoute = location.pathname.startsWith('/work/capture/');
   const isOnboardingRoute = location.pathname.startsWith('/onboarding');
-  const hidePhoneChrome = isOnboardingRoute || (isDeepCaptureRoute && readyCapturePathname !== location.pathname);
+  const captureLocationKey = phoneLocationCacheKey(location);
+  const hidePhoneChrome = isOnboardingRoute || (isDeepCaptureRoute && readyCaptureLocationKey !== captureLocationKey);
   const captureBackHref = sanitizePhoneReturnTo(new URLSearchParams(location.search).get('returnTo'), RECORD_UPDATE_HUB_PATH);
   const shellHeader = phoneShellHeaderCopy(location.pathname, language, activeSenaCatalog(inventory.catalog) ?? inventory.catalog);
-  const chromeState = useMemo(() => ({ markCaptureSessionReady: setReadyCapturePathname }), []);
+  const chromeState = useMemo(() => ({ markCaptureSessionReady: setReadyCaptureLocationKey }), []);
+
+  useLayoutEffect(() => {
+    if (isDeepCaptureRoute) {
+      setReadyCaptureLocationKey((current) => (current === captureLocationKey ? current : null));
+    }
+  }, [captureLocationKey, isDeepCaptureRoute]);
 
   useEffect(() => {
     const scrollRoot = document.querySelector<HTMLElement>('[data-slot="embedded-auto-zoom-viewport"]');

@@ -259,11 +259,12 @@ describe('web PWA install assets', () => {
     const entry = readFileSync(resolve(projectRoot, 'src/renderer/src/main.web.tsx'), 'utf8');
     const embeddedApp = readFileSync(resolve(projectRoot, 'src/renderer/src/routes/web/embedded-app.tsx'), 'utf8');
 
-    expect(entry).toContain('KAUR KHOR');
-    expect(entry).toContain("embeddedMode ? 'Loading workspace…' : 'Loading preferences…'");
+    expect(entry).toContain("translateUiLiteral(loadingLanguage, 'KAUR KHOR')");
+    expect(entry).toContain("translateUiLiteral(loadingLanguage, embeddedMode ? 'Loading workspace…' : 'Loading preferences…')");
     expect(entry).toContain('Loading preferences…');
     expect(embeddedApp).toContain('grid min-h-svh place-items-center bg-background px-6 text-center text-foreground');
-    expect(embeddedApp).toContain('Loading workspace…');
+    expect(embeddedApp).toContain("translateUiLiteral(language, 'Loading workspace…')");
+    expect(embeddedApp).not.toContain('Preparing browser workspace');
     expect(embeddedApp).not.toContain('Preparing phone workspace');
     expect(entry).not.toContain('Loading Kaur Khor');
   });

@@ -1453,7 +1453,7 @@ function DesktopUpdatesPage({
             >
               <SelectTrigger
                 aria-label={t('settingsUpdatesVersionPickerLabel')}
-                className={`${preferenceSelectTriggerClassName} w-full max-w-full xl:w-[58rem]`}
+                className={`${preferenceSelectTriggerClassName} xl:w-[58rem]`}
                 id="settings-update-version"
               >
                 <SelectValue />

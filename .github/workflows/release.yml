@@ -17,17 +17,31 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release tag source
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main; then
+            echo "Release tag ${GITHUB_REF_NAME} must point at a commit reachable from main." >&2
+            exit 1
+          fi
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a
         with:
           version: 10.32.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
-          node-version: 25
+          node-version: 24
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -35,7 +49,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo registry
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ~/.cargo/git
@@ -45,7 +59,7 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-cargo-registry-
 
       - name: Cache Cargo targets
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             apps/desktop-core/target
@@ -67,7 +81,6 @@ jobs:
 
   build:
     name: package-${{ matrix.platform }}-${{ matrix.arch }}
-    needs: security-gate
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -91,7 +104,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       - name: Sync package version from tag
         if: github.ref_type == 'tag'
@@ -109,14 +124,14 @@ jobs:
           echo "Packaging version $(node -p "require('./package.json').version") from tag ${RELEASE_TAG}"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a
         with:
           version: 10.32.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
-          node-version: 25
+          node-version: 24
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -124,7 +139,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo registry
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ~/.cargo/git
@@ -134,7 +149,7 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-cargo-registry-
 
       - name: Cache Cargo targets
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             apps/desktop-core/target
@@ -146,7 +161,7 @@ jobs:
 
       - name: Cache Electron downloads
         if: matrix.platform == 'mac'
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ~/Library/Caches/electron
@@ -158,7 +173,7 @@ jobs:
 
       - name: Cache Electron downloads
         if: matrix.platform == 'linux'
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ~/.cache/electron
@@ -170,7 +185,7 @@ jobs:
 
       - name: Cache Electron downloads
         if: matrix.platform == 'win'
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ~/AppData/Local/electron/Cache
@@ -251,7 +266,7 @@ jobs:
 
       - name: Upload release artifacts
         if: github.ref_type == 'tag'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/*
@@ -269,12 +284,13 @@ jobs:
 
     steps:
       - name: Checkout release metadata
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Download packaged artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: dist
           pattern: release-*

@@ -3,6 +3,8 @@ import { ActionCloseIcon, ActionConfirmIcon, ActionDeleteIcon } from '@icons/act
 import { StatusAlertIcon } from '@icons/status';
 import { Button } from '@/components/ui/button';
 
+const wrappedActionClassName = 'min-w-max flex-[1_0_max-content] justify-center';
+
 export function ConfirmActionDialog({
   open,
   title,
@@ -47,7 +49,6 @@ export function ConfirmActionDialog({
   }
 
   const hasDestructiveAction = Boolean(destructiveActionLabel && onDestructiveAction);
-  const wrappedActionClassName = 'min-w-max flex-[1_0_max-content] justify-center';
 
   return (
     <div
@@ -116,9 +117,24 @@ export function ConfirmActionDialog({
               {cancelLabel}
             </Button>
           )}
-          <div className={hasDestructiveAction ? wrappedActionClassName : undefined}>
+          {hasDestructiveAction ? (
+            <div className={wrappedActionClassName}>
+              <Button
+                className="w-full min-w-max justify-center"
+                disabled={isConfirmDisabled || isSubmitting}
+                type="button"
+                variant={confirmVariant}
+                onClick={onConfirm}
+              >
+                <span data-icon="inline-start" className="contents">
+                  {confirmIcon ?? <ActionConfirmIcon />}
+                </span>
+                {isSubmitting ? 'Working…' : confirmLabel}
+              </Button>
+            </div>
+          ) : (
             <Button
-              className={hasDestructiveAction ? 'w-full min-w-max justify-center' : 'min-w-0'}
+              className="min-w-0"
               disabled={isConfirmDisabled || isSubmitting}
               type="button"
               variant={confirmVariant}
@@ -129,7 +145,7 @@ export function ConfirmActionDialog({
               </span>
               {isSubmitting ? 'Working…' : confirmLabel}
             </Button>
-          </div>
+          )}
         </div>
       </div>
     </div>

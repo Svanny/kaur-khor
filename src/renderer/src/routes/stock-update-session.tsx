@@ -13338,7 +13338,7 @@ export function StockUpdateSessionRoute() {
       ? createPortal(dialog, document.body)
       : dialog;
   const posTileDialogContentClassName = cn(
-    'fixed left-1/2 top-1/2 z-[100] grid w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]',
+    'fixed left-1/2 top-1/2 z-[100] grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-6 overflow-y-auto rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]',
     embeddedPhonePortrait && 'max-h-[calc(var(--kaur-khor-embedded-effective-height,100dvh)-1rem)] w-[calc(100vw-1rem)] gap-4 overflow-y-auto rounded-[1.25rem] p-4',
   );
   const posReviewDialogContentClassName = cn(
