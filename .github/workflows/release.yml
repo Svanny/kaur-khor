@@ -41,9 +41,11 @@ jobs:
             apps/desktop-core/target
             apps/sena-core/target
             build/cargo-target
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('apps/*/Cargo.lock', 'apps/*/Cargo.toml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('apps/desktop-core/Cargo.lock', 'apps/desktop-core/Cargo.toml', 'apps/sena-core/Cargo.lock', 'apps/sena-core/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-cargo-
+            ${{ runner.os }}-cargo-
+            cargo-
 
       - name: Install dependencies
         shell: bash
@@ -121,10 +123,11 @@ jobs:
             apps/desktop-core/target
             apps/sena-core/target
             build/cargo-target
-          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-cargo-${{ hashFiles('apps/*/Cargo.lock', 'apps/*/Cargo.toml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('apps/desktop-core/Cargo.lock', 'apps/desktop-core/Cargo.toml', 'apps/sena-core/Cargo.lock', 'apps/sena-core/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-cargo-
             ${{ runner.os }}-${{ runner.arch }}-cargo-
+            ${{ runner.os }}-cargo-
+            cargo-
 
       - name: Cache Electron downloads
         if: matrix.platform == 'mac'
@@ -136,6 +139,9 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
+            ${{ runner.os }}-${{ runner.arch }}-electron-
+            ${{ runner.os }}-electron-
+            electron-
 
       - name: Cache Electron downloads
         if: matrix.platform == 'linux'
@@ -147,6 +153,9 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
+            ${{ runner.os }}-${{ runner.arch }}-electron-
+            ${{ runner.os }}-electron-
+            electron-
 
       - name: Cache Electron downloads
         if: matrix.platform == 'win'
@@ -158,6 +167,9 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
+            ${{ runner.os }}-${{ runner.arch }}-electron-
+            ${{ runner.os }}-electron-
+            electron-
 
       - name: Install dependencies
         shell: bash
