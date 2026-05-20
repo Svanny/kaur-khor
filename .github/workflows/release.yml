@@ -67,6 +67,7 @@ jobs:
 
   build:
     name: package-${{ matrix.platform }}-${{ matrix.arch }}
+    needs: security-gate
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
