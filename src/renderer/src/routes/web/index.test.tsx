@@ -606,6 +606,8 @@ describe('WebRoutes landing rail', () => {
     expect(buildSection).not.toHaveTextContent('software');
 
     expect(screen.getByRole('img', { name: 'រូបភាពផ្ទាំងបញ្ជា កខ បង្ហាញជួរការងារសំខាន់' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'បង្ហាញការយល់ដឹង / ពន្យល់' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show Insights / Explain' })).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Kaur Khor mission control overview showing the main work queue' })).not.toBeInTheDocument();
   });
 
