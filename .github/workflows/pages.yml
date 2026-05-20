@@ -16,26 +16,24 @@ permissions:
 
 concurrency:
   group: pages-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build:
-    name: build-pages
+  test:
+    name: test-pages
     runs-on: ubuntu-latest
-    outputs:
-      pages-configured: ${{ steps.configure-pages.outcome == 'success' }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10.32.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 25
           cache: pnpm
@@ -47,20 +45,45 @@ jobs:
       - name: Run renderer and main-process tests
         run: pnpm test
 
+  build:
+    name: build-pages
+    runs-on: ubuntu-latest
+    outputs:
+      pages-configured: ${{ steps.configure-pages.outcome == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.32.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 25
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Build web app
         run: pnpm run pages:build
 
       - name: Configure Pages
         id: configure-pages
         if: github.event_name == 'push'
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
         continue-on-error: true
         with:
           enablement: true
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && steps.configure-pages.outcome == 'success'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: out/web
 
@@ -76,4 +99,4 @@ jobs:
     steps:
       - name: Deploy Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
