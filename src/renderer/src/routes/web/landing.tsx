@@ -1060,7 +1060,7 @@ function HomeRoute() {
               <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground sm:text-xl">
                 {landingText(language, 'A warm, local-first inventory desk for small teams: try sample shelves in the browser, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.')}
               </p>
-              <Button asChild className="mt-8 h-14 w-full justify-center text-base sm:w-auto sm:min-w-56" size="lg">
+              <Button asChild className="pos-metadata-surface-gleam mt-8 h-14 w-full justify-center text-base sm:w-auto sm:min-w-56" size="lg">
                 <a href="#ways-to-start" onClick={onSectionAnchorClick('ways-to-start')}>{landingText(language, 'Get started')} <ActionContinueIcon className="size-4" /></a>
               </Button>
             </div>
@@ -1300,7 +1300,7 @@ function ReleasesSection({ language }: { language: AppLanguage }) {
         </div>
         <div className="grid max-w-4xl gap-3">
           <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="grid min-w-0 gap-2 text-sm font-semibold text-foreground sm:w-full sm:max-w-md sm:flex-none">
+            <label className="grid min-w-0 gap-2 text-sm font-semibold text-foreground sm:w-full sm:max-w-xl sm:flex-none">
               <span className="sr-only">{landingText(language, 'Download')}</span>
               <span className="relative">
                 <select
@@ -1325,7 +1325,7 @@ function ReleasesSection({ language }: { language: AppLanguage }) {
               </span>
             </label>
             {selectedOption ? (
-              <Button asChild className="h-12 w-full min-w-0 justify-center rounded-xl sm:w-auto sm:min-w-56" size="lg">
+              <Button asChild className="pos-metadata-surface-gleam h-12 w-full min-w-0 justify-center rounded-xl sm:w-auto sm:min-w-56" size="lg">
                 <a href={selectedOption.asset.browser_download_url} rel="noreferrer" target="_blank">
                   <Download className="size-4" />
                   {landingText(language, 'Download selected')}
