@@ -14,7 +14,7 @@ export function WebLoadingFallback({ embeddedMode, language }: WebLoadingFallbac
   return (
     <div className="grid min-h-svh place-items-center bg-background px-6 text-center text-foreground">
       <div>
-        <p className="text-sm font-semibold text-primary">{translateUiLiteral(language, 'KAUR KHOR')}</p>
+        <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-normal">
           {webLoadingFallbackTitle(embeddedMode, language)}
         </h1>

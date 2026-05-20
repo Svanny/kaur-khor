@@ -258,9 +258,11 @@ describe('web PWA install assets', () => {
   test('uses the workspace loading screen for the embedded mobile shell fallback', () => {
     const entry = readFileSync(resolve(projectRoot, 'src/renderer/src/main.web.tsx'), 'utf8');
     const embeddedApp = readFileSync(resolve(projectRoot, 'src/renderer/src/routes/web/embedded-app.tsx'), 'utf8');
+    const fallback = readFileSync(resolve(projectRoot, 'src/renderer/src/routes/web/loading-fallback.tsx'), 'utf8');
 
     expect(entry).toContain('<WebLoadingFallback embeddedMode={Boolean(embeddedMode)} language={loadingLanguage} />');
     expect(entry).toContain("import { WebLoadingFallback } from '@/routes/web/loading-fallback';");
+    expect(fallback).toContain('<p className="text-sm font-semibold text-primary">KAUR KHOR</p>');
     expect(embeddedApp).toContain('grid min-h-svh place-items-center bg-background px-6 text-center text-foreground');
     expect(embeddedApp).toContain("translateUiLiteral(language, 'Loading workspace…')");
     expect(embeddedApp).not.toContain('Preparing browser workspace');
