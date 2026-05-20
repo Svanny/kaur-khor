@@ -1487,10 +1487,17 @@ export const enUiCopyV1 = {
   skuVmPipelineEventReceived: 'Received',
   skuVmPipelineEventPlaced: 'Placed',
   skuVmHeadlineUnits: '{units} units likely on hand',
+  skuVmHeadlineUnitsLikely: '{units} units likely on hand',
+  skuVmHeadlineUnitsCertain: '{units} units on hand',
   skuVmOpenOrderSingular: '{count} open order',
   skuVmOpenOrderPlural: '{count} open orders',
   skuVmHeroSentence:
     '{low}-{high} credible band · {cover} cover · reorder trigger {reorder} · {openOrders} · {variability} · next receipt {receipt}',
+  skuVmHeroSentenceLikely:
+    '{low}-{high} credible band · {cover} cover · reorder trigger {reorder} · {openOrders} · {variability} · {delivery}',
+  skuVmHeroSentenceCertain:
+    '{cover} cover · reorder trigger {reorder} · {openOrders} · {variability} · {delivery}',
+  skuVmHeroNextDelivery: 'next receipt {receipt}',
   skuVmRibbonOnHand: 'On hand',
   skuVmRibbonOnTheWay: 'In transit',
   skuVmRibbonDemandPerDay: 'Demand / day',
@@ -2734,10 +2741,17 @@ export const enUiCopyV2: EnglishUiCopy = {
   skuVmPipelineEventReceived: 'Delivered',
   skuVmPipelineEventPlaced: 'Ordered',
   skuVmHeadlineUnits: '{units} units likely on hand',
+  skuVmHeadlineUnitsLikely: '{units} units likely on hand',
+  skuVmHeadlineUnitsCertain: '{units} units on hand',
   skuVmOpenOrderSingular: '{count} order on the way',
   skuVmOpenOrderPlural: '{count} orders on the way',
   skuVmHeroSentence:
     'Likely range {low}-{high} · cover {cover} · reorder signal {reorder} · {openOrders} · {variability} · next delivery {receipt}',
+  skuVmHeroSentenceLikely:
+    'Likely range {low}-{high} · cover {cover} · reorder signal {reorder} · {openOrders} · {variability} · {delivery}',
+  skuVmHeroSentenceCertain:
+    'Cover {cover} · reorder signal {reorder} · {openOrders} · {variability} · {delivery}',
+  skuVmHeroNextDelivery: 'next delivery {receipt}',
   skuVmRibbonOnHand: 'On hand',
   skuVmRibbonOnTheWay: 'On the way',
   skuVmRibbonDemandPerDay: 'Demand / day',
@@ -3175,6 +3189,11 @@ export const enUiCopyV2: EnglishUiCopy = {
     overviewSignalPromo: 'A promotion may have lifted demand for {name}.',
     skuVmHeroSentence:
       'Likely range {low}-{high} · cover {cover} · reorder signal {reorder} · {openOrders} · {variability} · next delivery {receipt}',
+    skuVmHeroSentenceLikely:
+      'Likely range {low}-{high} · cover {cover} · reorder signal {reorder} · {openOrders} · {variability} · {delivery}',
+    skuVmHeroSentenceCertain:
+      'Cover {cover} · reorder signal {reorder} · {openOrders} · {variability} · {delivery}',
+    skuVmHeroNextDelivery: 'next delivery {receipt}',
     skuVmLaneRegimeSummary:
       'Sales pattern history has {intervals} periods and {markers} retail price markers.',
     skuVmLaneInventorySummary:

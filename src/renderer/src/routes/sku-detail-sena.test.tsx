@@ -797,12 +797,47 @@ describe('SKU detail SENA helpers', () => {
     });
 
     expect(model.heartbeat.headlineUnits).toContain('11 units likely on hand');
+    expect(model.heartbeat.heroSentence).toContain('Likely range 9-13');
     expect(model.heartbeat.heroSentence).toContain('reorder signal');
     expect(model.rail.selectedIntervalSummary.dominantRegime).toBe('spike');
     expect(model.rail.actNow.headline).toBe('Reorder now');
     expect(model.rail.actNow.quantityBand).toBe('Recommended order 15 units');
     expect(model.rail.actNow.rationale).toContain('Recommended range 10-18 units');
     expect(deriveRecommendedOrderBand(detail)).toEqual({ low: 0, high: 0 });
+  });
+
+  test('omits likely language when the visible stock band is certain', () => {
+    const certainDetail: SenaSkuDetail = {
+      ...detail,
+      summary: {
+        ...detail.summary,
+        latestPosteriorUnits: 27,
+        credibleIntervalLow: 27,
+        credibleIntervalHigh: 27,
+      },
+      pipelinePosterior: [],
+    };
+    const model = deriveSenaSkuDetailViewModel({
+      currency: 'USD',
+      diagnostics,
+      observations,
+      linkedServiceDetails: [],
+      selectedIntervalIndex: 0,
+      skuId: 'sku-1',
+      snapshot,
+      detail: certainDetail,
+      uiState: 'ready',
+      workspaceSummary: workspace,
+      language: 'en',
+    });
+
+    expect(model.heartbeat.headlineUnits).toBe('27 units on hand');
+    expect(model.heartbeat.credibleBandLabel).toBe('27-27');
+    expect(model.heartbeat.heroSentence).not.toContain('Likely range');
+    expect(model.heartbeat.heroSentence).toMatch(/^Cover 4D/);
+    expect(model.heartbeat.heroSentence).toContain('reorder signal');
+    expect(model.heartbeat.heroSentence).toContain('No delivery window yet');
+    expect(model.heartbeat.heroSentence).not.toContain('next delivery No delivery window yet');
   });
 
   test('ignores dirty numeric SKU detail values before building labels and action context', () => {
@@ -899,8 +934,9 @@ describe('SKU detail SENA helpers', () => {
     });
 
     expect(model.identity.statusLabel).toBe('Watch');
-    expect(model.heartbeat.headlineUnits).toContain('0 units likely on hand');
+    expect(model.heartbeat.headlineUnits).toContain('0 units on hand');
     expect(model.heartbeat.credibleBandLabel).toBe('0-0');
+    expect(model.heartbeat.heroSentence).not.toContain('Likely range');
     expect(model.heartbeat.reorderLabel).toBe('—');
     expect(model.lanes.regimePriceLane.currentPriceLabel).toBe('—');
     expect(model.lanes.regimePriceLane.priceMarkers).toHaveLength(0);

@@ -952,6 +952,8 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   skuVmPipelineEventReceived: 'បានទទួល',
   skuVmPipelineEventPlaced: 'បានបញ្ជាទិញ',
   skuVmHeadlineUnits: 'ទំនងជាមានក្នុងស្តុក {units} ឯកតា',
+  skuVmHeadlineUnitsLikely: 'ទំនងជាមានក្នុងស្តុក {units} ឯកតា',
+  skuVmHeadlineUnitsCertain: 'មានក្នុងស្តុក {units} ឯកតា',
   skuVmOpenOrderSingular: 'ការបញ្ជាទិញ {count} កំពុងមកដល់',
   skuVmOpenOrderPlural: 'ការបញ្ជាទិញ {count} កំពុងមកដល់',
   skuVmRibbonOnHand: 'ក្នុងស្តុក',
@@ -1618,6 +1620,11 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     overviewSignalPromo: 'ការផ្សព្វផ្សាយ អាចបានជួយបង្កើនតម្រូវការសម្រាប់ {name}។',
     skuVmHeroSentence:
       'ចន្លោះដែលទំនង {low}-{high} · ថ្ងៃគ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {reorder} · {openOrders} · {variability} · ការដឹកមកដល់បន្ទាប់ {receipt}',
+    skuVmHeroSentenceLikely:
+      'ចន្លោះដែលទំនង {low}-{high} · ថ្ងៃគ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {reorder} · {openOrders} · {variability} · {delivery}',
+    skuVmHeroSentenceCertain:
+      'ថ្ងៃគ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {reorder} · {openOrders} · {variability} · {delivery}',
+    skuVmHeroNextDelivery: 'ការដឹកមកដល់បន្ទាប់ {receipt}',
     skuVmLaneRegimeSummary:
       'ប្រវត្តិលំនាំលក់នេះ មាន {intervals} រយៈពេល និងសញ្ញាតម្លៃលក់រាយ {markers} កន្លែង។',
     skuVmLaneInventorySummary:
@@ -1766,6 +1773,11 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       skuVmNextTouchThresholdCrossed: 'សញ្ញាបញ្ជាទិញបន្ថែម បានឆ្លងកាត់កម្រិតសកម្មភាពហើយ។',
       skuVmHeroSentence:
         'ចន្លោះដែលទំនង {low}-{high} · ថ្ងៃគ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {reorder} · {openOrders} · {variability} · ការដឹកមកដល់បន្ទាប់ {receipt}',
+      skuVmHeroSentenceLikely:
+        'ចន្លោះដែលទំនង {low}-{high} · ថ្ងៃគ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {reorder} · {openOrders} · {variability} · {delivery}',
+      skuVmHeroSentenceCertain:
+        'ថ្ងៃគ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {reorder} · {openOrders} · {variability} · {delivery}',
+      skuVmHeroNextDelivery: 'ការដឹកមកដល់បន្ទាប់ {receipt}',
       skuVmRibbonPriceNow: 'តម្លៃបច្ចុប្បន្ន',
       skuVmLaneRegimeSummary:
         'លំនាំលក់នេះ មាន {intervals} ចន្លោះពេល និងសញ្ញាតម្លៃលក់រាយ {markers} កន្លែង។',

@@ -727,6 +727,11 @@ export function deriveSenaSkuDetailViewModel({
   const latestVariabilityClass = latestLeadTime?.observedVariabilityClass ?? null;
   const latestObservationAt = latestObservationAtForRecords(observations);
   const currentStock = safeNonNegativeNumber(summary?.latestPosteriorUnits, safeNonNegativeNumber(sku.unitsInStock));
+  const credibleBandLow = safeNonNegativeNumber(summary?.credibleIntervalLow, currentStock);
+  const credibleBandHigh = safeNonNegativeNumber(summary?.credibleIntervalHigh, currentStock);
+  const credibleBandLowLabel = formatSenaUnits(credibleBandLow, language);
+  const credibleBandHighLabel = formatSenaUnits(credibleBandHigh, language);
+  const hasVisibleStockUncertaintyBand = credibleBandLowLabel !== credibleBandHighLabel;
   const status = deriveStatus(detail, language);
   const receipt = receiptWindow(latestPipeline, latestLeadTime, language);
   const orderBand = deriveRecommendedOrderBand(detail);
@@ -860,6 +865,9 @@ export function deriveSenaSkuDetailViewModel({
     receipt.midpointDays != null && latestObservationTime != null
       ? `${formatSenaDate(addDaysToTimestampIso(latestObservationTime, receipt.midpointDays) ?? latestObservationIso, language)} · ${observedVariabilityLabel(latestVariabilityClass, language)}`
       : receipt.label;
+  const deliveryLabel = receipt.midpointDays == null
+    ? receiptLabel
+    : translate(language, 'skuVmHeroNextDelivery', { receipt: receiptLabel });
   const openOrderCountLabel = translate(
     language,
     pendingBatchCount === 1 ? 'skuVmOpenOrderSingular' : 'skuVmOpenOrderPlural',
@@ -880,22 +888,23 @@ export function deriveSenaSkuDetailViewModel({
       legacyFallbackAvailable: true,
     },
     heartbeat: {
-      headlineUnits: translate(language, 'skuVmHeadlineUnits', {
+      headlineUnits: translate(language, hasVisibleStockUncertaintyBand ? 'skuVmHeadlineUnitsLikely' : 'skuVmHeadlineUnitsCertain', {
         units: formatSenaUnits(currentStock, language),
       }),
-      credibleBandLabel: `${formatSenaUnits(safeNonNegativeNumber(summary?.credibleIntervalLow, currentStock), language)}-${formatSenaUnits(safeNonNegativeNumber(summary?.credibleIntervalHigh, currentStock), language)}`,
+      credibleBandLabel: `${credibleBandLowLabel}-${credibleBandHighLabel}`,
       coverLabel: summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—',
       reorderLabel: formatSenaPercent(summary?.reorderTriggerProbability ?? null, language),
       pipelineLabel: openOrderCountLabel,
       receiptWindowLabel: receiptLabel,
       variabilityLabel: observedVariabilityLabel(latestVariabilityClass, language),
-      heroSentence: translate(language, 'skuVmHeroSentence', {
-        low: formatSenaUnits(safeNonNegativeNumber(summary?.credibleIntervalLow, currentStock), language),
-        high: formatSenaUnits(safeNonNegativeNumber(summary?.credibleIntervalHigh, currentStock), language),
+      heroSentence: translate(language, hasVisibleStockUncertaintyBand ? 'skuVmHeroSentenceLikely' : 'skuVmHeroSentenceCertain', {
+        low: credibleBandLowLabel,
+        high: credibleBandHighLabel,
         cover: summary?.daysOfCover != null ? formatSenaDays(summary.daysOfCover, language) : '—',
         reorder: formatSenaPercent(summary?.reorderTriggerProbability ?? null, language),
         openOrders: openOrderCountLabel,
         variability: observedVariabilityLabel(latestVariabilityClass, language).toLowerCase(),
+        delivery: deliveryLabel,
         receipt: receiptLabel,
       }),
     },
