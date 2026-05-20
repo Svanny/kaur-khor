@@ -15,7 +15,13 @@ import {
   NavigationWorkIcon,
   NavigationPerformanceIcon,
 } from '@icons/navigation';
-import { StatusLoadingIcon } from '@icons/status';
+import {
+  StatusConstructionIcon,
+  StatusFlaskConicalIcon,
+  StatusLoadingIcon,
+  StatusMoonStarIcon,
+  StatusShieldCheckIcon,
+} from '@icons/status';
 import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
@@ -124,6 +130,13 @@ const sidebarSectionLabelClassName =
   'group-data-[collapsible=icon]:mt-0 group-data-[collapsible=icon]:opacity-0';
 const shortcutKeyClassName =
   'inline-flex h-6 min-w-6 items-center justify-center rounded-[0.7rem] border border-sidebar-border/70 bg-sidebar-accent/35 px-1.5 text-[0.72rem] font-semibold text-sidebar-foreground/70 shadow-[0_1px_0_rgba(255,255,255,0.45)]';
+type ReleaseChannel = 'alpha' | 'beta' | 'stable' | 'nightly';
+const sidebarVersionIconByChannel: Record<ReleaseChannel, IconComponent> = {
+  alpha: StatusFlaskConicalIcon,
+  beta: StatusConstructionIcon,
+  stable: StatusShieldCheckIcon,
+  nightly: StatusMoonStarIcon,
+};
 
 function isMacPlatform() {
   if (typeof navigator === 'undefined') {
@@ -341,6 +354,8 @@ function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'e
 }
 
 function SidebarVersionPill({ language }: { language: 'en' | 'km' }) {
+  const channel: ReleaseChannel = 'alpha';
+  const VersionIcon = sidebarVersionIconByChannel[channel];
   const label = translateUiLiteral(language, 'Version Alpha');
   const tooltip = translateUiLiteral(language, 'Expect some bugs!');
 
@@ -348,11 +363,12 @@ function SidebarVersionPill({ language }: { language: 'en' | 'km' }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex h-7 w-full max-w-full items-center justify-center rounded-full border border-destructive/40 bg-destructive/10 px-2.5 text-center text-xs font-semibold leading-none text-destructive shadow-[0_1px_0_rgba(255,255,255,0.45)]"
+          className="inline-flex h-7 w-full max-w-full items-center justify-center gap-1.5 rounded-full border border-destructive/40 bg-destructive/10 px-2.5 text-center text-xs font-semibold leading-none text-destructive shadow-[0_1px_0_rgba(255,255,255,0.45)]"
           data-slot="sidebar-version-pill"
           tabIndex={0}
           title={tooltip}
         >
+          <VersionIcon aria-hidden="true" className="size-3.5 shrink-0" />
           {label}
         </span>
       </TooltipTrigger>

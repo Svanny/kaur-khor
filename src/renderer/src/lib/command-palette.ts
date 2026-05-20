@@ -826,9 +826,9 @@ function buildSettingsCommands({
     }),
     createCommand({
       action: { effect: 'set-currency', href: '/settings', type: 'settings', value: 'KHR' },
-      aliases: ['settings currency khr', ...khmerSettingsSearchTerms, ...khmerCurrencySearchTerms],
+      aliases: ['settings currency khr', 'settings currency riel', ...khmerSettingsSearchTerms, ...khmerCurrencySearchTerms],
       id: 'settings:currency:khr',
-      keywords: ['settings', 'currency', 'khr', ...khmerSettingsSearchTerms, ...khmerCurrencySearchTerms, currency === 'KHR' ? 'current' : ''],
+      keywords: ['settings', 'currency', 'khr', 'riel', ...khmerSettingsSearchTerms, ...khmerCurrencySearchTerms, currency === 'KHR' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
