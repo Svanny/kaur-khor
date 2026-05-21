@@ -184,11 +184,11 @@ reintroduce legacy `lineItems` readers.
 When changing ticket authoring or projection behavior, prefer focused tests near
 the touched surface:
 
-- route mapping: `src/renderer/src/lib/record-update-routes.test.ts`
-- Capture hub: `src/renderer/src/routes/record-update-hub.test.tsx`
-- Capture wizard: `src/renderer/src/routes/stock-update-session.test.tsx`
-- Inbox queue: `src/renderer/src/routes/dashboard.test.tsx`
-- SKU evidence: `src/renderer/src/routes/sku-detail-sena.test.tsx`
+- route mapping: `src/renderer/src/lib/navigation/record-update-routes.test.ts`
+- Capture hub: `src/renderer/src/routes/records/record-update-hub.test.tsx`
+- Capture wizard: `src/renderer/src/routes/records/stock-update-session.test.tsx`
+- Inbox queue: `src/renderer/src/routes/workspace/dashboard.test.tsx`
+- SKU evidence: `src/renderer/src/routes/inventory/sku-detail-sena.test.tsx`
 - SENA Rust types: `cargo test --manifest-path apps/sena-core/Cargo.toml`
 
 Run `pnpm build` for final build verification. Do not pass `--silent` through
