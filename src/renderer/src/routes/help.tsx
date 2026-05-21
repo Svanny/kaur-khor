@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { IconComponent } from '@icons';
 import { ActionContinueIcon, ActionCreatePackageIcon, ActionOpenExternalIcon, ActionSearchOffIcon } from '@icons/actions';
@@ -105,6 +105,41 @@ function groupHelpBlocks(blocks: HelpBlock[]) {
   }
 
   return groups;
+}
+
+function stripInlineMarkdown(value: string) {
+  return value
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1');
+}
+
+function renderHelpInlineMarkdown(value: string) {
+  const nodes: Array<{ bold: boolean; text: string }> = [];
+  const boldPattern = /\*\*(.+?)\*\*/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = boldPattern.exec(value)) != null) {
+    if (match.index > cursor) {
+      nodes.push({ bold: false, text: stripInlineMarkdown(value.slice(cursor, match.index)) });
+    }
+    nodes.push({ bold: true, text: stripInlineMarkdown(match[1] ?? '') });
+    cursor = match.index + match[0].length;
+  }
+
+  if (cursor < value.length) {
+    nodes.push({ bold: false, text: stripInlineMarkdown(value.slice(cursor)) });
+  }
+
+  return nodes.map((node, index) => (
+    node.bold ? (
+      <strong key={`${node.text}:${index}`} className="font-semibold text-foreground">
+        {node.text}
+      </strong>
+    ) : (
+      <Fragment key={`${node.text}:${index}`}>{node.text}</Fragment>
+    )
+  ));
 }
 
 export function HelpRoute() {
@@ -325,39 +360,39 @@ export function HelpRoute() {
                           );
                         })() : null}
                         {group.blocks.map((block, index) => {
-                    if (block.type === 'paragraph') {
-                      return (
-                        <p key={`${section.id}-paragraph-${groupIndex}-${index}`} className={proseClassName}>
-                          {block.text}
-                        </p>
-                      );
-                    }
+                          if (block.type === 'paragraph') {
+                            return (
+                              <p key={`${section.id}-paragraph-${groupIndex}-${index}`} className={proseClassName}>
+                                {renderHelpInlineMarkdown(block.rawText ?? block.text)}
+                              </p>
+                            );
+                          }
 
-                    if (block.type === 'unordered-list') {
-                      return (
-                        <ul key={`${section.id}-unordered-${groupIndex}-${index}`} className="grid gap-2 pl-5 text-sm leading-7 text-muted-foreground sm:text-[0.96rem]">
-                          {block.items.map((item) => (
-                            <li key={item} className="list-disc">
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      );
-                    }
+                          if (block.type === 'unordered-list') {
+                            return (
+                              <ul key={`${section.id}-unordered-${groupIndex}-${index}`} className="grid gap-2 pl-5 text-sm leading-7 text-muted-foreground sm:text-[0.96rem]">
+                                {block.items.map((item, itemIndex) => (
+                                  <li key={`${item}:${itemIndex}`} className="list-disc">
+                                    {renderHelpInlineMarkdown(block.rawItems?.[itemIndex] ?? item)}
+                                  </li>
+                                ))}
+                              </ul>
+                            );
+                          }
 
-                    if (block.type === 'ordered-list') {
-                      return (
-                      <ol key={`${section.id}-ordered-${groupIndex}-${index}`} className="grid gap-2 pl-5 text-sm leading-7 text-muted-foreground sm:text-[0.96rem]">
-                        {block.items.map((item) => (
-                          <li key={item} className="list-decimal">
-                            {item}
-                          </li>
-                        ))}
-                      </ol>
-                      );
-                    }
+                          if (block.type === 'ordered-list') {
+                            return (
+                              <ol key={`${section.id}-ordered-${groupIndex}-${index}`} className="grid gap-2 pl-5 text-sm leading-7 text-muted-foreground sm:text-[0.96rem]">
+                                {block.items.map((item, itemIndex) => (
+                                  <li key={`${item}:${itemIndex}`} className="list-decimal">
+                                    {renderHelpInlineMarkdown(block.rawItems?.[itemIndex] ?? item)}
+                                  </li>
+                                ))}
+                              </ol>
+                            );
+                          }
 
-                    return null;
+                          return null;
                         })}
                       </AttentionFlash>
                     );

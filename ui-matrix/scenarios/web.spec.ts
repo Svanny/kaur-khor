@@ -21,9 +21,24 @@ test.describe('UI matrix: browser and demo surfaces', () => {
       type: 'ui-matrix',
       description: UI_MATRIX_CASES.find((entry) => entry.id === 'web-demo-and-browser-parity')?.expectedUi ?? '',
     });
+    testInfo.annotations.push({
+      type: 'ui-matrix',
+      description: UI_MATRIX_CASES.find((entry) => entry.id === 'web-landing-primary-release-actions')?.expectedUi ?? '',
+    });
 
     const prepared = await prepareWebPage(page);
     await page.goto('/kaur-khor/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('link', { name: /Get started/i })).toHaveClass(/pos-metadata-surface-gleam/);
+    const releaseSelector = page.getByLabel('Download');
+    if (await releaseSelector.count()) {
+      const releaseSelectorBox = await releaseSelector.boundingBox();
+      expect(releaseSelectorBox?.width, 'release selector should have enough rendered width for long asset labels').toBeGreaterThan(430);
+    }
+    const selectedDownload = page.getByRole('link', { name: /Download selected/i });
+    if (await selectedDownload.count()) {
+      await expect(selectedDownload.first()).toHaveClass(/pos-metadata-surface-gleam/);
+    }
+    await captureUi(page, testInfo, 'web-landing-entry');
     await page.getByRole('link', { name: 'Start Quick Demo' }).click();
     await page.waitForURL(/\/kaur-khor\/demo#\/onboarding$/);
     await expectEmbeddedBannerControls(page, 'demo');

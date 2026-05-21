@@ -557,7 +557,7 @@ export function SkuFormRoute() {
           <WorkspacePanel
             className={editorPanelClassName}
             descriptor={translateUiLiteral(language, 'Create active variants from selected attributes when saving this SKU.')}
-            title={<SectionTitle helpHref="/settings/help#catalog-sku-editor-details" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate SKU variants without copying logs, observations, or captures.')} />}
+            title={<SectionTitle helpHref="/settings/help#catalog-product-attributes" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate SKU variants without copying logs, observations, or captures.')} />}
           >
             <ProductAttributesField
               draft={attributeDraft}

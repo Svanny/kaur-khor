@@ -718,6 +718,7 @@ describe('WebRoutes releases section', () => {
     );
     expect(screen.getByText(/Recommended for macOS Apple Silicon from v1\.2\.3\./)).toBeInTheDocument();
     expect(select).toHaveTextContent('Kaur Khor v1.2.3 - macOS Apple Silicon DMG - recommended');
+    expect(select.closest('label')).toHaveClass('sm:max-w-xl');
     expect(select).toHaveTextContent('Kaur Khor v1.2.3 - Linux x64 deb package');
     expect(screen.getByRole('link', { name: 'YouTube tutorial for opening macOS app from unidentified developer' })).toHaveAttribute(
       'href',
@@ -1021,6 +1022,22 @@ describe('WebRoutes releases section', () => {
     expect(await screen.findByRole('heading', { name: 'KAUR KHOR' })).toBeInTheDocument();
     expect(container).not.toHaveTextContent('Install Kaur Khor from official releases.');
     expect(container.querySelectorAll('a[href*="/install"]')).toHaveLength(0);
+  });
+
+  test('applies the capture-session gleam treatment to primary landing CTAs', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        getHighEntropyValues: vi.fn(async () => ({ architecture: 'arm' })),
+        platform: 'macOS',
+      },
+    });
+
+    renderWebHome();
+
+    expect(screen.getByRole('link', { name: /Get started/i })).toHaveClass('pos-metadata-surface-gleam');
+    await expectRecommendedDownload('kaur-khor-v1.2.3-mac-arm64.dmg', releaseAssets[0]!.browser_download_url);
+    expect(screen.getByRole('link', { name: /Download selected/i })).toHaveClass('pos-metadata-surface-gleam');
   });
 });
 

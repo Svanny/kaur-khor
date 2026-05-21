@@ -207,7 +207,7 @@ export function TradingChartLedger({
     >
       <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold leading-none tracking-normal text-muted-foreground">កខ</p>
+          <p className="text-sm font-semibold leading-none tracking-normal text-muted-foreground">Chart View</p>
           <div className="mt-1">
             <SectionTitle helpHref="/settings/help#trading-chart-ledger" title={title} tooltip={tooltip} />
           </div>

@@ -269,6 +269,7 @@ function renderChart({
   chartModelOverride,
   customTimeframeRange = null,
   expanded = false,
+  fillAvailableHeight = true,
   hasOlderIntervals = false,
   initialPaneHeights = null,
   initialSettings,
@@ -289,6 +290,7 @@ function renderChart({
   chartModelOverride?: TradingChartModel;
   customTimeframeRange?: { startAt: string; endAt: string } | null;
   expanded?: boolean;
+  fillAvailableHeight?: boolean;
   hasOlderIntervals?: boolean;
   initialPaneHeights?: Record<string, number> | null;
   initialSettings?: TradingChartIndicatorSettings;
@@ -322,6 +324,7 @@ function renderChart({
       customTimeframeRange={customTimeframeRange}
       defaultIndicatorSettings={defaultTradingChartIndicators()}
       expanded={expanded}
+      fillAvailableHeight={fillAvailableHeight}
       hasOlderIntervals={hasOlderIntervals}
       indicatorSettings={settings}
       initialPaneHeights={initialPaneHeights}
@@ -1231,6 +1234,56 @@ describe('SkuTradingChart settings', () => {
     await waitFor(() => expect(chartMockState.paneHeights).toEqual([374, 124, 124, 126]));
   });
 
+  it('keeps content-height charts on the pane-count height when first layout measurement is oversized', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const clientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.getAttribute('data-testid') === 'sku-trading-chart' ? 900 : 0;
+      },
+    });
+
+    try {
+      const initialSettings = defaultTradingChartIndicators();
+      initialSettings.demand.enabled = true;
+      initialSettings.receipts.enabled = true;
+      initialSettings.ordersInTransit.enabled = true;
+      const multiPaneModel: TradingChartModel = {
+        ...chartModel,
+        points: [{
+          ...chartModel.points[0]!,
+          serviceDemandMean: 3,
+          receiptsMean: 2,
+          ordersInTransitMean: 4,
+        }],
+        availability: {
+          ...chartModel.availability,
+          demand: true,
+          receipts: true,
+          ordersInTransit: true,
+        },
+      };
+
+      renderChart({
+        chartModelOverride: multiPaneModel,
+        fillAvailableHeight: false,
+        initialSettings,
+      });
+
+      await waitFor(() => expect(chartMockState.paneHeights).toEqual([374, 124, 124, 126]));
+      expect(screen.getByTestId('sku-trading-chart')).toHaveStyle({
+        height: `${deriveTradingChartMinRenderHeight(3)}px`,
+      });
+    } finally {
+      if (clientHeightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'clientHeight', clientHeightDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+      }
+    }
+  });
+
   it('restores manual pane heights when a confirmed manual layout exists', async () => {
     vi.stubGlobal('navigator', { userAgent: 'unit-test' });
 
@@ -1668,6 +1721,58 @@ describe('SkuTradingChart settings', () => {
     expect(buttons[2]).toHaveClass('rounded-l-none', 'rounded-r-full');
     expect(flagGroup.querySelector('svg')).toBeNull();
     expect(buttons[0]?.getAttribute('style')).toContain('color-mix');
+  });
+
+  it('hides chart flags whose interval center is outside the visible plot area', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      value: 320,
+    });
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.newReceiptFlags.enabled = true;
+    initialSettings.newReceiptFlags.paneId = 'main';
+    initialSettings.newReceiptFlags.layerOrder = 1;
+
+    const baseModel = multiPointChartModel(2);
+    const offscreenPoint = { ...baseModel.points[0]!, newReceiptFlag: 1 };
+    const visiblePoint = { ...baseModel.points[1]!, newReceiptFlag: 0 };
+    const flaggedChartModel: TradingChartModel = {
+      ...baseModel,
+      points: [offscreenPoint, visiblePoint],
+      pointByIntervalIndex: new Map([
+        [offscreenPoint.intervalIndex, offscreenPoint],
+        [visiblePoint.intervalIndex, visiblePoint],
+      ]),
+      pointByTimeKey: new Map([
+        [String(offscreenPoint.time), offscreenPoint],
+        [String(visiblePoint.time), visiblePoint],
+      ]),
+      availability: {
+        ...baseModel.availability,
+        newReceiptFlags: true,
+      },
+    };
+    const coordinateForTime = new Map<unknown, number>([
+      [offscreenPoint.time, -18],
+      [visiblePoint.time, 60],
+    ]);
+    renderChart({
+      chartModelOverride: flaggedChartModel,
+      initialSettings,
+    });
+    chartMockState.timeToCoordinate.mockImplementation(function () {
+      return coordinateForTime.get(arguments[0]) ?? 60;
+    });
+
+    const overlayRangeHandler = chartMockState.visibleRangeHandlers.at(-1);
+    act(() => {
+      overlayRangeHandler?.({ from: 0, to: 1 });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Select Supplier receipt activity' })).not.toBeInTheDocument();
+    });
   });
 
 

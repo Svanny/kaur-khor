@@ -71,8 +71,8 @@ export function SkuDetailHero({
               label: metric.label,
               value: metric.value,
               valueClassName:
-                metric.key === 'nextReceipt'
-                  ? 'khmer-safe-display mt-1 text-[1.35rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
+                metric.key === 'nextReceipt' || metric.key === 'priceNow'
+                  ? 'khmer-safe-display mt-1 whitespace-normal break-words text-[1.35rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
                   : 'khmer-safe-display mt-1 truncate text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground',
             }))}
           />

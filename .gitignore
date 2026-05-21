@@ -28,6 +28,7 @@ migrate_working_dir/
 /build/
 /dist/
 /release/
+/kaur-khor-v*-source-build/
 /coverage/
 /bench-results/
 /ui-matrix-results/
