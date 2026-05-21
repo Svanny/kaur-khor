@@ -1,6 +1,6 @@
 # Kaur Khor User Guide
 
-Kaur Khor is a local-first desktop inventory workspace. It helps an operator keep a products, capture real-world changes, review what needs action, and inspect operational signals without leaving the app.
+Kaur Khor is a local-first desktop inventory workspace. It helps an operator maintain product records, capture real-world changes, review work that needs action, and inspect operational signals without leaving the app.
 
 ## Table of Contents
 
@@ -12,9 +12,10 @@ Kaur Khor is a local-first desktop inventory workspace. It helps an operator kee
 - [Queue](#queue)
 - [Capture](#capture)
 - [Intake](#intake)
-- [Products](#catalog)
+- [Products](#products)
 - [Insights](#insights)
 - [Inventory](#inventory)
+- [Pressure](#pressure)
 - [Money](#money)
 - [Explain](#explain)
 - [Automations](#automations)
@@ -26,7 +27,7 @@ Kaur Khor is a local-first desktop inventory workspace. It helps an operator kee
 
 ## What Kaur Khor Is For
 
-Kaur Khor is for teams that want a practical inventory command app on one machine. It is meant for:
+Kaur Khor is for teams that run inventory decisions from one local machine and need a fast way to connect daily work with later analysis. It is meant for:
 
 - keeping active and archived SKU/service records
 - capturing stock counts, customer orders, sales, supplier orders, receipts, and custom updates
@@ -34,7 +35,7 @@ Kaur Khor is for teams that want a practical inventory command app on one machin
 - understanding demand, capacity, money, and explanation signals from saved local data
 - preserving update history without sending the workspace to a hosted back office
 
-Kaur Khor is not a full ERP, accounting system, or blank workflow builder.
+Kaur Khor is not a full ERP, accounting system, hosted collaboration suite, or blank workflow builder. It is local-first: the desktop app stores the working data on this device, and browser builds store browser data in the active browser profile.
 
 Kaur Khor automatically reduces app scale when a desktop window, browser demo, or browser app viewport becomes narrow, short, or generally cramped by area. On phone portrait screens, the demo and browser app open the phone operator shell for Today, Queue, Capture, Products, Insights, and workspace safety actions. Phone Products includes SKU/service lookup and summary detail pages; phone Capture provides fast entry for common updates and hands deeper capture screens to a horizontally scrollable surface. Rotate the phone sideways, use a wider browser window, or use the desktop app for analysis, settings, custom multi-lane updates, and the full workspace.
 
@@ -46,9 +47,11 @@ Most operators should use Kaur Khor in this order:
 2. Open **Work** to review queue, capture, and intake work.
 3. Use **Work / Capture** when something real changed.
 4. Open **Products** when item definitions, archive state, or automation exposure need attention.
-5. Open **Insights** when you need inventory, money, or explanation views.
+5. Open **Inventory** from Home or **Insights** when you need stock health, money, or explanation views.
 6. Use **History** from the command palette or Settings when you need saved reports, edits, or deletions.
 7. Use **Settings** for preferences, local data, planning, automation connection, help, benchmarks, and destructive maintenance.
+
+Treat this as a loop, not a setup wizard. Product records make Capture usable. Capture creates evidence. Queue, Inventory, Money, Explain, and History interpret that evidence. Settings changes how the local workspace behaves.
 
 ## Navigation
 
@@ -69,32 +72,45 @@ Moved destinations remain reachable:
 
 When you enter Settings from another app route, **Back to app** returns to that originating route, including its query filters, instead of always returning to Home.
 
-Old top-level URLs are no longer supported.
+The command palette can open Home, Work, Products, Insights, History, archived products, Settings, and Help by name or by common aliases. Old top-level URLs are no longer supported.
 
 ## Home
 
-Home is the first screen. It is a quiet command surface with up to four primary actions:
+Home is the first screen. It is a quiet command surface for choosing the next broad action. It also shows a short status summary: the next move, active products count, and saved updates count.
 
 - **Start Work**
 - **Capture Update**
 - **Open Products**
-- **Open Insights**
+- **Open Inventory**
 
-The available actions sit in a centered command grid, matching the Capture hub layout. When three actions are visible, Home keeps them in one row instead of leaving an empty fourth slot. Kaur Khor hides unavailable actions instead of showing disabled cards.
+The available actions sit in a centered command grid, matching the Capture hub layout. Kaur Khor hides unavailable actions instead of showing disabled cards. For example, Capture and Products only appear when the current workspace state supports them, and Inventory appears when insight views are enabled.
 
 Use Home when you are not sure where to begin. It points you toward the next practical operator action without exposing backend or analysis jargon.
 
 ## Work
 
-Work is the daily operating workspace. It groups three subpages: Queue for deciding what needs attention, Capture for saving real-world updates, and Intake for reviewing automation/customer requests. Use Work when the question is operational: what should be checked, recorded, or promoted into a ticket now?
+Work is the daily operating workspace. It groups Queue, Capture, and, when enabled, Intake. Use Work when the question is operational: what should be checked, recorded, or promoted into a ticket now?
+
+The Work landing page presents those modes as large tiles. Inside a Work subpage, the title tabs let you move between Queue, Intake, and Capture without returning to Home. If Automations and intake is turned off in Interface settings, Intake is hidden and `/work/intake` redirects back to Queue.
 
 ## Queue
 
-Queue is the decision surface for supplier and customer work. It is where operators scan task status, open drawers, filter by supplier or task state, and jump to the item or capture lane that resolves the issue. Queue does not save new evidence by itself; it helps choose the next action from existing products, ticket, stock, and timing signals.
+Queue is the decision surface for supplier and customer work. It is where operators scan task status, switch between supplier and customer work, filter by supplier or task state, open drawers, and jump to the item or Capture lane that resolves the issue.
+
+Supplier queue rows can represent SKU tasks or durable supplier tickets. Customer queue rows can represent customer tickets, automation intake that needs review, or customer demand inferred from saved work. Queue drawers are for quick operational updates such as ETA changes, goods received, follow-up, cancel, or fulfillment; full evidence entry belongs in Capture.
+
+Queue does not create analysis by itself. It helps choose the next action from existing product records, tickets, stock, timing, and automation signals. When a queue action writes a quick update, it still becomes saved local evidence that downstream History and analysis can read.
 
 ## Capture
 
-Capture is the update-authoring workflow inside Work. It turns real-world events into saved local evidence that queues, Products detail, Inventory, Money, Explain, and History can read later. Use Capture when stock, orders, receipts, prices, flags, rankings, notes, or delivery details changed.
+Capture is the update-authoring workflow inside Work. It turns real-world events into saved local evidence that Queue, Products detail, Inventory, Money, Explain, and History can read later. Use Capture when stock, orders, receipts, prices, flags, rankings, notes, or delivery details changed.
+
+The Capture hub has four primary lanes:
+
+- **Products Update** records product-side facts such as counts, prices, costs, and service availability signals.
+- **Supplier Order** creates or updates supplier ticket work, including receipt flows for existing supplier tickets.
+- **Immediate Sale** records realized customer demand in the same session.
+- **Customer Order** creates or updates a durable customer ticket.
 
 For ticket-backed lanes, Kaur Khor opens a new ticket flow directly when there is no meaningful saved draft or editable ticket. It only asks whether to resume, start new, or edit/update when that choice would change real work. Mode-only placeholders are discarded instead of being shown as saved drafts.
 
@@ -104,15 +120,15 @@ Clearing current data from Settings removes saved capture drafts and cached prod
 
 ### Delivery Fee {#record-update-delivery-fee}
 
-Delivery fee records the charge and payer for a customer order or receipt summary when delivery handling is enabled. It affects the customer-facing total and can matter for margin review. Check it before saving so totals match the actual customer agreement.
+Delivery fee records the delivery charge and payer when delivery handling is part of a customer or receipt workflow. It affects the customer-facing total and can matter for margin review. Check it before saving so totals match the actual agreement.
 
 ### Discount {#record-update-discount}
 
-Discount records either a flat amount or a percentage taken off the receipt subtotal before delivery is added. It affects the visible customer total and the net settlement used by Money and ticket history. Check the mode and value before saving so receipts match the actual agreement.
+Discount records either a flat amount or a percentage taken off the subtotal before delivery is added. It affects the visible total and the net settlement used by Money and ticket history. Check the mode and value before saving so receipts match the actual agreement.
 
 ### Notes {#record-update-notes}
 
-Notes capture operator context that structured fields cannot express. They are useful for explaining unusual counts, customer requests, supplier promises, or manual corrections. Keep notes factual because they appear later in History, detail pages, and analysis evidence.
+Notes capture operator context that structured fields cannot express. They are useful for explaining unusual counts, customer requests, supplier promises, manual corrections, or why an update was backfilled. Keep notes factual because they appear later in History, detail pages, and analysis evidence.
 
 ### Observed At {#record-update-observed-at}
 
@@ -126,15 +142,15 @@ Observed at, but cannot be earlier than the Observed at date.
 
 ### Ranking Details {#record-update-ranking-details}
 
-Ranking details explain an optional ordered list, such as top services or retail items. The order becomes evidence about relative demand or operator judgment. Use it only when the ranking reflects what happened, not as a general preference list.
+Ranking details explain an optional ordered list, such as top services or retail items. The order becomes evidence about relative demand or operator judgment. Use it only when the ranking reflects what happened in the observed interval, not as a general preference list.
 
 ### Rankings {#record-update-rankings}
 
-Rankings let you record which services or products were most relevant in the update. They help Kaur Khor learn demand patterns when exact quantities are incomplete. Use them for directional evidence, then rely on counts and tickets for precise units.
+Rankings let you record which services or products were most relevant in the update. They help Kaur Khor learn demand patterns when exact quantities are incomplete. Use them for directional evidence, then rely on counts, sales, and tickets for precise units.
 
-### Regime Context {#record-update-regime-context}
+### Sales Pattern Context {#record-update-regime-context}
 
-Regime context lets the operator label the broader demand environment, such as spike, lull, promo, correction, or stockout-constrained. It helps Explain interpret unusual intervals. Use it when the event happened under conditions that normal numbers do not capture.
+Sales pattern context lets the operator label the broader demand environment, such as normal pattern, demand spike, demand lull, promotion pattern, adjustment pattern, or stock-limited pattern. It applies to the full update package, not just one SKU. Use it when the event happened under conditions that normal numbers do not capture.
 
 ### Retail Price {#record-update-retail-price}
 
@@ -146,15 +162,15 @@ Review is the final confirmation panel before saving a Record Update. It summari
 
 ### Service Flags {#record-update-service-flags}
 
-Service flags record service-level price changes or blocked/stockout events. They are evidence for availability, service detail, automation exposure, and analysis. Use them when a service condition changed even if no SKU count changed.
+Service flags record service-level price changes or blocked/stockout events. They are evidence for availability, service detail, automation exposure, and analysis. Use them when a service condition changed, even if no linked SKU count changed.
 
 ### Service Step {#record-update-service-step}
 
-The service step captures service-level signals during an update. It lets you add service price changes, blocked states, or stockout flags tied to service delivery. Use it when customer-facing service availability changed.
+The service step captures service-level signals during an update. It lets you add service price changes, blocked states, or stockout flags tied to service delivery. Use it when customer-facing service availability or pricing changed.
 
 ### SKU Flags {#record-update-sku-flags}
 
-SKU flags record events such as blocked availability or stockout-constrained behavior for stock items. They explain why demand may not convert into sales even when customers wanted the item. Use flags sparingly and only for real conditions.
+SKU flags record events such as blocked availability or stockout-constrained behavior for stock items. They explain why demand may not convert into sales even when customers wanted the item. Use flags sparingly and only for real conditions observed in the interval.
 
 ### Stock Cost {#record-update-stock-cost}
 
@@ -166,49 +182,51 @@ Products Update records product-side facts at the observed time: SKU counts, SKU
 
 ## Intake
 
-Intake is the customer-request review surface for automation-assisted work. It shows parsed customer messages, quoted totals, confidence, exceptions, and review state before the request becomes normal queue or ticket work. Use Intake to confirm customer intent, fix missing products data, and promote only clean requests.
+Intake is the customer-request review surface for Telegram automation. It shows parsed customer messages, matched lines, quoted totals, confidence, exceptions, and review state before a request becomes normal customer-ticket work. Use Intake to confirm customer intent, fix missing product data, and promote only requests that are priced and resolved.
+
+The Intake route has focused working views. **Live intake** is the working queue for captured Telegram orders. **Chat** shows the message thread for a selected intake and lets the operator reply. **Exposed sellables** shows which SKUs and services can be offered through automation. The Automation page also has a separate **Needs review** tab for requests that Kaur Khor could not safely turn into clean work.
 
 ### Customer {#automation-intake-customer}
 
-The Customer column shows the person or account Kaur Khor inferred from the intake conversation. Treat it as a review target when the name, phone, channel, or conversation identity looks incomplete. Customer metadata should eventually become structured ticket party data, not only free-text notes.
+The Customer column shows the person or account Kaur Khor inferred from the Telegram conversation. It may show a display name, handle, or phone number. Open the intake drawer when the identity is incomplete; the drawer lets you override the customer name or phone before creating or appending a customer ticket.
 
 ### Request {#automation-intake-request}
 
-The Request column summarizes what the customer appears to be asking for before the intake becomes a customer ticket. It may include matched products items, quantities, availability questions, or free-text requests that still need operator interpretation.
+The Request column summarizes the parsed order lines before the intake is attached to a ticket. It uses resolved product names when a line matched a sellable and falls back to the customer-requested label when it did not. Treat unresolved quantities, missing matches, or ambiguous lines as reasons to review the source chat before promoting.
 
 ### Quoted Total {#automation-intake-quoted-total}
 
-Quoted total is the estimated customer-facing amount available from matched products data. It stays pending when Kaur Khor cannot confidently match the request to priced SKUs or services.
+Quoted total is the customer-facing amount Kaur Khor can calculate from matched, priced sellables. It stays pending when any line lacks a quantity, price, resolved sellable, or line total. Kaur Khor only allows customer-ticket promotion when every line resolves to a priced sellable and the intake has a quote.
 
 ### State {#automation-intake-state}
 
-State explains where the intake sits in the operator workflow. Review states usually mean Kaur Khor has enough context to show the request but not enough certainty to create or update a ticket without human confirmation.
+State explains where the intake sits in the operator workflow. New and quoted states are still in intake, ticketed and completed states already connect to operational history, canceled states are hidden from the default all view, and needs-review or failed states appear in the review queue. Use the state before choosing whether to create a ticket, append to an existing ticket, keep it in review, or cancel it.
 
 ### Created/Updated {#automation-intake-created-updated}
 
-Created / updated shows when the intake first appeared and when it last changed. Use it to separate fresh customer messages from older requests that are waiting for follow-up.
+Created / updated shows when the intake first appeared and when it last changed. The table combines the original creation time with a relative updated time so fresh customer messages are easy to separate from older requests waiting for follow-up.
 
 ### Customer Conversation {#automation-exception-customer-conversation}
 
-Customer / conversation identifies which customer thread produced the exception. Use it to open the right context before deciding whether the issue is a missing products item, unclear request, or duplicate ticket.
+Customer / conversation identifies which Telegram thread produced the exception. Use it to open the right context before deciding whether the issue is a missing product, unclear quantity, duplicate request, or ticket that already exists.
 
 ### Issue {#automation-exception-issue}
 
-Issue describes why Kaur Khor stopped the intake flow for operator review. Common reasons include unclear item matches, missing prices, ambiguous quantities, or messages that do not map cleanly to a supported workflow.
+Issue describes why Kaur Khor stopped the intake flow for operator review. Current issue labels include item not found, availability unknown, quantity ambiguous, parser failed, and parser review. Fix the underlying catalog exposure, alias, quantity, or price problem before promoting the intake.
 
 ### Last Message {#automation-exception-last-message}
 
-Last message shows the most recent customer text that contributed to the exception. It is intentionally short so the table stays scannable; open the intake for the full conversation context.
+Last message shows the shortest useful clue for the exception. It may come from the operator note or from the parsed request summary, so treat it as a table preview rather than the full chat history. Use **View chat** or open the intake to inspect the complete conversation.
 
 ### Confidence {#automation-exception-confidence}
 
-Confidence is Kaur Khor's certainty about the inferred request or match. Low confidence should be treated as a prompt to review the source message, products aliases, and ticket target before committing work.
+Confidence is Kaur Khor's certainty about the inferred request or match. High confidence can still need operator confirmation, medium confidence should be checked against the chat and sellable exposure, and low confidence belongs in review until the source message, product aliases, and ticket target are clear.
 
 ### Live Intake {#automation-live-intake}
 
-Live intake is the table of customer requests captured from automation before they become normal Work tickets. It shows who asked, what was parsed, quoted totals, state, and timestamps. Use it to review and promote requests that are ready, or investigate ones that are still ambiguous.
+Live intake is the table of Telegram requests captured before they become normal customer tickets. It shows who asked, what was parsed, quoted totals, state, timestamps, and action buttons. Use it to open a ready intake, review a chat, or jump to the promoted ticket when one already exists.
 
-When appending an intake to existing work, choose an open customer ticket. Kaur Khor rejects missing, closed, supplier, or already-promoted targets so a customer request cannot be silently attached to the wrong operational history.
+The intake drawer shows what came in, line-level prices, unresolved quantities, and the quoted total. From there you can create a customer ticket, append to an existing customer ticket, keep the intake in review, or cancel it. When appending, choose an open customer ticket. Kaur Khor rejects missing, closed, supplier, or already-promoted targets so a customer request cannot be silently attached to the wrong operational history.
 
 Use **View chat** to review the Telegram messages for one specific intake/order. If the same customer orders again, the Chat tab keeps that later order in a separate thread even though Telegram still uses the same underlying customer conversation.
 
@@ -216,17 +234,18 @@ When creating, appending, reviewing, or canceling an intake, the drawer can draf
 
 ### Needs Review {#automation-needs-review}
 
-Needs review lists automation messages Kaur Khor could not safely convert into clean work. The issue and confidence columns explain why the request stopped. Use this section to fix products aliases, missing prices, unclear quantities, or customer identity before creating tickets.
+Needs review lists automation messages Kaur Khor could not safely convert into clean work. The issue and confidence columns explain why the request stopped, and the action opens the same intake drawer used by Live intake. Use this section to fix product aliases, missing prices, unclear quantities, exposure settings, or customer identity before creating tickets.
 
 ## Products
 
-Products is the source of truth for SKU and service definitions.
+Products is the source of truth for SKU and service definitions. The route is labeled **Offered Selections** in the app because it lists the items Kaur Khor can plan, expose, sell, or use as service inputs. In Help, the top-level Products anchor is `#products` in both English and Khmer so links from the table of contents and Settings resolve consistently.
 
 Use Products to:
 
 - create or edit SKUs and services
-- search and filter active sellables
+- search by product text and filter by all items, SKUs, services, or supplier
 - open SKU/service detail pages
+- use row actions for Detail, Edit, Duplicate, Archive, Delete, or item-specific capture actions
 - archive or unarchive items
 - duplicate SKU/service metadata without copying saved history
 - delete products only when no saved logs, observations, edits, captures, tickets, or order batches reference them
@@ -242,6 +261,8 @@ Money fields in Products and Capture show the active currency symbol (`$` or `·ü
 ### Act Now {#catalog-detail-act-now}
 
 Act now is the detail-page action summary for a SKU. It condenses current demand, stock, supplier pipeline, and timing into a suggested next move. Use it as a starting point, then check the rail rationale and evidence before committing to an order or products change.
+
+For services, the same right-rail idea appears as the service overview/action panel. It reads service availability, customer commitments, bottlenecks, and recovery path rather than a physical SKU reorder recommendation.
 
 ### Customer Demand {#catalog-detail-customer-demand}
 
@@ -259,6 +280,8 @@ Open pipeline lists supplier orders and receipts that may affect the SKU. It sho
 
 Selected interval explains the period chosen in the SKU chart or timeline. It shows demand, receipts, adjustments, regime, and notes for that slice. Use it to understand why one chart segment changed instead of reading the current headline alone.
 
+On service detail pages, selected intervals summarize demand, sellable capacity, the binding SKU, and the gap for the selected service interval.
+
 ### Supplier {#catalog-detail-supplier}
 
 Supplier identifies the vendor attached to the SKU. It matters because supplier filters, work queues, ETA evidence, and open pipeline all use this assignment. Fix it in the editor when supplier work appears under the wrong vendor.
@@ -270,6 +293,8 @@ Service availability describes whether the service can be offered from current l
 ### Service Dependency Impact {#catalog-service-dependency-impact}
 
 Dependency impact shows which linked SKUs are limiting or supporting a service. It explains whether a service shortage comes from one binding SKU, several weak SKUs, or no clear blocker. Use it when the service headline looks wrong or too broad.
+
+Each dependency row can link back to the SKU detail page, so operators can move from a service bottleneck directly to the stock item that needs evidence or replenishment.
 
 ### Service Editor Details {#catalog-service-editor-details}
 
@@ -284,6 +309,8 @@ Attributes are a creation helper in SKU and service editors. Enable them when on
 ### Linked SKUs {#catalog-service-editor-linked-skus}
 
 Linked SKUs define what stock a service consumes or depends on. This is the core setup for service capacity, bottleneck analysis, and automation availability. Use this section when a service appears available or blocked for the wrong reason.
+
+The service editor filters the linked-SKU picker by search text and shows each candidate with its pricing summary. Add at least one SKU before expecting service capacity to calculate.
 
 ### Service Editor Pricing {#catalog-service-editor-pricing}
 
@@ -300,6 +327,8 @@ The service operational ribbon is the compact row of key service metrics. It sum
 ### SKU Dependency Impact {#catalog-sku-dependency-impact}
 
 SKU dependency impact shows which services rely on this SKU and how severely they are affected. It helps explain why a simple stock item can create service pressure. Use it before hiding, archiving, or delaying replenishment for a shared component.
+
+Severity labels distinguish the main blocker, at-risk services, and ordinary linked services. Usage and blocker probabilities show whether this SKU is actually binding service capacity.
 
 ### SKU Editor Details {#catalog-sku-editor-details}
 
@@ -325,6 +354,8 @@ SKU pricing includes required unit cost and optional customer-facing product pri
 
 Sell as product controls whether a SKU can be sold directly to customers, not only used as a service dependency. Enable it only when the SKU has a valid product price and should appear in retail/customer-facing flows.
 
+When Sell as product is off, the product price field is cleared and retail/customer-facing capture actions hide where they would not make sense.
+
 ### SKU Evidence Timeline {#catalog-sku-evidence-timeline}
 
 The SKU evidence timeline lists saved updates that shaped the current SKU signal. It can include counts, costs, retail price changes, orders, receipts, flags, and notes. Use it to audit the detail page before correcting the products or history.
@@ -347,15 +378,19 @@ If you switch chart dialogs or click outside with unsaved chart changes, Kaur Kh
 
 Dense overlay evidence such as supplier orders, receipts, or repeated regime markers may be clustered into one timeline marker. Select the marker to inspect the latest interval in that cluster.
 
+Chart indicator settings are remembered per SKU, service, or analysis subject. Saving defaults updates the subtype default so the next matching chart starts from that layout.
+
 ## Insights
 
-Insights is the entry point for operating signals. Its subpages are Inventory, Money, and Explain. Use this section to choose which lens fits the question: inventory health, financial quality, or evidence-level explanation.
+Insights is the entry point for operating signals. Its hub cards open **Inventory**, **Money**, and **Explain**. Use this section to choose which lens fits the question: inventory health, financial quality, or evidence-level explanation.
+
+Insights remembers the last state of each detailed workspace, so returning from the hub can restore the route, range, scope, supplier, or section you were using. If the analysis surface is hidden in Interface settings, Kaur Khor redirects Insights back to Home. Older Pressure links are routed into Inventory so saved links do not strand the operator on a removed workspace.
 
 When a custom time range is active in Inventory, Money, or Explain-adjacent views, the range menu shows the custom range edit button. The edit button stays hidden while a preset range is active so opening the menu does not imply a custom range already exists.
 
 When compare mode is on, a custom range can also carry a manually selected
-previous period. Pressure and Money use that previous period for comparison
-instead of always auto-shifting by the current range length.
+previous period. Money and legacy Pressure views use that previous period for comparison
+instead of always auto-shifting by the current range length. Inventory focuses on stock-health facts rather than compare-mode financial or pressure deltas.
 
 ## Inventory
 
@@ -364,6 +399,8 @@ Inventory is the stock-health subpage. It shows on-hand estimates, in/out flow, 
 ### Health Grid {#inventory-health-grid}
 
 The inventory health grid is the main table for SKU and service inventory facts. SKU rows represent physical stock. Service rows represent sellable capacity from linked SKUs. Use the scope, supplier, range, projection, row-set, and preset controls to change the grid without leaving the page.
+
+The grid is sortable by column. Wide views may split data columns into pages while keeping the item column visible; use the previous/next column controls when a preset has more columns than fit cleanly. The row-set toggle can show focused rows only or all active rows, and the 95CI interval toggle adds credible low-high ranges where the model has them.
 
 ### Item {#inventory-column-item}
 
@@ -451,7 +488,7 @@ Lead time uncertainty shows how variable the modeled supplier timing is.
 
 ### Details {#inventory-column-details}
 
-Details opens the row panel with posterior stock, flow decomposition, inbound pipeline, and linked service capacity.
+Details opens the row panel. SKU rows show posterior stock, flow decomposition, inbound pipeline, and linked service capacity; service rows show sellable capacity and contributor bottleneck context.
 
 ### Cover Distribution {#inventory-cover-distribution}
 
@@ -459,7 +496,7 @@ Cover distribution groups SKUs by days of cover. It helps show whether the catal
 
 ### Inbound Schedule {#inventory-inbound-schedule}
 
-Inbound schedule groups pipeline inventory by receipt timing. Use it to see what is overdue, due now, due this week, or arriving later.
+Inbound schedule summarizes pipeline inventory by receipt window. In the current model, rows with active inbound stock are counted in the This week bucket while the other timing buckets stay available for future receipt-window detail.
 
 ### Freshness {#inventory-freshness}
 
@@ -468,6 +505,8 @@ Freshness summarizes how recent stock counts are across SKUs. Stale or missing c
 ### Column View {#inventory-column-view}
 
 Column view describes the active grid preset. Health, Flow, Forecast, Pipeline, and Custom expose different factual slices of the same inventory rows.
+
+In Custom view, **Columns** chooses which optional columns are visible and the layout dialog lets you drag those columns into the preferred order. Invalid or duplicate custom-column values in the route are ignored before rendering.
 
 ### Selected Service {#inventory-selected-service}
 
@@ -481,9 +520,13 @@ Selected SKU shows posterior stock, credible band, stockout risk, cover, latest 
 
 Projection matrix compares today, 7-day, 14-day, and 30-day projected stock ranges across visible inventory rows.
 
+Switch from Grid to Projection to open this matrix. Its trend sparkline shows direction across the horizons, and the projected-units column follows the same 95CI toggle as the grid.
+
 ## Pressure
 
-Pressure is the operational urgency subpage. It compares demand, available capacity, supplier pipeline, timing, confidence, and price/margin context so operators can decide what needs attention now. Use Pressure for prioritization before editing records or placing supplier work.
+Pressure is the operational urgency surface behind older performance links and advanced pressure analysis. It compares demand, available capacity, supplier pipeline, timing, confidence, and price/margin context so operators can decide what needs attention now. Use Pressure for prioritization before editing records or placing supplier work; use Inventory when the question is factual stock health.
+
+The visible Insights hub now opens Inventory, Money, and Explain. Old Pressure links may route into Inventory from the hub, but Pressure Help anchors are retained for builds and feature flags that still render the performance workspace, compare mode, timeline card, or pressure tables.
 
 ### Band's Blocked Profit {#pressure-band-blocked-profit}
 
@@ -529,13 +572,17 @@ Cash signal bands group pressure items by money-related action type. They show w
 
 Confidence tells how much trust Kaur Khor has in the pressure signal. It reflects evidence freshness, coverage, and model stability. Low confidence means capture better data or inspect history before making a high-cost decision.
 
+The confidence rail links directly to **Start update** so stale or thin evidence can be corrected from Capture.
+
 ### Demand Capacity Board {#pressure-demand-capacity-board}
 
 The demand/capacity board is the main Pressure table for comparing what customers may need against what the operation can supply. It combines demand trend, support, pipeline, price/margin, and status. Use it to decide which items need immediate work.
 
+When compare mode is enabled, row status and trend cells can show previous-period-to-current movement instead of only the current label.
+
 ### Move Action {#pressure-move-action}
 
-Action is the practical next step for a Move Now row. It may suggest ordering, reviewing, repricing, hiding, exposing, or inspecting an item. Use it as an operator prompt, not an automatic command.
+Action is the practical next step for a Move Now row. It opens the relevant SKU, service, or queue context for restock, recovery, pricing review, cash-clearing, or customer-demand follow-up. Use it as an operator prompt, not an automatic command.
 
 ### Move Column {#pressure-move-column}
 
@@ -547,7 +594,9 @@ Expected effect explains what should improve if the move is correct. It may redu
 
 ### Move Now {#pressure-move-now}
 
-Move Now is the priority action panel in Pressure. It shows the few moves Kaur Khor thinks matter most for the selected range and scope. Use it at the start of a review session, then open rows for evidence before changing real operations.
+Move Now is the priority action panel in Pressure. It shows the few highest-ranked moves Kaur Khor thinks matter most for the selected range and scope. Use it at the start of a review session, then open rows for evidence before changing real operations.
+
+Move Now appears when the model has rows to rank. Empty sections are hidden so the workspace does not imply work that is not supported by evidence.
 
 ### Why Now {#pressure-move-why-now}
 
@@ -555,7 +604,7 @@ Why now explains the evidence that made a Move Now item urgent. It should mentio
 
 ### Operational Drag {#pressure-operational-drag}
 
-Operational drag summarizes items slowing the operation even if they are not the highest direct stockout risk. It can include weak support, stale follow-up, or capacity problems. Use it to find friction that keeps recurring.
+Operational drag summarizes friction slowing the operation even if it is not the highest direct stockout risk. It counts blocked open customer orders, overdue receipts, and refund or cancellation signals. Use it to find recurring friction before treating the main board as only a stock problem.
 
 ### Price Watch {#pressure-price-watch}
 
@@ -569,37 +618,43 @@ Recovery pipeline lists items where incoming supply or known receipts may resolv
 
 The pressure timeline shows how the operating signal changed over the selected period. It helps identify whether urgency is new, worsening, recovering, or stable. Use it before treating one current score as the whole story.
 
+The timeline card can be hidden by Interface settings. When it is visible, it summarizes demand, stockout, receipt, price, and recovery events across the selected range.
+
 ## Money
 
-Money is the financial quality subpage. It explains sales, gross profit, tied-up capital, margin movement, commitments, and contributor quality from stock-linked evidence. Use Money when the question is whether inventory is earning, leaking margin, or trapping cash.
+Money is the financial quality subpage in Insights. It explains sales, gross profit, tied-up capital, open supplier commitments, margin movement, and contributor quality from stock-linked evidence. Use Money when the question is whether inventory is earning, leaking margin, or trapping cash.
+
+Use the scope control to switch between all stock-linked economics, services, or retail SKUs. Use the supplier filter and timeframe control to narrow the view. The standard windows are 1D, 7D, 30D, and 90D; Custom opens a date dialog. If compare view is enabled in Interface settings, the compare button adds deltas against the previous matching window, or against the previous custom window you chose.
+
+The top ribbon summarizes net sales, gross profit, inventory capital, open commitments, and margin erosion. If the Products catalog is empty, Money asks you to create the first SKU. If there is no workspace summary yet, it points you to Start update or Work because the page needs saved observations before it can produce financial totals.
 
 ### Band's Capital Traps {#money-band-capital-traps}
 
-Capital traps are items holding money in stock without enough useful sales movement. They may not be urgent stockouts, but they tie up cash. Use this band to find inventory that should be discounted, paused, rebalanced, or reviewed with the supplier.
+Capital traps are items classified as capital heavy or dormant stock. They hold money in stock without enough useful sales movement, so they may not be urgent stockouts but still restrict cash. Use this band to find inventory that should be discounted, paused, rebalanced, or reviewed with the supplier.
 
 ### Band's Earners {#money-band-earners}
 
-Earners are items producing healthy sales or gross profit in the selected window. Use this band to protect reliable revenue drivers, confirm enough stock remains, and avoid starving items that are converting inventory into cash cleanly.
+Earners are items classified as efficient earners. They have strong sales, healthy profit, and an acceptable capital footprint in the selected window. Use this band to protect reliable revenue drivers, confirm enough stock remains, and avoid starving items that are converting inventory into cash cleanly.
 
 ### Band's Margin Leaks {#money-band-margin-leaks}
 
-Margin leaks are items where sales exist but profit quality is weak or deteriorating. Causes can include stale costs, underpriced retail, delivery handling, discounts, or high capital drag. Use this band to decide whether price, cost, or exposure needs correction.
+Margin leaks are items classified as margin thin or blocked earners. Sales activity exists, but spread is weak or deteriorating. Causes can include stale costs, underpriced retail, delivery handling, discounts, negative corrections, or blocked demand value. Use this band to decide whether price, cost, exposure, or stock availability needs correction.
 
 ### Commitments Due {#money-commitments-due}
 
-Commitments due summarizes customer or supplier money obligations that are coming up. It helps show near-term cash pressure, not just historical sales. Use it when deciding whether capital is available for replenishment.
+Commitments due summarizes supplier-side value likely to leave the business soon. It ranks open supplier order batches by remaining value and expected arrival, then falls back to inferred in-transit stock when no open commitments are saved. Use it when deciding whether capital is already committed before placing more replenishment work.
 
 ### Contributor Capital Tied Up {#money-contributors-capital-tied-up}
 
-Capital tied up is the current stock-linked money attached to a contributor. It estimates how much cash is sitting in inventory for that SKU or service path. Use it to compare profit against working capital rather than sales alone.
+Capital tied up is the current stock-linked money attached to a contributor. For SKUs it comes from current units and cost; for services it comes through linked SKU dependencies. Use it to compare profit against working capital rather than sales alone.
 
 ### Contributor Entity {#money-contributors-entity}
 
-Entity identifies the SKU or service contributing to the Money view. It lets you move from financial summary back to the operational record. Open it when the money signal needs a products, stock, or pricing correction.
+Entity identifies the SKU or service contributing to the Money view. Rows link back to the SKU detail or service detail page, and SKU rows can show supplier context. Open the entity when the money signal needs a products, stock, or pricing correction.
 
 ### Contributor Gross Profit {#money-contributors-gross-profit}
 
-Gross profit is sales after known or inferred stock-linked cost. It depends on accurate costs and retail prices, so stale products pricing can distort it. Use this column to separate high sales from actually useful sales.
+Gross profit is net sales after known or inferred stock-linked cost. It depends on accurate costs, service prices, and retail prices, so stale Products pricing can distort it. Use this column to separate high sales from actually useful sales.
 
 ### Contributor Net Sales {#money-contributors-net-sales}
 
@@ -607,54 +662,58 @@ Net sales is realized stock-linked revenue in the selected window. It is based o
 
 ### Contributor Status {#money-contributors-status}
 
-Status classifies the contributor's financial pattern, such as earning, trapped, leaking, or neutral. It is a label for scanning, not a final decision. Use the numeric columns beside it to understand why the label appeared.
+Status classifies the contributor's financial pattern. Current labels include efficient earner, capital heavy, dormant stock, margin thin, blocked earner, and neutral patterns. It is a label for scanning, not a final decision, so use the numeric columns beside it to understand why the label appeared.
 
 ### Contributor Turn Quality {#money-contributors-turn-quality}
 
-Turn quality describes whether inventory is converting into money cleanly. It weighs movement, capital, and profit quality together. Use it to spot items that sell too slowly, sell at weak margin, or deserve more stock.
+Turn quality describes whether inventory is converting into money cleanly. It weighs movement, capital, linked-service demand, and profit quality together. Use it to spot items that sell too slowly, sell at weak margin, block service revenue, or deserve more stock.
 
 ### Coverage {#money-coverage}
 
-Coverage in Money explains how complete the financial view is for the selected scope. Missing costs, prices, or linked sale evidence can reduce coverage. Use it before trusting totals, especially after products changes or partial data imports.
+Coverage in Money explains how complete the financial view is for the selected scope. It reports freshness, cost coverage, price coverage, and the weakest spot behind the current totals. Use it before trusting totals, especially after Products changes, partial imports, or a long gap since the last update. The Start update button opens Capture when the evidence needs refreshing.
 
 ### Economic Contributors {#money-economic-contributors}
 
-Economic contributors is the table that explains which entities drive the Money summary. It breaks total money signals into SKU/service rows with sales, profit, capital, turn quality, and status. Use it to choose where financial action should happen.
+Economic contributors is the table that explains which entities drive the Money summary. It ranks up to eight SKU/service rows by gross profit contribution, then sales contribution, and shows sales, profit, capital, turn quality, and status. Use it to choose where financial action should happen.
 
 ### Financial Statement {#money-financial-statement}
 
-The financial statement is the top Money summary for the selected range and scope. It aggregates sales, gross profit, capital, margin, and related signals from stock-linked evidence. Use it for orientation, then inspect contributors for the reason behind a total.
+The financial statement is the main Money summary for the selected range and scope. It is grouped into Money in, Money tied up, and Money leaking. Money in shows net sales, cost consumed, and gross profit. Money tied up shows on-hand stock value, in-transit stock value, open order commitments, and slow-stock value. Money leaking shows cost increases, markdown pressure, negative corrections or shrinkage, and blocked margin. Use it for orientation, then inspect contributors for the reason behind a total.
 
 ### Largest Capital Positions {#money-largest-capital-positions}
 
-Largest capital positions list where inventory money is concentrated. These are not automatically bad; they are where cash exposure is largest. Use them to check whether high-value stock is supported by demand, pipeline, and margin.
+Largest capital positions list where inventory money is concentrated right now. They are based on latest posterior units multiplied by SKU cost and note whether the SKU supports linked services or is retail-only capital. These positions are not automatically bad; use them to check whether high-value stock is supported by demand, pipeline, and margin.
 
 ### Quality Bands {#money-quality-bands}
 
-Money quality bands group contributors by financial pattern. They separate earners, capital traps, and margin leaks so the user can scan action types instead of reading every row. Use them as a triage board for cash decisions.
+Money quality bands group contributors by financial pattern. They separate earners, capital traps, and margin leaks so the user can scan action types instead of reading every row. The band section only appears when at least one of those groups has rows. Use it as a triage board for cash decisions.
 
 ### Recent Margin Shifts {#money-recent-margin-shifts}
 
-Recent margin shifts show items whose profit behavior changed in the selected window. They can reveal cost updates, price changes, discounts, or bad data. Use this rail before assuming a margin issue is caused by demand.
+Recent margin shifts show items whose price or known cost changed in the selected window. They can reveal retail price updates, service price updates, cost updates, discounts, or bad data. Use this rail before assuming a margin issue is caused by demand.
 
 ### Telegram Attribution {#money-telegram-attribution}
 
-Telegram attribution shows money linked to automation-driven customer intake when that path is available. It helps separate manual sales from automation-assisted work. Use it to judge whether customer automation is producing useful revenue or just noise.
+Telegram attribution shows quoted, realized, canceled, and ticketed value from Telegram-origin customer intake. Open quoted value includes new, needs review, quoted, and ticketed intake; realized value counts completed intake; reversals count canceled intake. Use it to judge whether customer automation is producing useful revenue or just noise.
 
 When Money is filtered to a custom range, Telegram attribution uses the same
-custom date window as the rest of the Money view.
+custom date window as the rest of the Money view. The Open Automations button goes to Work intake, where those customer requests can be reviewed.
 
 ## Explain
 
 Explain is the evidence and model-inspection subpage. It shows the timeline, observation ledger, pressure table, fragility map, and run settings that explain why Kaur Khor produced a signal. Use Explain when a recommendation needs to be audited before action.
 
+Explain has six surfaces: Workbench, Pressure, Observations, Fragility, Settings, and Variables. The top controls filter by all items, SKUs, or services, apply the supplier filter, and rerun the current SENA analysis. Fragility hides the scope toggle because it only compares services against their contributing SKUs.
+
+The Workbench ledger can change timeframe, load older intervals, reset chart zooms, use a custom chart range, and open an expanded overlay. When older detail is loading, the loading island reports interval hydration progress instead of hiding the chart.
+
 ### Fragility Map {#explain-fragility-map}
 
-Shows where services are constrained by the SKUs they depend on. Each cell compares service demand against the contributing SKU supply path, so use it to find whether a service problem is really caused by one stock item, several weak dependencies, or no named dependency yet. Open the rail when you need the saved evidence behind a blocker instead of acting only on the color.
+Shows where services are constrained by the SKUs they depend on. Each cell compares service demand against the contributing SKU supply path, with usage, bottleneck, pressure, and relief labels. Use it to find whether a service problem is really caused by one stock item, several weak dependencies, or no named dependency yet. Select a service or cell when you need the rail evidence behind a blocker instead of acting only on the color.
 
 ### Ledger {#explain-ledger}
 
-The main Explain timeline. It aligns regimes, stock movement, supplier pipeline, and ETA behavior across the same intervals so you can see what changed before a signal appeared. Use it when you need to trace a recommendation back to observed events rather than reading a single summary score.
+The main Explain timeline. It aligns regimes, stock movement, supplier pipeline, and ETA behavior across the same intervals so you can see what changed before a signal appeared. The lane expand controls let one lane use the full vertical space, and interval labels open the right rail for the clicked evidence type. Use it when you need to trace a recommendation back to observed events rather than reading a single summary score.
 
 ### Ledger's Inventory Lane {#explain-ledger-inventory-lane}
 
@@ -686,7 +745,7 @@ The observed column identifies the saved event and its timestamp. It is the audi
 
 ### Observations Ledger {#explain-observations-ledger}
 
-The observations ledger is the compact table of saved updates used by the Explain run. It shows what Kaur Khor actually saw, not only what the model inferred. Use this table when a score looks surprising and you need to confirm whether the source evidence is recent, complete, and attached to the right item.
+The observations ledger is the compact table of saved updates used by the Explain run. It shows what Kaur Khor actually saw, not only what the model inferred. The table is paged in small groups and each row includes observed time, interval, detail, evidence channels, and affected entities. Use it when a score looks surprising and you need to confirm whether the source evidence is recent, complete, and attached to the right item.
 
 ### Pressure Item {#explain-pressure-item}
 
@@ -754,7 +813,7 @@ Posterior state is the model's current estimate for the selected entity after re
 
 ### Rail's Reorder Policy {#explain-rail-reorder-policy}
 
-Reorder policy shows the model's recommended supplier action for a selected SKU. It includes need probability, recommended order, likely range, protection horizon, and policy basis. Use it as planning guidance, then check real supplier constraints before ordering.
+Reorder policy shows the model's recommended supplier action for a selected SKU. It includes need probability, recommended order, likely range, protection horizon, and policy basis. This block appears for SKU selections when reorder labels are available; service selections use the contributor stack instead. Use it as planning guidance, then check real supplier constraints before ordering.
 
 ### Rail's Settings {#explain-rail-settings}
 
@@ -790,7 +849,7 @@ Observations used is the count of saved events included after filtering and scop
 
 ### Settings Panel {#explain-settings-panel}
 
-The settings panel explains the run configuration behind Explain. It lists run ID, latest observation, interval count, smoothing, sample size, error, coverage, and scope. Use it when two users see different results or a run needs to be audited.
+The settings panel explains the run configuration behind Explain. It lists run ID, latest observation, observations used, interval count, smoothing, sample size, predictive error, coverage, and scope as separate cards. Use it when two users see different results or a run needs to be audited.
 
 ### Predictive Error {#explain-settings-predictive-error}
 
@@ -810,17 +869,19 @@ Smoothing controls how strongly the run softens noisy observations. More smoothi
 
 ### SENA Variables {#explain-variables}
 
-SENA variables are the raw diagnostic fields stored for the active Explain run. They include run metadata, engine parameters, diagnostics, workspace summary, SKU posterior arrays, service details, and service contributors. Use this tab for debugging or audit checks when the formatted Explain views do not show enough detail.
+SENA variables are the raw diagnostic fields stored for the active Explain run. They include run metadata, engine parameters, diagnostics, workspace summary, SKU summaries, SKU posterior arrays, service details, service contributors, and the raw artifact root. The tab loads the latest analysis artifact by run ID and can show loading, unavailable, or error states. Use it for debugging or audit checks when the formatted Explain views do not show enough detail.
 
 ## Automations
 
-Automations covers configuration and customer-facing exposure for automation. Use it to manage the Telegram connection, decide what sellables the bot may offer, and keep customer-facing products data ready. Intake review has its own Help section because it is a Work subpage, not just a configuration panel.
+Automations covers configuration and customer-facing exposure for Telegram automation. Use it to manage the Telegram connection, decide what sellables the bot may offer, and keep customer-facing products data ready. Intake review has its own Help section because it is a Work subpage, not just a configuration panel.
+
+Automations stays locked to Configuration until a bot token has been saved. After that, the Overview, Sellables exposed, Intake, Chat, and Configuration tabs can appear depending on whether you are in the Automations route or the Work intake route. In browser mode, Telegram polling only runs while the tab is open, visible, and awake; use the desktop app for persistent automation.
 
 Automations follows the app language for operator-facing controls and messages. Customer Telegram text, handles, SKU names, service names, and notes stay as entered.
 
 ### Overview {#automation-overview}
 
-Automation tables use these concepts:
+The Overview summarizes today's Telegram intake, recent automation activity, and coverage. It also warns when customer-facing Telegram items are unavailable but still exposed, with a Review exposed sellables action that opens the exposed catalog view. Automation tables use these concepts:
 
 - **Exposure** means a SKU or service is visible to the customer-facing bot.
 - **Intake** means a customer request captured from Telegram or another automated source.
@@ -832,11 +893,11 @@ Exposure, intake, and exception headers explain whether a value is measured from
 
 ### Exposure Entity {#automation-exposure-entity}
 
-Entity is the internal SKU or service record that automation can mention to customers. Open the entity when the customer-facing answer looks wrong, because the source problem is usually products naming, price, archive state, or linked-SKU setup.
+Entity is the internal SKU or service record that automation can mention to customers. The Sellables exposed table can be searched by sellable name, alias, or supplier. Open the entity when the customer-facing answer looks wrong, because the source problem is usually products naming, price, archive state, or linked-SKU setup.
 
 ### Exposure Type {#automation-exposure-type}
 
-Type distinguishes stock-carrying SKUs from services. SKUs usually depend on direct stock and retail sellability. Services usually depend on linked SKUs and service availability.
+Type distinguishes stock-carrying SKUs from services. The type filter can narrow the table to SKUs or services. SKUs usually depend on direct stock and retail sellability. Services usually depend on linked SKUs and service availability.
 
 ### Exposure Price {#automation-exposure-price}
 
@@ -844,11 +905,11 @@ Price is the customer-facing amount automation can quote. Missing prices should 
 
 ### Exposure Availability {#automation-exposure-availability}
 
-Availability explains whether the entity can be offered from current products and stock data. Hidden, limited, unavailable, and available states should be reviewed before toggling exposure.
+Availability explains whether the entity can be offered from current products and stock data. Hidden, limited, unavailable, unknown, and available states should be reviewed before toggling exposure. Unavailable-but-exposed rows are highlighted by the Overview warning because customers may still be shown an item that cannot be fulfilled.
 
 ### Exposure Status {#automation-exposure-exposed}
 
-Exposed controls whether the entity is visible to customer-facing automation. Keep uncertain products items unexposed until names, prices, aliases, and availability are ready for customers.
+Exposed controls whether the entity is visible to customer-facing automation. The exposure filter can show all, exposed, or hidden rows. Archived rows and rows whose availability is hidden cannot be toggled from this table. Keep uncertain products items unexposed until names, prices, aliases, and availability are ready for customers.
 
 ### Exposure Alias {#automation-exposure-alias}
 
@@ -856,15 +917,17 @@ Alias is the customer-facing name automation uses instead of the internal produc
 
 ### Configuration {#automation-configuration}
 
-Configuration is the Telegram connection panel. It holds bot identity, token, username, and external link settings that let Kaur Khor receive or route customer intake. Use it only after products prices, exposure, and operator review expectations are ready.
+Configuration is the Telegram connection panel. It holds bot identity, bot link, bot token, username, and external link settings that let Kaur Khor receive or route customer intake. Follow Telegram's BotFather setup flow first, then paste the generated token and public username into this form. Kaur Khor keeps Automations locked to Configuration until the saved token exists.
 
 Configuration is an advanced, experimental tab. Telegram automation is work in progress, subject to change, and may be unstable.
+
+Use Test message in the desktop app or Poll Telegram now in browser mode to verify the connection. If Telegram blocks browser fetch, Kaur Khor shows a browser-blocked state and requires the desktop app.
 
 When Telegram automation is connected and live listening in the desktop app, Kaur Khor warns before the app closes because Telegram listening, automation intake, and automatic checks stop until the app is opened again. The desktop app automatically creates a close-safety snapshot before showing that warning.
 
 ### Sellables Exposed {#automation-sellables-exposed}
 
-Sellables exposed to Telegram is the customer-facing products control. It decides which SKUs and services automation can mention, quote, or offer. Use it to hide incomplete items and expose only records with clear names, prices, aliases, and availability.
+Sellables exposed to Telegram is the customer-facing products control. It decides which SKUs and services automation can mention, quote, or offer. Use search, exposure, and type filters to find the row, then update the Exposed toggle or customer-facing Alias. Use it to hide incomplete items and expose only records with clear names, prices, aliases, and availability.
 
 ## History
 
@@ -873,36 +936,115 @@ History is the saved update history workspace. It is a maintenance/context surfa
 Use History to:
 
 - search saved reports
-- inspect the heatmap or all-reports list
+- switch between the observation contribution heatmap and all-reports list when the view selector is enabled
 - open a saved report
 - edit a report through the matching Capture flow
 - delete a mistaken report after confirmation
 
-History explains what was saved. Work explains what deserves attention now.
+The History route remembers scope, supplier, and view state in the settings history link. Search text, heatmap year, selected day, and list page are local route state and reset when you reopen History or change filters. The heatmap groups valid observation dates so you can open the updates for a day; All reports lists the filtered reports directly in pages of five. Delete removes a saved observation after typed confirmation, while Edit reopens the matching Capture flow for that report. History explains what was saved. Work explains what deserves attention now.
 
 ## Settings
 
-Settings contains:
+Settings is the local control room for Kaur Khor. Use it when you need to change how this device presents the workspace, where local data is stored, how SENA plans, how automation is exposed, or how the app updates itself. Settings changes are local to this installation unless the setting explicitly changes saved workspace data.
 
-- workspace preferences
-- interface visibility controls
-- local data, backup, restore, and clear-data actions
-- local planning parameters
-- Telegram automation connection and test-message state
-- in-app Help at `/settings/help`
-- benchmarks
-- danger zone
-- credits and licensing
+Settings has these sections: Workspace, Interface, Local Data, Planning, Automation, History, Benchmarks in development builds, Help, Credits, Updates, and Danger Zone. When you enter Settings from another route, **Back to app** returns to the route you came from, including filters and query state.
 
-Help mirrors this user guide and can be searched inside the app.
+### Workspace {#settings-workspace}
+
+Workspace preferences control everyday operating defaults on this device.
+
+- **Regional preferences** choose the app language and display currency.
+- **USD-to-KHR exchange rate** controls KHR reference amounts when currency display needs conversion. It must be a positive number before preferences can be saved.
+- **Item pictures** controls whether SKU and service pictures are hidden, thumbnails, small, or medium sized on supported surfaces.
+- **Chart loading** controls whether chart surfaces dim while older intervals or refreshed data are loading.
+- **Work queue action defaults** decide whether queue actions ask each time, open one item at a time, or jump straight into batch capture for Record Supplier order, Update ETA, Follow up, Receive, and Review.
+
+Save Workspace changes before leaving. In development builds, a developer-only onboarding injector may appear; it reopens first-run onboarding and is not a production operator control.
+
+### Interface {#settings-interface}
+
+Interface controls hide or show optional workspace surfaces without deleting data. View mode cards set a preset first, then individual toggles can customize the result.
+
+- **Optional guidance** shows explanatory labels, helper text, and More-help tooltips. Required-field guidance remains visible even when this is off.
+- **Floating page actions** keep primary page actions near the title area after the header scrolls away.
+- **Right-side context panels** show supplemental rails on Work, Insights, Pressure, Financials, and detail screens.
+- **Work queue filter tabs** show task-status tabs above the Work queue; when hidden, Work uses one All Tasks queue.
+- **Automations and intake** shows Work / Intake and lets the Telegram bot receive customer intake. Turning it off hides intake and pauses the bot.
+- **Comparison view switch** shows Compare / Single on Pressure and Financials; when hidden, those pages stay in Single view.
+- **Pressure timeline card** shows or hides the business timeline card on Pressure.
+- **History view selector** shows Heatmap / All in Settings / History; when hidden, History stays in All view.
+- **Heartbeat and signal ribbons** shows status ribbons on detail, Pressure, Financials, and update screens.
+
+Command palette actions can send you to Interface with the Help or Automations row highlighted. The highlight is a navigation aid only; it does not change the setting.
 
 ### Parameter Guidance {#settings-parameter-guidance}
 
-Parameter guidance explains SENA planning inputs such as particle count, service level, quantiles, and intervals. These settings change how conservative or responsive analysis becomes. Adjust them only when you understand the tradeoff between stability, speed, and risk.
+Parameter guidance explains SENA planning inputs. These settings change how conservative, broad, or responsive planning becomes. Adjust them only when you understand the tradeoff between stability, speed, and risk.
+
+- **Particle count** controls how much evidence detail the planner samples. Higher values can improve detail but may cost more time.
+- **Target service level** is the availability goal SENA plans toward.
+- **Recommendation quantile** controls the order suggestion level inside the forecast distribution.
+- **Range low quantile** and **Range high quantile** define the suggested order range around the recommendation.
+- **Need probability gate** is the threshold before Kaur Khor treats a reorder signal as actionable.
+- **Review delay days** adds extra safety days before the next review.
+
+Planning fields validate as you edit. The low range cannot exceed the high range, and the recommendation must stay inside the range. Save preferences to apply changed parameters; Kaur Khor reruns SENA after saved planning changes. **Reset defaults** restores the default SENA parameters and reruns planning with those defaults.
 
 ### Smoothing {#settings-smoothing}
 
 Smoothing controls whether Kaur Khor softens noisy SENA signals in Settings. When enabled, charts and recommendations may react less sharply to one-off updates. Use it for steadier operations; disable it only when immediate responsiveness matters more than noise control.
+
+### Local Data {#settings-local-data}
+
+Local Data shows where this installation keeps the workspace and how to move evidence out safely.
+
+Desktop shows the data directory, workspace store, preferences file, and backup snapshots directory. Desktop operators can create a backup snapshot, restore a saved snapshot, export logs, and export SENA/planning data. Log and planning exports can be saved as Excel, CSV, or JSON.
+
+Browser runtime is different. Browser data lives in the current browser profile. Native folder reveal, desktop snapshots, and log export are desktop-only. Use the browser app banner for browser backup import/export, and treat browser clear-data actions carefully because clearing browser storage can remove the workspace.
+
+Restoring a snapshot replaces the local workspace with the selected snapshot. Create or confirm a backup before restoring when you may need the current state again.
+
+### Automation Settings {#settings-automation}
+
+Settings / Automation opens the Telegram automation configuration surface. Use it to save or review the bot display name, username, bot link, bot token, and external link behavior. Product exposure lives in Products and automation intake lives in Work / Intake.
+
+Automation is experimental. Paused, connected, disconnected, and error states should be treated as operational state, not decoration. If Automations and intake is hidden from Interface, Settings redirects back to Interface and highlights the toggle instead of showing the automation setup page.
+
+### History Settings {#settings-history}
+
+Settings / History opens the saved report history. Use it to search saved reports, switch between Heatmap and All reports when the selector is visible, open a saved report, edit a report through the matching Capture flow, or delete a mistaken report after typed confirmation. All reports paginates in groups of five. History explains what was saved; Work explains what needs attention now.
+
+### Benchmarks {#settings-benchmarks}
+
+Benchmarks are available only in development builds. Use them to run development scenarios against selected fixture sizes, inspect run history, compare target result tables, and review pass, watch, fail, or missing statuses. Distribution details and truth panels are diagnostic tools for development work. Open output folder and reset results are maintenance actions for benchmark artifacts, not operator workflows.
+
+### Help Page {#settings-help}
+
+Settings / Help is the in-app copy of this user guide. Use it when a field tooltip, table header, command palette result, or Settings entry sends you to documentation while you are still working in Kaur Khor. The page is designed for quick answers first, then enough background to explain the product concept behind the visible control.
+
+Use the search box to find route names, workflow terms, button labels, table columns, and common questions. Search filters the guide sections and marks the strongest result as the best match. The index on the right jumps between guide sections; on wide screens it scrolls independently from the article so long guides remain navigable.
+
+More links from tooltips and section labels open `/settings/help#...` anchors. Kaur Khor scrolls to the matching subsection and briefly highlights it so you can connect the documentation to the control that sent you there. If a link does not highlight anything, the anchor is stale and should be fixed before relying on that link.
+
+The repository guide link opens the Markdown copy under `docs/user-guide.md` or `docs/user-guide.km.md`. The in-app guide is loaded from matching raw Markdown assets, so product documentation changes should keep the repository copy and in-app copy aligned.
+
+### Credits {#settings-credits}
+
+Credits shows the app name, copyright, license, and where to find full license terms. It is informational and does not change workspace data.
+
+### Updates {#settings-updates}
+
+Updates supports source-build updates for the desktop app on macOS, Windows, and Linux. Browser runtime redirects to Local Data because the desktop updater is not available there.
+
+Use **Check latest release** to load the current version, latest version, release link, and available version picker options. **Latest release** stays selected by default; choose a specific release only when rebuilding or rolling back intentionally. Before installing, confirm the data folder and snapshot export folder. Skipping snapshot export requires a warning confirmation and shows the latest checkpoint label so you can decide whether the risk is acceptable.
+
+Update failures leave a status message instead of silently continuing. Do not start an update without a usable backup path unless you intentionally accepted the skip-backup warning.
+
+### Danger Zone {#settings-danger-zone}
+
+Danger Zone contains destructive maintenance. **Delete current data** creates a safety snapshot, clears the current local workspace, clears saved capture drafts, removes browser/session workspace keys, clears cached product detail state for this device, and then reloads to a blank workspace. The confirmation dialog requires the exact token `DELETE CURRENT DATA`.
+
+Use Danger Zone when you intentionally want this installation to start over, such as after test data, a wrong imported workspace, or a training/demo session. Do not use it to fix a single mistaken report, order, or product; edit or delete that specific record instead. Only proceed after exporting or backing up anything you may need again.
 
 ## First Useful Workflow
 
@@ -913,8 +1055,9 @@ For a new workspace, the shortest useful path is:
 3. Open Work / Capture and save the first stock count or real order.
 4. Save a second real update when enough time or activity has passed for Kaur Khor to compare intervals.
 5. Return to Work to see whether supplier or customer tasks need attention.
-6. Open Insights / Pressure to understand demand, available capacity, pipeline support, confidence, and next action.
+6. Open Insights / Inventory to understand demand, available capacity, pipeline support, confidence, and current stock health.
 7. Open Insights / Money when you need sales, gross profit, tied-up capital, or leakage context.
+8. Open Insights / Explain when a signal needs evidence-level audit before action.
 
 Search keywords: start, setup, onboarding, first update, first count, first order, first sale, first analysis.
 
