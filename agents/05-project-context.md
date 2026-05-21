@@ -25,8 +25,8 @@
 - Capture benchmark: `pnpm bench:capture`
 - Detail-pages benchmark: `pnpm bench:detail-pages`
 - Stability benchmark: `pnpm bench:stability`
-- Security gate: `bash tool/security/run_security_checks.sh`
-- Typecheck: `pnpm exec tsc --build tsconfig.json`
+- Security gate: `bash tools/security/run_security_checks.sh`
+- Typecheck: `pnpm exec tsc --build config/tsconfig.json`
 - Lint: no repo lint script is configured; do not invent one.
 - Run locally: `pnpm dev`
 - Run locally with generated demo data seeded on startup: `pnpm dev:seed`
@@ -35,22 +35,26 @@
 Prefer single-file or single-test runs during iteration. Full suites are for the final verification pass.
 
 ### Layout
-- `src/main`: Electron main process, app boot, IPC handlers, local data paths, backup/restore, preferences, benchmark runner, and platform security.
+- `src/main`: Electron main process and app boot. Domain folders under this path own automation, benchmark, desktop asset/image, local-data/backup/preferences, runtime/core IPC, security/platform boundaries, updater/source-build, and window lifecycle modules.
 - `src/preload`: preload bridge that exposes the narrow renderer-facing desktop API.
 - `src/renderer/src`: React app, routes, state, components, hooks, dev bridge, assets, and test setup.
-- `src/renderer/src/routes`: route-level product surfaces, including overview, dashboard, record update, performance, financials, SKU/service detail, settings, and help.
+- `src/renderer/src/routes`: route-level product surfaces grouped by domain: workspace, inventory, records, insights, settings, help, web, mobile, overview, and automations.
 - `src/renderer/src/components/ui`: shadcn/Radix-style UI primitives.
 - `src/renderer/src/components/system`: Kaur Khor-specific reusable product components.
-- `src/renderer/src/lib`: renderer business logic, formatting, validation, command palette, catalog helpers, SENA adapters, export helpers, and navigation helpers.
+- `src/renderer/src/lib`: renderer business logic grouped by domain: catalog, chart, export, formatting, localization, navigation, records, SENA, settings, tickets, and UI helpers.
 - `src/shared`: IPC contracts and shared TypeScript data types.
 - `src/icons`: shared icon wrappers and native icon boundaries.
 - `apps/desktop-core`: Rust desktop persistence/runtime crate used by the Electron app.
 - `apps/sena-core`: Rust SENA analysis engine crate.
-- `bench`: Playwright benchmark scenarios and helpers.
+- `tests/bench`: Playwright benchmark scenarios and helpers.
+- `tests/ui-matrix`: UI interaction matrix scenarios and helpers.
+- `tests/e2e`: focused Playwright e2e specs.
+- `config`: TypeScript, Vite, Vitest, Playwright, and Electron Builder configuration.
 - `docs`: contributor docs, security docs, user guides, and readme screenshots.
-- `tool/security`: security gate scripts and platform hardening checks.
-- `scripts`: packaging, benchmark, tree-refresh, data-generation, and icon-build helpers.
+- `tools/security`: security gate scripts and platform hardening checks.
+- `tools/scripts`: packaging, benchmark, tree-refresh, data-generation, source-build, and icon-build helpers.
 - Tests live next to source as `*.test.ts` or `*.test.tsx`; Rust integration tests live under `apps/desktop-core/tests`.
+- Keep the repo root limited to discovery anchors. The root `index.html` is the required Vite web entry stub; Electron uses `src/renderer/index.html`. New configs belong under `config`, source helpers under `tools`, and test workspaces under `tests`.
 - Do not modify generated or local-output paths unless the task explicitly requires it: `node_modules`, `out`, `build`, `release`, `bench-results`, `.kaur-khor-dev-data`, `.pnpm-store`, `.playwright-cli`, `apps/*/target`, `*.tsbuildinfo`, `tree.txt`, `tree_dir.txt`, `src/renderer/src/routes/*.bak.*`.
 
 ### Conventions specific to this repo

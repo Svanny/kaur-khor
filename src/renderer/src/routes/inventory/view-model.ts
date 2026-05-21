@@ -7,25 +7,25 @@ import type {
   SenaSkuDetail,
   SenaWorkspaceSummary,
 } from '@shared/sena';
-import { formatDecimal, formatWholeNumber } from '@/lib/format';
+import { formatDecimal, formatWholeNumber } from '@/lib/formatting/format';
 import {
   linkedServiceIdsForSku,
   linkedSkuIdsForService,
   matchesServiceSupplier,
   matchesSkuSupplier,
   type SupplierFilterValue,
-} from '@/lib/sena-catalog';
-import { translateUiLiteral } from '@/lib/translations';
-import { latestObservationAt } from '@/routes/observation-payload';
-import { formatSenaDate, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
+} from '@/lib/catalog/sena-catalog';
+import { translateUiLiteral } from '@/lib/localization/translations';
+import { latestObservationAt } from '@/routes/records/observation-payload';
+import { formatSenaDate, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/inventory/sku-detail/format';
 import type {
   InventoryProjectionHorizonValue,
   InventoryRangeValue,
   InventoryRowSetValue,
   InventoryScopeValue,
   InventoryViewPresetValue,
-} from '@/lib/navigation-state';
-import { buildServiceDetailHref, buildSkuDetailHref } from '@/lib/navigation-state';
+} from '@/lib/navigation/navigation-state';
+import { buildServiceDetailHref, buildSkuDetailHref } from '@/lib/navigation/navigation-state';
 
 const INVENTORY_FOCUS_ROW_LIMIT = 5;
 

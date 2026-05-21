@@ -40,7 +40,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
-import { rowHoverClassName } from '@/lib/interactive-surface';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
 import {
   calendarDaysBetweenObservedAndDateInput,
   clampDateInputToObservedDate,
@@ -49,23 +49,23 @@ import {
   formatLocalDateTimeInputValue,
   observedLocalDateInputValue,
   parseLocalDateTimeInputIso,
-} from '@/lib/date-input-utils';
-import { buildSupplierTicketCaptureHref } from '@/lib/record-update-routes';
-import { translateUiLiteral } from '@/lib/translations';
-import { statusPillClassName } from '@/lib/state-tones';
-import { stockSnapshotForTicketInventoryDeltas } from '@/lib/ticket-inventory-reconciliation';
-import { makeNewTicketId } from '@/lib/ticketing';
+} from '@/lib/formatting/date-input-utils';
+import { buildSupplierTicketCaptureHref } from '@/lib/navigation/record-update-routes';
+import { translateUiLiteral } from '@/lib/localization/translations';
+import { statusPillClassName } from '@/lib/ui/state-tones';
+import { stockSnapshotForTicketInventoryDeltas } from '@/lib/tickets/ticket-inventory-reconciliation';
+import { makeNewTicketId } from '@/lib/tickets/ticketing';
 import { cn } from '@/lib/utils';
 import {
   ActionSheetField,
   actionSheetInputClassName,
   actionSheetSelectTriggerClassName,
   actionSheetTextareaClassName,
-} from '@/routes/detail-action-sheet';
-import { createEmptyObservationInput, hasStructuredObservationSignal } from '@/routes/observation-payload';
+} from '@/routes/inventory/detail-action-sheet';
+import { createEmptyObservationInput, hasStructuredObservationSignal } from '@/routes/records/observation-payload';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
-import type { TranslationKey, TranslationVariables } from '@/lib/translations';
+import type { TranslationKey, TranslationVariables } from '@/lib/localization/translations';
 import type { IconComponent } from '@icons';
 import { DRAFT_SUPPLIER_TICKET_ID_PREFIX, type OverviewDrawerBandId, type OverviewSupplierTicketTask, type OverviewTaskDrawerMode } from './view-model';
 

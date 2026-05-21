@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { rowHoverClassName } from "@/lib/interactive-surface"
+import { rowHoverClassName } from "@/lib/ui/interactive-surface"
 import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {

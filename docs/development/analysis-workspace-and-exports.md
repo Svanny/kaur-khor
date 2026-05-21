@@ -9,7 +9,7 @@ Kaur Khor uses SENA as the local analysis engine. The Electron app asks the mana
 Relevant code paths:
 
 - renderer routes and UI: `src/renderer/src/routes`
-- settings export helpers: [`src/renderer/src/lib/settings-workspace-actions.ts`](../../src/renderer/src/lib/settings-workspace-actions.ts)
+- settings export helpers: [`src/renderer/src/lib/settings/settings-workspace-actions.ts`](../../src/renderer/src/lib/settings/settings-workspace-actions.ts)
 - main-process runtime orchestration: [`src/main/index.ts`](../../src/main/index.ts)
 - shared type contracts: [`src/shared/ipc.ts`](../../src/shared/ipc.ts)
 - desktop runtime: `apps/desktop-core`
@@ -109,7 +109,7 @@ The Settings route is the main contributor-facing screen for workspace-level mai
 - clear-current-data action
 - log export and planning-data export
 
-The route implementation lives in [`src/renderer/src/routes/settings.tsx`](../../src/renderer/src/routes/settings.tsx).
+The route implementation lives in [`src/renderer/src/routes/settings/settings.tsx`](../../src/renderer/src/routes/settings/settings.tsx).
 
 The route reaches runtime and filesystem-affecting actions through `window.kaurKhorDesktop`, with the bridge shape defined in [`src/shared/ipc.ts`](../../src/shared/ipc.ts).
 

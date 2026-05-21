@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "types": [
+      "node",
+      "electron-vite/node",
+      "vitest/globals"
+    ],
+    "lib": [
+      "ES2022"
+    ],
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "baseUrl": "..",
+    "paths": {
+      "@icons": [
+        "src/icons/index.ts"
+      ],
+      "@icons/*": [
+        "src/icons/*"
+      ],
+      "@shared/*": [
+        "src/shared/*"
+      ]
+    }
+  },
+  "include": [
+    "../config/build/electron.vite.config.ts",
+    "../src/icons/native.ts",
+    "../src/icons/native.test.ts",
+    "../src/main/**/*.ts",
+    "../src/preload/**/*.ts",
+    "../src/shared/**/*.ts"
+  ]
+}

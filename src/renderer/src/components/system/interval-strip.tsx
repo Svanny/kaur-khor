@@ -1,8 +1,8 @@
 import { StatusTimingIcon } from '@icons/status';
 import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import type { RefObject, UIEvent } from 'react';
-import { getTranslation } from '@/lib/translations';
-import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDateTime24, formatSenaWideIntervalDate, formatSenaWideIntervalDateLocalized } from '@/routes/sku-detail/format';
+import { getTranslation } from '@/lib/localization/translations';
+import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaDate, formatSenaLongDateTime24, formatSenaWideIntervalDate, formatSenaWideIntervalDateLocalized } from '@/routes/inventory/sku-detail/format';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export const SHARED_PILL_MIN_WIDTH = 48;

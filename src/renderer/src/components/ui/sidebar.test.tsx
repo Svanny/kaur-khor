@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeAll, describe, expect, test, vi } from 'vitest';
-import { rowHoverClassName } from '@/lib/interactive-surface';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
 import { SidebarMenuButton, SidebarMenuSubButton, SidebarProvider } from './sidebar';
 
 beforeAll(() => {

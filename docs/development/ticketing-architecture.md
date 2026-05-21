@@ -36,7 +36,7 @@ Relevant contracts:
 
 - TypeScript shared shape: [`src/shared/sena.ts`](../../src/shared/sena.ts)
 - Rust SENA shape: [`apps/sena-core/src/types.rs`](../../apps/sena-core/src/types.rs)
-- observation helpers: [`src/renderer/src/routes/observation-payload.ts`](../../src/renderer/src/routes/observation-payload.ts)
+- observation helpers: [`src/renderer/src/routes/records/observation-payload.ts`](../../src/renderer/src/routes/records/observation-payload.ts)
 
 Ticket-only updates count as structured observation signals. They must not be
 collapsed into free-form notes, because downstream projections need family,
@@ -174,7 +174,7 @@ recent revisions for the same ticket or entity. Do not derive user-visible
 history solely from latest hot anchors; anchors answer current state, while
 recent activity answers what changed.
 
-Renderer surfaces should use `src/renderer/src/lib/record-activity.ts` for
+Renderer surfaces should use `src/renderer/src/lib/records/record-activity.ts` for
 read-side ticket options, customer link directories, delivery-fee defaults, and
 activity cards. `SenaTicketEvent.lines` is the canonical line field; do not
 reintroduce legacy `lineItems` readers.
@@ -184,11 +184,11 @@ reintroduce legacy `lineItems` readers.
 When changing ticket authoring or projection behavior, prefer focused tests near
 the touched surface:
 
-- route mapping: `src/renderer/src/lib/record-update-routes.test.ts`
-- Capture hub: `src/renderer/src/routes/record-update-hub.test.tsx`
-- Capture wizard: `src/renderer/src/routes/stock-update-session.test.tsx`
-- Inbox queue: `src/renderer/src/routes/dashboard.test.tsx`
-- SKU evidence: `src/renderer/src/routes/sku-detail-sena.test.tsx`
+- route mapping: `src/renderer/src/lib/navigation/record-update-routes.test.ts`
+- Capture hub: `src/renderer/src/routes/records/record-update-hub.test.tsx`
+- Capture wizard: `src/renderer/src/routes/records/stock-update-session.test.tsx`
+- Inbox queue: `src/renderer/src/routes/workspace/dashboard.test.tsx`
+- SKU evidence: `src/renderer/src/routes/inventory/sku-detail-sena.test.tsx`
 - SENA Rust types: `cargo test --manifest-path apps/sena-core/Cargo.toml`
 
 Run `pnpm build` for final build verification. Do not pass `--silent` through

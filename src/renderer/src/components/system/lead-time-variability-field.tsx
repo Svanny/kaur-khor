@@ -11,10 +11,10 @@ import {
   customLeadTimeVariabilityValue,
   leadTimeVariabilityPlaceholderValue,
   shouldShowLeadTimeVariabilityPlaceholder,
-} from '@/lib/lead-time-variability-select';
-import { parseEditableNumberWithCommas } from '@/lib/format';
-import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
-import { translateUiLiteral } from '@/lib/translations';
+} from '@/lib/ui/lead-time-variability-select';
+import { parseEditableNumberWithCommas } from '@/lib/formatting/format';
+import { translateLeadTimeVariabilityLabel } from '@/lib/localization/localized-display';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
 
 export type LeadTimeVariabilityDraftMode = 'class' | 'std';

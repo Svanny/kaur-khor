@@ -77,7 +77,7 @@ jobs:
         shell: bash
         env:
           KAUR_KHOR_REQUIRE_NETWORK_AUDIT: "1"
-        run: bash tool/security/run_security_checks.sh
+        run: bash tools/security/run_security_checks.sh
 
   build:
     name: package-${{ matrix.platform }}-${{ matrix.arch }}
@@ -166,7 +166,7 @@ jobs:
           path: |
             ~/Library/Caches/electron
             ~/Library/Caches/electron-builder
-          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'config/package/electron-builder.yml', 'config/package/electron-builder.unsigned-win.yml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
             ${{ runner.os }}-${{ runner.arch }}-electron-
@@ -178,7 +178,7 @@ jobs:
           path: |
             ~/.cache/electron
             ~/.cache/electron-builder
-          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'config/package/electron-builder.yml', 'config/package/electron-builder.unsigned-win.yml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
             ${{ runner.os }}-${{ runner.arch }}-electron-
@@ -190,7 +190,7 @@ jobs:
           path: |
             ~\AppData\Local\electron\Cache
             ~\AppData\Local\electron-builder\Cache
-          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-v2-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-v2-${{ hashFiles('pnpm-lock.yaml', 'config/package/electron-builder.yml', 'config/package/electron-builder.unsigned-win.yml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-v2-
             ${{ runner.os }}-${{ runner.arch }}-electron-v2-
@@ -214,7 +214,7 @@ jobs:
             unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             export ALLOW_UNSIGNED_PACKAGING=1
           fi
-          bash scripts/package-mac.sh
+          bash tools/scripts/package-mac.sh
 
       - name: Package Windows release
         if: matrix.platform == 'win'
@@ -238,7 +238,7 @@ jobs:
         shell: bash
         env:
           KAUR_KHOR_SKIP_INSTALLER_HANDOFF: "1"
-        run: bash scripts/package-linux.sh
+        run: bash tools/scripts/package-linux.sh
 
       - name: Collect packaged artifacts
         if: github.ref_type == 'tag'
@@ -300,7 +300,7 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: node scripts/package-source-release.mjs
+        run: node tools/scripts/package-source-release.mjs
 
       - name: Verify artifact set
         shell: bash
@@ -334,7 +334,7 @@ jobs:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: node scripts/build-release-notes.mjs "${RUNNER_TEMP}/release-notes.md"
+        run: node tools/scripts/build-release-notes.mjs "${RUNNER_TEMP}/release-notes.md"
 
       - name: Create or update GitHub Release
         shell: bash

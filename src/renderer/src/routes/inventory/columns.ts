@@ -1,7 +1,7 @@
 import type { AppLanguage } from '@shared/inventory';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import type { InventoryColumnKey } from './view-model';
-import type { InventoryViewPresetValue } from '@/lib/navigation-state';
+import type { InventoryViewPresetValue } from '@/lib/navigation/navigation-state';
 
 export const inventoryPresetColumns: Record<InventoryViewPresetValue, InventoryColumnKey[]> = {
   custom: ['item', 'onHand', 'cover', 'projection', 'pipeline', 'freshness'],

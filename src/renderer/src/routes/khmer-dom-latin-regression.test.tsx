@@ -7,15 +7,15 @@ import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { InterfaceViewModeCards } from '@/components/system/interface-view-cards';
 import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
-import { getTranslation, translateUiLiteral } from '@/lib/translations';
-import { CommandHomeRoute } from './command-home';
+import { getTranslation, translateUiLiteral } from '@/lib/localization/translations';
+import { CommandHomeRoute } from './workspace/command-home';
 import { AutomationConnectionCard } from './automations/connection-card';
 import { AutomationIntakeDrawer } from './automations/intake-drawer';
-import { FinancialsRoute } from './financials';
-import { InsightsRoute } from './insights';
-import { PerformanceRoute } from './performance';
-import { SettingsRoute } from './settings';
-import { WorkRoute } from './work';
+import { FinancialsRoute } from './insights/financials';
+import { InsightsRoute } from './insights/insights';
+import { PerformanceRoute } from './insights/performance';
+import { SettingsRoute } from './settings/settings';
+import { WorkRoute } from './workspace/work';
 
 const inventoryHook = vi.fn();
 const automationHook = vi.fn();
@@ -40,8 +40,8 @@ vi.mock('@/state/preferences', () => ({
   usePreferences: () => preferencesHook(),
 }));
 
-vi.mock('@/lib/page-state-memory', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/page-state-memory')>();
+vi.mock('@/lib/settings/page-state-memory', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/settings/page-state-memory')>();
   return {
     ...actual,
     buildRememberedAnalysisHref: () => '/insights/explain',

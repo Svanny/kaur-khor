@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { getTranslation } from '@/lib/translations';
+import { getTranslation } from '@/lib/localization/translations';
 import { InsightsInventoryRoute } from './index';
 
 const inventoryHook = vi.fn();
@@ -22,7 +22,7 @@ vi.mock('@/state/preferences', () => ({
   usePreferences: () => preferencesHook(),
 }));
 
-vi.mock('@/routes/performance/use-sena-detail-hydration', () => ({
+vi.mock('@/routes/insights/performance/use-sena-detail-hydration', () => ({
   useSenaDetailHydration: () => useSenaDetailHydration(),
 }));
 

@@ -22,7 +22,7 @@ import {
 import { StatusWarningIcon } from '@icons/status';
 import { WebDownloadIcon, WebHomeIcon } from '@icons/web';
 import { cn } from '@/lib/utils';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import {
   KAUR_KHOR_BROWSER_APP_DATABASE,
   KAUR_KHOR_BROWSER_DEMO_DATABASE,
@@ -134,7 +134,7 @@ function arrayOrFallback<T>(value: unknown, fallback: T[], isValid?: (entry: unk
 }
 
 function objectArrayOrFallback<T extends object>(value: unknown, fallback: T[]): T[] {
-  return arrayOrFallback(value, fallback, isObjectRecord);
+  return arrayOrFallback(value, fallback, (entry): entry is T => isObjectRecord(entry));
 }
 
 function isAutomationMessageRecord(value: unknown): value is AutomationMessageRecord {

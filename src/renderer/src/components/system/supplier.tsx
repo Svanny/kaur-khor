@@ -6,8 +6,8 @@ import {
   supplierNameForSku,
   supplierNamesFromCatalog,
   type SupplierFilterValue,
-} from '@/lib/sena-catalog';
-import { translateUiLiteral } from '@/lib/translations';
+} from '@/lib/catalog/sena-catalog';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 

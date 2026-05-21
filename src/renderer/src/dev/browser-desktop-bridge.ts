@@ -48,7 +48,7 @@ import type {
   SenaTriggerRunPayload,
 } from '@shared/ipc';
 import { isAutomationEligibleExposureRow } from '@shared/automation-sellables';
-import { normalizeTicketLookupValue } from '@/lib/ticketing';
+import { normalizeTicketLookupValue } from '@/lib/tickets/ticketing';
 import type {
   SenaAnalysisArtifactRecord,
   SenaAnalysisRunRecord,

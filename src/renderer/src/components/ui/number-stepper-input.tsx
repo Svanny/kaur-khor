@@ -2,7 +2,7 @@ import * as React from "react"
 import { ActionZoomInIcon, ActionZoomOutIcon } from "@icons/actions"
 
 import { Input } from "@/components/ui/input"
-import { parseEditableNumberWithCommas } from "@/lib/format"
+import { parseEditableNumberWithCommas } from "@/lib/formatting/format"
 import { cn } from "@/lib/utils"
 
 type NumberStepperInputProps = Omit<React.ComponentProps<typeof Input>, "type"> & {

@@ -4,20 +4,20 @@ Developer docs entrypoint: [Kaur Khor developer docs](../README.md)
 
 ## Unit Tests
 
-### `../../src/renderer/src/lib/validation.test.ts`
+### `../../src/renderer/src/lib/ui/validation.test.ts`
 
 - Valid text and numeric values are accepted.
 - Empty or whitespace-only values are rejected.
 - Unsafe bidi and control characters are rejected.
 - Over-limit numeric values are rejected.
 
-### `../../src/renderer/src/lib/ids.test.ts`
+### `../../src/renderer/src/lib/formatting/ids.test.ts`
 
 - SKU and service IDs match the opaque format.
 - IDs do not include timestamp-derived segments.
 - Large-sample generation avoids collisions in smoke coverage.
 
-### `../../src/main/platform-security.test.ts`
+### `../../src/main/security/platform-security.test.ts`
 
 - Electron main process uses a preload bridge.
 - Renderer isolation remains enabled.
@@ -27,15 +27,15 @@ Developer docs entrypoint: [Kaur Khor developer docs](../README.md)
 
 ## Gate Script
 
-`bash ../../tool/security/run_security_checks.sh`
+`bash ../../tools/security/run_security_checks.sh`
 
 Order:
 1. `pnpm test`
 2. `cargo test --manifest-path ../../apps/desktop-core/Cargo.toml`
 3. `cargo test --manifest-path ../../apps/sena-core/Cargo.toml`
-4. `bash ../../tool/security/check_secret_patterns.sh`
-5. `bash ../../tool/security/check_platform_hardening.sh`
-6. `bash ../../tool/security/check_dependency_audit.sh`
+4. `bash ../../tools/security/check_secret_patterns.sh`
+5. `bash ../../tools/security/check_platform_hardening.sh`
+6. `bash ../../tools/security/check_dependency_audit.sh`
 
 Policy: any finding fails the run.
 

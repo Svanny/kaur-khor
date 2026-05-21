@@ -9,7 +9,7 @@ import {
   type ChartTimeframe,
 } from '@/components/system/chart-timeframe';
 import type { IntervalPageEnvelope } from '@/components/system/interval-history';
-import { traceRenderer } from '@/lib/trace';
+import { traceRenderer } from '@/lib/ui/trace';
 
 export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPageEnvelope<TDetail>>({
   fetchInitialPage,

@@ -123,7 +123,7 @@ function loadServiceWorker(options: {
 
 describe('web PWA install assets', () => {
   test('links the manifest and mobile install metadata from the web HTML shell', () => {
-    const html = readFileSync(resolve(projectRoot, 'index.html'), 'utf8');
+    const html = readFileSync(resolve(projectRoot, 'src/renderer/index.html'), 'utf8');
 
     expect(html).toContain('content="width=device-width, initial-scale=1.0, viewport-fit=cover"');
     expect(html).toContain('<meta name="theme-color" content="#F8F1EB" />');
@@ -274,9 +274,9 @@ describe('web PWA install assets', () => {
     const packageJson = JSON.parse(readFileSync(resolve(projectRoot, 'package.json'), 'utf8')) as {
       scripts?: Record<string, string>;
     };
-    const screenshotScript = readFileSync(resolve(projectRoot, 'scripts/capture-mobile-pwa-screenshots.mjs'), 'utf8');
+    const screenshotScript = readFileSync(resolve(projectRoot, 'tools/scripts/capture-mobile-pwa-screenshots.mjs'), 'utf8');
 
-    expect(packageJson.scripts?.['screenshots:mobile']).toBe('pnpm run build:web && node ./scripts/capture-mobile-pwa-screenshots.mjs');
+    expect(packageJson.scripts?.['screenshots:mobile']).toBe('pnpm run build:web && node ./tools/scripts/capture-mobile-pwa-screenshots.mjs');
     expect(screenshotScript).toContain("const screenshotDir = join(repoRoot, 'docs/readme');");
     expect(screenshotScript).toContain("const publicScreenshotDir = join(repoRoot, 'public/screenshots');");
     expect(screenshotScript).toContain("const demoUrl = `${origin}/kaur-khor/demo`;");

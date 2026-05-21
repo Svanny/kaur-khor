@@ -35,7 +35,7 @@ import {
   type SenaEngineParameters,
 } from '@shared/ipc';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
-import { currencyLabel, getTranslation, type TranslationKey, type TranslationVariables } from '../lib/translations';
+import { currencyLabel, getTranslation, type TranslationKey, type TranslationVariables } from '../lib/localization/translations';
 
 interface PreferencesContextValue {
   isHydrated: boolean;

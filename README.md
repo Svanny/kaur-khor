@@ -90,7 +90,7 @@ All entry points are free, require no sign-up or login, and keep data on the use
 
 Kaur Khor uses **SENA** as its local analysis engine. SENA is what turns saved observations into reorder pressure, timing risk, blocker detection, and explanation surfaces inside the app.
 
-If you want the reference document, see [References/SENA/SENA.pdf](References/SENA/SENA.pdf).
+If you want the reference document, see [docs/reference/assets/SENA/SENA.pdf](docs/reference/assets/SENA/SENA.pdf).
 
 ## Downloads
 
@@ -100,7 +100,7 @@ Releases are published through GitHub Releases:
 - Windows: x64 installer
 - Linux: x64 AppImage and `.deb`
 
-Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts. Release assets follow the repo packaging template `kaur-khor-<version>-<os>-<arch>.<ext>`, matching `electron-builder.yml`.
+Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts. Release assets follow the repo packaging template `kaur-khor-<version>-<os>-<arch>.<ext>`, matching `config/package/electron-builder.yml`.
 
 Verify release downloads against the `SHA256SUMS` asset on the same GitHub Release when it is present. Do not disable Gatekeeper or SmartScreen globally, and do not strip macOS quarantine attributes to force a launch. For more detail, see [docs/install-guide.md](docs/install-guide.md).
 
@@ -245,8 +245,8 @@ The current local app is organized around these paths:
 - `src/shared`: shared IPC contracts and TypeScript types
 - `apps/desktop-core`: Rust desktop runtime used for local persistence and core workflows
 - `apps/sena-core`: Rust SENA analysis engine
-- `tool/security`: desktop security gate scripts
-- `tool/sync_design_tokens.sh`: design-token sync helper
+- `tools/security`: desktop security gate scripts
+- `tools/sync_design_tokens.sh`: design-token sync helper
 
 The repository is licensed under `GPL-2.0-only`.
 

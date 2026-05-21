@@ -6,8 +6,8 @@ import {
   writeEntityChartLayoutPreferences,
   writeSubtypeDefaultChartLayoutPreferences,
   type PersistedChartLayoutPreferences,
-} from '@/lib/chart-layout-preferences';
-import type { ChartSettingsSubtype } from '@/lib/chart-settings-memory';
+} from '@/lib/chart/chart-layout-preferences';
+import type { ChartSettingsSubtype } from '@/lib/chart/chart-settings-memory';
 import {
   useHeldTradingChartBusy,
   useTradingChartController,

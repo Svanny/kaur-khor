@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
-import { rowHoverClassName } from '@/lib/interactive-surface';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
 import { Table, TableBody, TableCell, TableRow } from './table';
 
 describe('TableRow', () => {

@@ -1,7 +1,7 @@
 import type { AppLanguage } from '@shared/inventory';
 import { HeaderedTableCellStack } from '@/components/system/headered-table';
-import { translateUiLiteral } from '@/lib/translations';
-import { formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
+import { translateUiLiteral } from '@/lib/localization/translations';
+import { formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/inventory/sku-detail/format';
 import type { InventoryGridRow } from './view-model';
 
 function DetailBlock({

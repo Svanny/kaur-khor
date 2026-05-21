@@ -54,7 +54,7 @@ The old business views are reused inside the new IA:
 
 ## Route State
 
-Route state belongs in `src/renderer/src/lib/navigation-state.ts`. New canonical
+Route state belongs in `src/renderer/src/lib/navigation/navigation-state.ts`. New canonical
 builders should be used for new code:
 
 - `buildInboxHref`

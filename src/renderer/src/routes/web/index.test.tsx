@@ -3627,7 +3627,7 @@ describe('WebRoutes build from source section', () => {
 
     expect(within(section).getByRole('link', { name: 'official GitHub page' })).toHaveAttribute('href', sourceUrl);
     expect(section).not.toHaveTextContent('on macOS');
-    expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run scripts/build-from-source.sh for your platform.');
+    expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run tools/scripts/build-from-source.sh for your platform.');
     expect(section).toHaveTextContent('Open the Terminal app.');
     expect(section).toHaveTextContent('Copy the code below and paste it inside Terminal.');
     expect(section).toHaveTextContent('Shell');
@@ -3640,10 +3640,10 @@ describe('WebRoutes build from source section', () => {
     expect(section).toHaveTextContent('tar -xzf kaur-khor-latest-source-build.tar.gz');
     expect(section).toHaveTextContent('rm kaur-khor-latest-source-build.tar.gz kaur-khor-latest-source-build.tar.gz.sha256');
     expect(section).toHaveTextContent('cd kaur-khor-*-source-build');
-    expect(section).toHaveTextContent('./scripts/build-from-source.sh --update');
-    expect(section).toHaveTextContent('./scripts/build-from-source.sh --platform=linux-x64');
+    expect(section).toHaveTextContent('./tools/scripts/build-from-source.sh --update');
+    expect(section).toHaveTextContent('./tools/scripts/build-from-source.sh --platform=linux-x64');
     expect(section).not.toHaveTextContent('git clone');
-    expect(section).not.toHaveTextContent('node scripts/build-from-source.mjs');
+    expect(section).not.toHaveTextContent('node tools/scripts/build-from-source.mjs');
     expect(section).not.toHaveTextContent('build-mac-from-source.sh');
     expect(section).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip -o kaur-khor.zip');
   });
@@ -3665,8 +3665,8 @@ describe('WebRoutes build from source section', () => {
     expect(snippet).not.toBeNull();
     expect(section).toHaveTextContent('Open PowerShell.');
     expect(section).toHaveTextContent('Copy the code below and paste it inside PowerShell.');
-    expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run scripts/build-from-source.ps1 for your platform.');
-    expect(section).toHaveTextContent('.\\scripts\\build-from-source.ps1 --platform=windows-x64');
+    expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run tools/scripts/build-from-source.ps1 for your platform.');
+    expect(section).toHaveTextContent('.\\tools\\scripts\\build-from-source.ps1 --platform=windows-x64');
     expect(snippet).toHaveTextContent('Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz" -OutFile "kaur-khor-latest-source-build.tar.gz"');
     expect(snippet).toHaveTextContent('kaur-khor-latest-source-build.tar.gz.sha256');
     expect(snippet).toHaveTextContent('Get-FileHash -Algorithm SHA256');
@@ -3675,10 +3675,10 @@ describe('WebRoutes build from source section', () => {
     expect(snippet).toHaveTextContent('tar -xzf "kaur-khor-latest-source-build.tar.gz"');
     expect(snippet).toHaveTextContent('Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"');
     expect(snippet).toHaveTextContent('Set-Location "kaur-khor-*-source-build"');
-    expect(snippet).toHaveTextContent('.\\scripts\\build-from-source.ps1 --update');
+    expect(snippet).toHaveTextContent('.\\tools\\scripts\\build-from-source.ps1 --update');
     expect(snippet).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');
     expect(snippet).not.toHaveTextContent('tar -xzf kaur-khor-source.tar.gz');
-    expect(snippet).not.toHaveTextContent('./scripts/build-from-source.sh');
+    expect(snippet).not.toHaveTextContent('./tools/scripts/build-from-source.sh');
     expect(snippet).not.toHaveTextContent('node .\\scripts\\build-from-source.mjs');
   });
 

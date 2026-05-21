@@ -33,65 +33,65 @@ vi.mock('@/state/navigation-history', () => ({
   NavigationHistoryProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
-vi.mock('@/routes/dashboard', () => ({
+vi.mock('@/routes/workspace/dashboard', () => ({
   DashboardRoute: () => <div>Inbox screen</div>,
 }));
-vi.mock('@/routes/work', () => ({
+vi.mock('@/routes/workspace/work', () => ({
   WorkRoute: () => <div>Work screen</div>,
 }));
-vi.mock('@/routes/command-home', () => ({
+vi.mock('@/routes/workspace/command-home', () => ({
   CommandHomeRoute: () => <div>Home screen</div>,
 }));
-vi.mock('@/routes/insights', () => ({
+vi.mock('@/routes/insights/insights', () => ({
   InsightsRoute: () => <div>Insights screen</div>,
 }));
-vi.mock('@/routes/analysis', () => ({
+vi.mock('@/routes/insights/analysis', () => ({
   AnalysisRoute: () => <div>Analysis screen</div>,
 }));
-vi.mock('@/routes/record-update-hub', () => ({
+vi.mock('@/routes/records/record-update-hub', () => ({
   RecordUpdateHubRoute: () => <div>Record update screen</div>,
 }));
-vi.mock('@/routes/performance', () => ({
+vi.mock('@/routes/insights/performance', () => ({
   PerformanceRoute: () => <div>Performance screen</div>,
 }));
-vi.mock('@/routes/financials', () => ({
+vi.mock('@/routes/insights/financials', () => ({
   FinancialsRoute: () => <div>Financials screen</div>,
 }));
 vi.mock('@/routes/automations', () => ({
   AutomationsRoute: () => <div>Automations screen</div>,
 }));
-vi.mock('@/routes/inventory', () => ({
+vi.mock('@/routes/inventory/catalog-route', () => ({
   InventoryRoute: () => <div>Products screen</div>,
 }));
-vi.mock('@/routes/help', () => ({
+vi.mock('@/routes/help/help', () => ({
   HelpRoute: () => <div>Help screen</div>,
 }));
-vi.mock('@/routes/sku-form', () => ({
+vi.mock('@/routes/inventory/sku-form', () => ({
   SkuFormRoute: () => <div>SKU form screen</div>,
 }));
-vi.mock('@/routes/sku-detail', () => ({
+vi.mock('@/routes/inventory/sku-detail', () => ({
   SkuDetailRoute: () => <div>SKU detail screen</div>,
   SkuDetailLedgerRoute: () => <div>SKU ledger screen</div>,
 }));
-vi.mock('@/routes/service-form', () => ({
+vi.mock('@/routes/inventory/service-form', () => ({
   ServiceFormRoute: () => <div>Service form screen</div>,
 }));
-vi.mock('@/routes/service-detail', () => ({
+vi.mock('@/routes/inventory/service-detail', () => ({
   ServiceDetailRoute: () => <div>Service detail screen</div>,
 }));
-vi.mock('@/routes/stock-update', () => ({
+vi.mock('@/routes/records/stock-update', () => ({
   StockUpdateRoute: () => <div>Logs screen</div>,
 }));
-vi.mock('@/routes/archive', () => ({
+vi.mock('@/routes/workspace/archive', () => ({
   ArchiveRoute: () => <div>Archive screen</div>,
 }));
-vi.mock('@/routes/settings', () => ({
+vi.mock('@/routes/settings/settings', () => ({
   SettingsRoute: () => <div>Settings screen</div>,
 }));
-vi.mock('@/routes/stock-update-session', () => ({
+vi.mock('@/routes/records/stock-update-session', () => ({
   StockUpdateSessionRoute: () => <div>Stock update session screen</div>,
 }));
-vi.mock('@/routes/onboarding', () => ({
+vi.mock('@/routes/workspace/onboarding', () => ({
   OnboardingRoute: ({ allowCompleted = false }: { allowCompleted?: boolean }) => (
     <div>{allowCompleted ? 'Onboarding screen reopened' : 'Onboarding screen'}</div>
   ),
@@ -137,6 +137,24 @@ describe('AppRoutes', () => {
     renderRoutes('/catalog/skus/new');
 
     expect(screen.getByText('SKU form screen')).toBeInTheDocument();
+  });
+
+  it('renders the catalog route through the moved catalog route module after unlock', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{ archived: false, costPerUnit: 4, description: 'SKU', name: 'SKU 1', skuId: 'sku-1' }],
+      },
+      isLoading: false,
+      observations: [{ observationId: 'obs-1' }],
+    });
+
+    renderRoutes('/catalog');
+
+    expect(await screen.findByText('Products screen')).toBeInTheDocument();
   });
 
   it('sends removed operations routes to home', () => {

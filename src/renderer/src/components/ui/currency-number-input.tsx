@@ -2,7 +2,7 @@ import * as React from "react"
 import type { AppCurrency } from "@shared/inventory"
 
 import { NumberStepperInput } from "@/components/ui/number-stepper-input"
-import { currencyInputSymbol, moneyInputStep } from "@/lib/format"
+import { currencyInputSymbol, moneyInputStep } from "@/lib/formatting/format"
 import { cn } from "@/lib/utils"
 
 type CurrencyNumberInputProps = Omit<React.ComponentProps<typeof NumberStepperInput>, "inputPrefix" | "step" | "type"> & {

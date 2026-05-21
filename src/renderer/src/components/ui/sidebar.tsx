@@ -6,7 +6,7 @@ import { NavigationSidebarIcon } from '@icons/navigation'
 import { Slot } from "radix-ui"
 
 import { useIsMobile } from "@/hooks/use-mobile"
-import { rowHoverClassName } from "@/lib/interactive-surface"
+import { rowHoverClassName } from "@/lib/ui/interactive-surface"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

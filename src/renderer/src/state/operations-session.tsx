@@ -12,8 +12,8 @@ import {
   hasRankingChanged,
   normalizeReportRanking,
 } from '@/components/system/merchandising-editor';
-import { formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
-import { formatEditableWholeNumber, parseEditableNumberWithCommas, sanitizeWholeNumberForDisplay } from '@/lib/format';
+import { formatLocalDateTimeInputValue } from '@/lib/formatting/date-input-utils';
+import { formatEditableWholeNumber, parseEditableNumberWithCommas, sanitizeWholeNumberForDisplay } from '@/lib/formatting/format';
 
 export type OperationsSessionPreset = 'small' | 'medium' | 'big';
 export type OperationsSessionStepId =

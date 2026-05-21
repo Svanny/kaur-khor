@@ -3,16 +3,16 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
 import { KaurKhorShell } from '@/components/kaur-khor-shell';
 import { CommandPaletteProvider } from '@/components/command-palette';
-import { CommandHomeRoute } from '@/routes/command-home';
-import { deriveNavigationAvailability } from '@/lib/navigation-availability';
-import { readCatalogRouteState } from '@/lib/navigation-state';
-import { PageStateMemoryObserver } from '@/lib/page-state-memory';
-import { OnboardingRoute } from '@/routes/onboarding';
+import { CommandHomeRoute } from '@/routes/workspace/command-home';
+import { deriveNavigationAvailability } from '@/lib/navigation/navigation-availability';
+import { readCatalogRouteState } from '@/lib/navigation/navigation-state';
+import { PageStateMemoryObserver } from '@/lib/settings/page-state-memory';
+import { OnboardingRoute } from '@/routes/workspace/onboarding';
 import {
   RECORD_UPDATE_HUB_PATH,
   RECORD_UPDATE_LANES,
   RECORD_UPDATE_STOCK_COUNT_PATH,
-} from '@/lib/record-update-routes';
+} from '@/lib/navigation/record-update-routes';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider, useInventoryState } from '@/state/inventory';
 import { AutomationProvider } from '@/state/automation';
@@ -24,20 +24,20 @@ import {
   markBenchmarkStart,
   recordBenchmarkInstant,
   snapshotRendererMemory,
-} from '@/lib/benchmark';
+} from '@/lib/ui/benchmark';
 
-const InventoryRoute = lazy(() => import('@/routes/inventory').then((module) => ({ default: module.InventoryRoute })));
-const InsightsRoute = lazy(() => import('@/routes/insights').then((module) => ({ default: module.InsightsRoute })));
-const RecordUpdateHubRoute = lazy(() => import('@/routes/record-update-hub').then((module) => ({ default: module.RecordUpdateHubRoute })));
-const WorkRoute = lazy(() => import('@/routes/work').then((module) => ({ default: module.WorkRoute })));
-const ServiceDetailRoute = lazy(() => import('@/routes/service-detail').then((module) => ({ default: module.ServiceDetailRoute })));
-const ServiceFormRoute = lazy(() => import('@/routes/service-form').then((module) => ({ default: module.ServiceFormRoute })));
-const SettingsRoute = lazy(() => import('@/routes/settings').then((module) => ({ default: module.SettingsRoute })));
-const SkuDetailRoute = lazy(() => import('@/routes/sku-detail').then((module) => ({ default: module.SkuDetailRoute })));
-const SkuDetailLedgerRoute = lazy(() => import('@/routes/sku-detail').then((module) => ({ default: module.SkuDetailLedgerRoute })));
-const SkuFormRoute = lazy(() => import('@/routes/sku-form').then((module) => ({ default: module.SkuFormRoute })));
-const StockUpdateRoute = lazy(() => import('@/routes/stock-update').then((module) => ({ default: module.StockUpdateRoute })));
-const StockUpdateSessionRoute = lazy(() => import('@/routes/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })));
+const InventoryRoute = lazy(() => import('@/routes/inventory/catalog-route').then((module) => ({ default: module.InventoryRoute })));
+const InsightsRoute = lazy(() => import('@/routes/insights/insights').then((module) => ({ default: module.InsightsRoute })));
+const RecordUpdateHubRoute = lazy(() => import('@/routes/records/record-update-hub').then((module) => ({ default: module.RecordUpdateHubRoute })));
+const WorkRoute = lazy(() => import('@/routes/workspace/work').then((module) => ({ default: module.WorkRoute })));
+const ServiceDetailRoute = lazy(() => import('@/routes/inventory/service-detail').then((module) => ({ default: module.ServiceDetailRoute })));
+const ServiceFormRoute = lazy(() => import('@/routes/inventory/service-form').then((module) => ({ default: module.ServiceFormRoute })));
+const SettingsRoute = lazy(() => import('@/routes/settings/settings').then((module) => ({ default: module.SettingsRoute })));
+const SkuDetailRoute = lazy(() => import('@/routes/inventory/sku-detail').then((module) => ({ default: module.SkuDetailRoute })));
+const SkuDetailLedgerRoute = lazy(() => import('@/routes/inventory/sku-detail').then((module) => ({ default: module.SkuDetailLedgerRoute })));
+const SkuFormRoute = lazy(() => import('@/routes/inventory/sku-form').then((module) => ({ default: module.SkuFormRoute })));
+const StockUpdateRoute = lazy(() => import('@/routes/records/stock-update').then((module) => ({ default: module.StockUpdateRoute })));
+const StockUpdateSessionRoute = lazy(() => import('@/routes/records/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })));
 
 const ROUTE_LOCAL_READY_NAMES = new Set([
   'insights.explain',

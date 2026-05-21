@@ -35,7 +35,7 @@ Scope pills, filter pills, status pills, confidence pills, and workbench pills a
 
 If a toggle uses custom tile content, the tile still needs a visible icon adjacent to the text treatment. Do not ship text-only toggle pills.
 
-The regression gate is `src/renderer/src/lib/design-rules.test.ts`. It scans renderer source and fails when a visible-label `button`, shared `Button`, or non-timeframe visible-label `ToggleGroupItem` lacks an icon descendant, except for First and Last pagination endpoint buttons, and when a destructive button lacks destructive treatment. Do not add allowlists for new debt.
+The regression gate is `src/renderer/src/lib/ui/design-rules.test.ts`. It scans renderer source and fails when a visible-label `button`, shared `Button`, or non-timeframe visible-label `ToggleGroupItem` lacks an icon descendant, except for First and Last pagination endpoint buttons, and when a destructive button lacks destructive treatment. Do not add allowlists for new debt.
 
 ## Centered Command Tile Grid Rule
 
@@ -47,7 +47,7 @@ Do not re-create page-specific viewport math for these command grids. If a new s
 
 Use `LiquidGridCard` or `liquidGridCardBaseClassName` plus `LiquidGridCardLayer` for large square hub tiles that share the glass-like command-card treatment. Work, Insights, and Capture hub cards should use this shared surface instead of duplicating local border, shadow, hover, and overlay classes.
 
-Keep card colors supplied by `gridCardSurfaceClassName()`. New hub tones belong in `src/renderer/src/lib/grid-card-colors.ts`, not as one-off route classes. Tests may assert the color token classes for route-specific semantics, but route code should stay tied to the shared color map.
+Keep card colors supplied by `gridCardSurfaceClassName()`. New hub tones belong in `src/renderer/src/lib/ui/grid-card-colors.ts`, not as one-off route classes. Tests may assert the color token classes for route-specific semantics, but route code should stay tied to the shared color map.
 
 ## Interface View Presets
 
@@ -63,7 +63,7 @@ Every top-level page control must use URL-backed state, and top-level navigation
 
 Persist only safe page-level controls. Do not persist selected rows, open drawers, popups, destructive dialogs, detail-page actions, or in-progress wizard form data as page state.
 
-Use `src/renderer/src/lib/page-state-memory.ts` for page-state persistence and remembered href builders. The memory is local-first and reload-safe via `localStorage`; resetting a page to its canonical default state must clear that page's remembered entry.
+Use `src/renderer/src/lib/settings/page-state-memory.ts` for page-state persistence and remembered href builders. The memory is local-first and reload-safe via `localStorage`; resetting a page to its canonical default state must clear that page's remembered entry.
 
 Page memory can also store small scoped values such as chart layout preferences through `readRememberedPageValue()` and `writeRememberedPageValue()`. Use validators for these values and clear default values from storage so the remembered record remains small and route-focused. Chart pane heights are only restorable when they are marked as manual user resizes; passive chart measurements should not become persisted layout preferences.
 

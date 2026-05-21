@@ -2,7 +2,7 @@ import { useId, type ReactNode } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DescriptionText } from '@/components/system/description-text';
 import { Label } from '@/components/ui/label';
-import { rowHoverClassName } from '@/lib/interactive-surface';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
 import { cn } from '@/lib/utils';
 
 export function CheckboxRow({

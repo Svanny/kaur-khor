@@ -1,7 +1,7 @@
 %% Kaur Khor desktop navigation benchmark architecture.
 sequenceDiagram
   autonumber
-  participant Bench as Navigation benchmark<br/>bench/scenarios/navigation.bench.ts
+  participant Bench as Navigation benchmark<br/>tests/bench/scenarios/navigation.bench.ts
   participant Shell as KaurKhorShell sidebar
   participant Router as React Router<br/>BenchmarkRouteObserver
   participant Provider as InventoryProvider<br/>PreferencesProvider
@@ -10,7 +10,7 @@ sequenceDiagram
   participant Main as Electron main IPC<br/>benchmarkIpcHandle
   participant Core as Managed desktop-core pool
   participant Store as SQLite read models<br/>and checkpoints
-  participant Metrics as Benchmark summary<br/>bench/helpers/bench-metrics.ts
+  participant Metrics as Benchmark summary<br/>tests/bench/helpers/bench-metrics.ts
 
   Bench->>Provider: wait for renderer.workspace.ready
   Bench->>Shell: click visible sidebar item

@@ -5,7 +5,7 @@ import { describe, expect, test, vi } from 'vitest';
 import type { AutomationExposureRow } from '@shared/automation';
 import { AutomationExposureTable } from './exposure-table';
 
-vi.mock('@/routes/sku-detail/section-heading', () => ({
+vi.mock('@/routes/inventory/sku-detail/section-heading', () => ({
   SectionLabel: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }));
 

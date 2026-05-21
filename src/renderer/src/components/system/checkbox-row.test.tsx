@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
-import { rowHoverClassName } from '@/lib/interactive-surface';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
 import { CheckboxRow } from './checkbox-row';
 
 describe('CheckboxRow', () => {

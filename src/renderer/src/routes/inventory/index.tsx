@@ -47,8 +47,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
-import { createAnimationFrameScheduler } from '@/lib/animation-frame-scheduler';
+import { useBenchmarkRouteReady } from '@/lib/ui/benchmark-route-ready';
+import { createAnimationFrameScheduler } from '@/lib/ui/animation-frame-scheduler';
 import {
   buildInventorySearchParams,
   inventoryProjectionHorizonValues,
@@ -60,17 +60,17 @@ import {
   type InventoryProjectionHorizonValue,
   type InventoryRouteState,
   type InventoryViewPresetValue,
-} from '@/lib/navigation-state';
-import { buildRememberedInboxHref } from '@/lib/page-state-memory';
-import { activeSenaCatalog, type SupplierFilterValue } from '@/lib/sena-catalog';
-import { translateUiLiteral } from '@/lib/translations';
+} from '@/lib/navigation/navigation-state';
+import { buildRememberedInboxHref } from '@/lib/settings/page-state-memory';
+import { activeSenaCatalog, type SupplierFilterValue } from '@/lib/catalog/sena-catalog';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
-import { rowHoverClassName } from '@/lib/interactive-surface';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
-import { PerformanceSectionShell } from '@/routes/performance/chrome';
-import { useSenaDetailHydration } from '@/routes/performance/use-sena-detail-hydration';
-import { WorkspaceTitleCardWireframe, WireframeRailCards, WireframeRows } from '@/routes/loading-wireframes';
+import { PerformanceSectionShell } from '@/routes/insights/performance/chrome';
+import { useSenaDetailHydration } from '@/routes/insights/performance/use-sena-detail-hydration';
+import { WorkspaceTitleCardWireframe, WireframeRailCards, WireframeRows } from '@/routes/inventory/loading-wireframes';
 import { InventoryExpandedRow } from './expanded-row';
 import { InventoryInspector } from './inspector';
 import { ProjectionMatrix } from './projection-matrix';

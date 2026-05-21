@@ -33,10 +33,10 @@ import { ItemAvatar } from '@/components/system/item-identity';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { latestObservationAt as latestObservationAtForRecords } from '@/routes/observation-payload';
-import { buildRememberedCatalogHref, buildRememberedInboxHref } from '@/lib/page-state-memory';
-import { parseLocalDateTimeInputIso } from '@/lib/date-input-utils';
-import { recordTicketOptions, sortRecordTicketOptionsByRecent } from '@/lib/record-activity';
+import { latestObservationAt as latestObservationAtForRecords } from '@/routes/records/observation-payload';
+import { buildRememberedCatalogHref, buildRememberedInboxHref } from '@/lib/settings/page-state-memory';
+import { parseLocalDateTimeInputIso } from '@/lib/formatting/date-input-utils';
+import { recordTicketOptions, sortRecordTicketOptionsByRecent } from '@/lib/records/record-activity';
 import {
   buildBatchUpdateHref,
   buildCaptureSessionHref,
@@ -54,18 +54,18 @@ import {
   type CaptureSessionAction,
   type CaptureSessionTargetType,
   type OverviewTaskAction,
-} from '@/lib/record-update-routes';
-import { activeSenaCatalog, linkedSkuIdsForService, linkedSkusForService, supplierNameForSku } from '@/lib/sena-catalog';
-import { formatCurrency, parseEditableNumberWithCommas } from '@/lib/format';
-import { statusPillClassName } from '@/lib/state-tones';
-import { translateUiLiteral } from '@/lib/translations';
+} from '@/lib/navigation/record-update-routes';
+import { activeSenaCatalog, linkedSkuIdsForService, linkedSkusForService, supplierNameForSku } from '@/lib/catalog/sena-catalog';
+import { formatCurrency, parseEditableNumberWithCommas } from '@/lib/formatting/format';
+import { statusPillClassName } from '@/lib/ui/state-tones';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
-import { PageStateMemoryObserver } from '@/lib/page-state-memory';
+import { PageStateMemoryObserver } from '@/lib/settings/page-state-memory';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { useAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
-import { OnboardingRoute } from '@/routes/onboarding';
+import { OnboardingRoute } from '@/routes/workspace/onboarding';
 import { AutomationIntakeDrawer } from '@/routes/automations/intake-drawer';
 import { OverviewTaskDrawer } from '@/routes/overview/task-drawer';
 import {
@@ -82,10 +82,10 @@ import {
 } from '@/routes/overview/view-model';
 
 const LazyRecordUpdateHubRoute = lazy(() =>
-  import('@/routes/record-update-hub').then((module) => ({ default: module.RecordUpdateHubRoute })),
+  import('@/routes/records/record-update-hub').then((module) => ({ default: module.RecordUpdateHubRoute })),
 );
 const LazyStockUpdateSessionRoute = lazy(() =>
-  import('@/routes/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })),
+  import('@/routes/records/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })),
 );
 
 type EmbeddedMode = 'app' | 'demo';

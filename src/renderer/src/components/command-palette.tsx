@@ -42,8 +42,8 @@ import {
   exportLogsAction,
   exportPlanningDataAction,
   restoreBackupSnapshotAction,
-} from '@/lib/settings-workspace-actions';
-import { translateUiLiteral } from '@/lib/translations';
+} from '@/lib/settings/settings-workspace-actions';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
 import {
   commandBadgeLabel,
@@ -51,8 +51,8 @@ import {
   buildCommandDescriptors,
   groupCommandDescriptors,
   searchCommandDescriptors,
-} from '@/lib/command-palette';
-import { usePageStateMemoryVersion } from '@/lib/page-state-memory';
+} from '@/lib/navigation/command-palette';
+import { usePageStateMemoryVersion } from '@/lib/settings/page-state-memory';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 

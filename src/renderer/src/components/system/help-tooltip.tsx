@@ -3,7 +3,7 @@ import { ActionOpenExternalIcon } from '@icons/actions';
 import { StatusHelpIcon } from '@icons/status';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
 import { HoverTooltip } from '@/components/system/hover-tooltip';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 

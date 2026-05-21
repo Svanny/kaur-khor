@@ -120,7 +120,7 @@ Work session.
 
 ## Backup Snapshot Model
 
-The backup implementation lives in [`src/main/local-backup.ts`](../../src/main/local-backup.ts).
+The backup implementation lives in [`src/main/local-data/local-backup.ts`](../../src/main/local-data/local-backup.ts).
 
 Snapshot behavior:
 
@@ -295,9 +295,9 @@ Current automation actions:
 
 ## Contributor Notes
 
-- If you change backup eligibility or snapshot contents, update this page and the related tests in [`src/main/local-backup.test.ts`](../../src/main/local-backup.test.ts).
+- If you change backup eligibility or snapshot contents, update this page and the related tests in [`src/main/local-data/local-backup.test.ts`](../../src/main/local-data/local-backup.test.ts).
 - If you change external URL, local path, or navigation guard policy, update
-  this page and the related tests in [`src/main/platform-security.test.ts`](../../src/main/platform-security.test.ts).
+  this page and the related tests in [`src/main/security/platform-security.test.ts`](../../src/main/security/platform-security.test.ts).
 - If you add or rename IPC fields, update [`src/shared/ipc.ts`](../../src/shared/ipc.ts) first and keep renderer/main behavior aligned.
 - If you change automation persistence shape or bridge methods, update this page and keep [`src/main/index.ts`](../../src/main/index.ts), [`src/preload/index.ts`](../../src/preload/index.ts), and [`src/shared/ipc.ts`](../../src/shared/ipc.ts) aligned.
 - If a workspace mutation becomes destructive or high-risk, prefer routing it through the existing automatic snapshot path instead of inventing a separate safety mechanism.

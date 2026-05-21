@@ -54,7 +54,7 @@ done < <(tar -tzf kaur-khor-latest-source-build.tar.gz)
 tar -xzf kaur-khor-latest-source-build.tar.gz
 rm kaur-khor-latest-source-build.tar.gz kaur-khor-latest-source-build.tar.gz.sha256
 cd kaur-khor-*-source-build
-./scripts/build-from-source.sh --update
+./tools/scripts/build-from-source.sh --update
 ```
 
 The update script keeps extracted source-build folders under a stable
@@ -82,7 +82,7 @@ custom location.
 
 After a source build, the script opens the nested runnable-app folder under the versioned folder's `release/` directory when the platform emits one, such as `kaur-khor/kaur-khor-v0.5.2-source-build/release/mac-arm64` on Apple Silicon Macs.
 
-To choose a native build explicitly, pass a platform flag such as `./scripts/build-from-source.sh --platform=linux-x64`. If a requested Node version or rustup target does not have a pinned digest in the source-build scripts, install that toolchain yourself from the official vendor instructions, then rerun the build instead of bypassing verification.
+To choose a native build explicitly, pass a platform flag such as `./tools/scripts/build-from-source.sh --platform=linux-x64`. If a requested Node version or rustup target does not have a pinned digest in the source-build scripts, install that toolchain yourself from the official vendor instructions, then rerun the build instead of bypassing verification.
 
 ## Windows
 
@@ -114,7 +114,7 @@ foreach ($archiveEntry in $archiveEntries) {
 tar -xzf "kaur-khor-latest-source-build.tar.gz"
 Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"
 Set-Location "kaur-khor-*-source-build"
-.\scripts\build-from-source.ps1 --update
+.\tools\scripts\build-from-source.ps1 --update
 ```
 
 After a successful Windows source build, the script opens the generated setup installer from `release\`. Complete that installer to register the app with Windows instead of launching `release\win-unpacked` directly.

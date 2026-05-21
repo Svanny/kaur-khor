@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Toggle as TogglePrimitive } from 'radix-ui';
-import { pillHoverClassName } from '@/lib/interactive-surface';
+import { pillHoverClassName } from '@/lib/ui/interactive-surface';
 import { cn } from '@/lib/utils';
 
 const toggleVariants = cva(

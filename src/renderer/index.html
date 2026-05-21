@@ -4,12 +4,32 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <title>Kaur Khor desktop</title>
+    <meta
+      name="description"
+      content="Kaur Khor inventory workspace public site, browser preview, and install guide."
+    />
+    <meta name="theme-color" content="#F8F1EB" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Kaur Khor" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' https://api.github.com https://api.telegram.org; img-src 'self' data: blob:; font-src 'self'; form-action 'none'"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="./src/assets/kaur-khor-browser-icon.svg"
+    />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+    <title>Kaur Khor</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="./src/main.tsx"></script>
   </body>
-  </html>
+</html>

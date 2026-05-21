@@ -1,7 +1,7 @@
 import type { AppLanguage } from '@shared/inventory';
-import { PerformanceRightRailBlock } from '@/routes/performance/chrome';
-import { translateUiLiteral } from '@/lib/translations';
-import { formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
+import { PerformanceRightRailBlock } from '@/routes/insights/performance/chrome';
+import { translateUiLiteral } from '@/lib/localization/translations';
+import { formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/inventory/sku-detail/format';
 import type { InventoryGridRow, InventoryViewModel } from './view-model';
 
 function RailList({ rows }: { rows: Array<{ label: string; value: string | number }> }) {

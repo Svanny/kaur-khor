@@ -3,13 +3,13 @@ sequenceDiagram
   autonumber
   participant Bench as Benchmark runner
   participant Main as Electron main<br/>src/main/index.ts
-  participant Backend as Managed core backend<br/>src/main/backend.ts
+  participant Backend as Managed core backend<br/>src/main/runtime/backend.ts
   participant Writer as Writer core
   participant Readers as Read-worker pool
   participant Store as SQLite workspace store
   participant Preload as Preload bridge<br/>src/preload/index.ts
   participant Renderer as React renderer<br/>InventoryProvider
-  participant Metrics as Benchmark summary<br/>bench/helpers/bench-metrics.ts
+  participant Metrics as Benchmark summary<br/>tests/bench/helpers/bench-metrics.ts
 
   Bench->>Main: launch Electron with benchmark env
   Main->>Metrics: record main.boot.start

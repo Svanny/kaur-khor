@@ -23,7 +23,7 @@ import {
   deriveSenaDetailCacheFreshnessFingerprint,
   readPersistedSenaDetailPage,
   writePersistedSenaDetailPage,
-} from '@/lib/sena-detail-page-cache';
+} from '@/lib/sena/sena-detail-page-cache';
 import { InventoryProvider, useInventory } from './inventory';
 
 function createStorageMock(): Storage {

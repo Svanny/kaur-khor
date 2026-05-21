@@ -96,7 +96,7 @@ diagnostic captures only. It does not use pixel baselines in this phase.
 
 ## Guardrails
 
-Every matrix scenario should use shared helpers from `ui-matrix/helpers` for:
+Every matrix scenario should use shared helpers from `tests/ui-matrix/helpers` for:
 
 - console, page-error, and request-failure collection
 - screenshot capture
@@ -113,7 +113,7 @@ attributes only when the UI does not expose a stable accessible selector.
 
 ## Adding Cases
 
-Add scenario metadata in `ui-matrix/matrix-cases.ts` before adding a new scenario
+Add scenario metadata in `tests/ui-matrix/matrix-cases.ts` before adding a new scenario
 or expanding an existing one. Each case records the product target, data-state
 matrix, feature area, setup, interaction, expected UI result, expected data
 result, consistency checks, priority, test type, captures, and edge notes.

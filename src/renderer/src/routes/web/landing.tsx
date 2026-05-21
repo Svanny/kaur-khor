@@ -63,7 +63,7 @@ const shellSourceBuildCommands = [
   'tar -xzf kaur-khor-latest-source-build.tar.gz',
   'rm kaur-khor-latest-source-build.tar.gz kaur-khor-latest-source-build.tar.gz.sha256',
   'cd kaur-khor-*-source-build',
-  './scripts/build-from-source.sh --update',
+  './tools/scripts/build-from-source.sh --update',
 ] as const;
 const powershellSourceBuildCommands = [
   'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz" -OutFile "kaur-khor-latest-source-build.tar.gz"',
@@ -73,7 +73,7 @@ const powershellSourceBuildCommands = [
   'tar -xzf "kaur-khor-latest-source-build.tar.gz"',
   'Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"',
   'Set-Location "kaur-khor-*-source-build"',
-  '.\\scripts\\build-from-source.ps1 --update',
+  '.\\tools\\scripts\\build-from-source.ps1 --update',
 ] as const;
 const sourceBuildCodeFontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 const screenshotWidth = 1600;
@@ -744,8 +744,8 @@ function sourceBuildSnippetForPlatform(platform: DetectedPlatform) {
     commands: isWindows ? powershellSourceBuildCommands : shellSourceBuildCommands,
     firstStep: isWindows ? 'Open PowerShell.' : 'Open the Terminal app.',
     pasteStep: isWindows ? 'Copy the code below and paste it inside PowerShell.' : 'Copy the code below and paste it inside Terminal.',
-    platformFlagExample: isWindows ? '.\\scripts\\build-from-source.ps1 --platform=windows-x64' : './scripts/build-from-source.sh --platform=linux-x64',
-    scriptPath: isWindows ? 'scripts/build-from-source.ps1' : 'scripts/build-from-source.sh',
+    platformFlagExample: isWindows ? '.\\tools\\scripts\\build-from-source.ps1 --platform=windows-x64' : './tools/scripts/build-from-source.sh --platform=linux-x64',
+    scriptPath: isWindows ? 'tools/scripts/build-from-source.ps1' : 'tools/scripts/build-from-source.sh',
     shellLabel: isWindows ? 'PowerShell' : 'Shell',
   };
 }

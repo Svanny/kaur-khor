@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
-import { createManagedCoreController } from './core-manager';
+import { createManagedCoreController } from './runtime/core-manager';
 import {
   cleanupCloseSafetyDesktopBackupSnapshots,
   clearCurrentDesktopData,
@@ -15,16 +15,16 @@ import {
   desktopBackupDirectoryPath,
   readLatestDesktopBackupSnapshotCreatedAt,
   restoreDesktopBackupSnapshot,
-} from './local-backup';
-import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
-import { normalizeDesktopImage } from './desktop-image';
-import { assertDesktopImageFileIsSafeForImport } from './desktop-image-import';
-import { resolveDesktopAssetPathFromRequest } from './desktop-asset-protocol';
-import { normalizeAllowedExternalUrl } from './external-url';
-import { normalizeAllowedLocalDataPath } from './local-path-access';
-import { installMainWindowNavigationGuards } from './navigation-guards';
-import { storeDroppedImageHandler } from './store-dropped-image';
-import { checkForKaurKhorUpdate, launchKaurKhorSourceUpdate } from './desktop-update';
+} from './local-data/local-backup';
+import { loadDesktopPreferences, saveDesktopPreferences } from './local-data/preferences';
+import { normalizeDesktopImage } from './desktop/desktop-image';
+import { assertDesktopImageFileIsSafeForImport } from './desktop/desktop-image-import';
+import { resolveDesktopAssetPathFromRequest } from './desktop/desktop-asset-protocol';
+import { normalizeAllowedExternalUrl } from './security/external-url';
+import { normalizeAllowedLocalDataPath } from './local-data/local-path-access';
+import { installMainWindowNavigationGuards } from './window/navigation-guards';
+import { storeDroppedImageHandler } from './desktop/store-dropped-image';
+import { checkForKaurKhorUpdate, launchKaurKhorSourceUpdate } from './update/desktop-update';
 import {
   normalizeSenaDetailCacheClearPayload,
   normalizeSenaCatalogPayload,
@@ -41,7 +41,7 @@ import {
   normalizeSenaTriggerRunPayload,
   normalizeSenaUpdateOrderBatchPayload,
   normalizeSenaUpdateOrderChildPayload,
-} from './sena-ipc-payloads';
+} from './runtime/sena-ipc-payloads';
 import {
   finalizeAutomationPromotion,
   listAutomationConversations,
@@ -58,7 +58,7 @@ import {
   readAutomationWorkspace,
   resolveAutomationIntake,
   ticketEventsRequiringTelegramNotification,
-} from './automation-store';
+} from './automation/automation-store';
 import {
   notifyTelegramCustomerOfPromotion,
   notifyTelegramCustomerOfTicketUpdate,
@@ -66,8 +66,8 @@ import {
   sendTelegramCustomerMessageForIntake,
   startTelegramAutomationLoop,
   validateAndSaveTelegramAutomationConnection,
-} from './automation-telegram';
-import { loadAutomationCatalog, loadAutomationWorkspaceContext } from './automation-read-context';
+} from './automation/automation-telegram';
+import { loadAutomationCatalog, loadAutomationWorkspaceContext } from './automation/automation-read-context';
 import {
   IPC_CHANNELS,
   type AutomationBenchmarkSeedPayload,
@@ -138,20 +138,20 @@ import {
   snapshotProcessMemory,
   startBenchmarkSpan,
   waitForBenchmarkEventCount,
-} from './benchmark';
-import { registerBenchmarkRunnerIpc } from './benchmark-runner';
+} from './benchmark/benchmark';
+import { registerBenchmarkRunnerIpc } from './benchmark/benchmark-runner';
 import {
   detectDevWorkspaceSeedState,
   markDevWorkspaceBlank,
   prepareGeneratedWorkspace,
   shouldPrepareGeneratedWorkspace,
   shouldSeedGeneratedDevWorkspace,
-} from './dev-history-generator';
+} from './runtime/dev-history-generator';
 import {
   prepareInactiveMacDevWindowLaunch,
   shouldPrepareInactiveMacDevWindowLaunch,
   showWindowWithoutStealingFocus,
-} from './window-activation';
+} from './window/window-activation';
 import {
   changeManualWindowZoomLevel,
   createManagedWindowZoomState,
@@ -162,7 +162,7 @@ import {
   resetManualWindowZoomLevel,
   updateAutomaticWindowZoomLevel,
   type ManagedWindowZoomState,
-} from './window-zoom';
+} from './window/window-zoom';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { PAGE_STATE_MEMORY_STORAGE_KEY } from '@/lib/page-state-memory';
+import { PAGE_STATE_MEMORY_STORAGE_KEY } from '@/lib/settings/page-state-memory';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { KaurKhorShell } from './kaur-khor-shell';
 

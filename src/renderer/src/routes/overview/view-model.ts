@@ -10,19 +10,19 @@ import type {
   SenaTicketSummary,
   SenaWorkspaceSummary,
 } from '@shared/sena';
-import { activeSenaCatalog } from '@/lib/sena-catalog';
+import { activeSenaCatalog } from '@/lib/catalog/sena-catalog';
 import { deriveLeadTimeVariabilityClass } from '@shared/sena-lead-time';
-import { formatLocalDateInputValue } from '@/lib/date-input-utils';
-import { formatWholeNumber } from '@/lib/format';
-import { translateRegimeLabel } from '@/lib/localized-display';
+import { formatLocalDateInputValue } from '@/lib/formatting/date-input-utils';
+import { formatWholeNumber } from '@/lib/formatting/format';
+import { translateRegimeLabel } from '@/lib/localization/localized-display';
 import {
   formatSenaReorderQuantity,
   isSenaReorderQuantityIssued,
   type SenaReorderQuantityDisplay,
-} from '@/lib/sena-reorder-quantity';
-import { latestObservationAt } from '@/routes/observation-payload';
-import { formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
-import { getTranslation, translateUiLiteral } from '@/lib/translations';
+} from '@/lib/sena/sena-reorder-quantity';
+import { latestObservationAt } from '@/routes/records/observation-payload';
+import { formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/inventory/sku-detail/format';
+import { getTranslation, translateUiLiteral } from '@/lib/localization/translations';
 
 export type OverviewTaskFilter =
   | 'all'

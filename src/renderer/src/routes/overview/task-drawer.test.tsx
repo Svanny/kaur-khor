@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SenaRecordUpdateContext, SenaTicketSummary } from '@shared/sena';
-import { getTranslation } from '@/lib/translations';
+import { getTranslation } from '@/lib/localization/translations';
 import { OverviewTaskDrawer } from './task-drawer';
 import type { OverviewSkuTask, OverviewSupplierTicketTask } from './view-model';
 
@@ -195,6 +195,7 @@ const childTask: OverviewSkuTask = {
   childOrderId: null,
   supplierTicket,
   supplierTicketId: 'supplier-ticket-1',
+  supplierTicketDisplayId: null,
   batchChildCount: 0,
   currentStock: 36,
   costPerUnit: 3,

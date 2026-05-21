@@ -1,5 +1,5 @@
-import type { SenaReorderQuantityDisplay } from '@/lib/sena-reorder-quantity';
-import { translateUiLiteral } from '@/lib/translations';
+import type { SenaReorderQuantityDisplay } from '@/lib/sena/sena-reorder-quantity';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 
