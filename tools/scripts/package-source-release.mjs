@@ -152,7 +152,7 @@ function isExcluded(filePath) {
   if (/\.(?:test|spec)\.(?:[cm]?js|tsx?)$/i.test(filePath)) {
     return true;
   }
-  if (/\.(png|jpe?g|webp|gif)$/i.test(filePath)) {
+  if (/\.(png|jpe?g|webp|gif)$/i.test(filePath) && !filePath.startsWith('resources/')) {
     return true;
   }
   if (/\.svg$/i.test(filePath) && !filePath.startsWith('src/renderer/src/assets/kaur-khor')) {
