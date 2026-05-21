@@ -1006,7 +1006,7 @@ Restoring a snapshot replaces the local workspace with the selected snapshot. Cr
 
 ### Automation Settings {#settings-automation}
 
-Settings / Automation opens the Telegram automation configuration surface. Use it to save or review the bot display name, username, bot link, bot token, and external link behavior. Product exposure lives in Products and automation intake lives in Work / Intake.
+Settings / Automation opens the Telegram automation configuration surface. Use it to save or review the bot display name, username, bot link, bot token, and external link behavior. Product exposure lives in Automations / Sellables exposed, and automation intake lives in Work / Intake.
 
 Automation is experimental. Paused, connected, disconnected, and error states should be treated as operational state, not decoration. If Automations and intake is hidden from Interface, Settings redirects back to Interface and highlights the toggle instead of showing the automation setup page.
 

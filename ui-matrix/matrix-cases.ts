@@ -62,7 +62,7 @@ export const UI_MATRIX_CASES: UiMatrixCase[] = [
     consistency: 'Chart detail assertions run inside the same generated route sweep used for Catalog and Insights parity.',
     priority: 'P0',
     testTypes: ['regression', 'visual'],
-    captures: ['generated-sku-detail-chart'],
+    captures: ['sku-detail-chart'],
     edgeNotes: 'Complements unit tests that control pane counts and mocked coordinates more precisely.',
   },
   {
