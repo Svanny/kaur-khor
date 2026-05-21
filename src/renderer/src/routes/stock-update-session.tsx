@@ -11648,6 +11648,9 @@ export function StockUpdateSessionRoute() {
       if (target instanceof Element && target.closest('[role="dialog"]')) {
         return;
       }
+      if (target instanceof Element && target.closest('[data-slot="phone-reorder-scroll-controls"]')) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       requestWorkbenchReorderPrompt();

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS } from '@shared/ipc';
@@ -216,6 +216,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
   const prefersReducedMotion = usePrefersReducedMotion();
   const { isBrowserDemoRuntime } = useRuntimeMode();
   const isEmbeddedPhonePortrait = useEmbeddedPhonePortraitViewport();
+  const showInterfacePicker = step === 'interface' && !isEmbeddedPhonePortrait;
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
     preferencesTitle: onboardingCopy('Set up Kaur Khor'),
@@ -249,32 +250,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
     seededPreferencesRef.current = true;
   }, [currency, isHydrated, language]);
 
-  if (!isHydrated) {
-    return (
-      <div className="flex min-h-svh items-center justify-center px-6">
-        <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
-          <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
-            KAUR KHOR
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
-            {translateUiLiteral(language, 'Loading preferences…')}
-          </h1>
-        </div>
-      </div>
-    );
-  }
-
-  if (onboardingCompletedAt && !allowCompleted) {
-    return <Navigate replace to="/" />;
-  }
-
-  async function handleContinue() {
-    if (step === 'preferences') {
-      setSaveError(false);
-      setSearchParams({ step: 'interface' }, { replace: true });
-      return;
-    }
-
+  const completeOnboarding = useCallback(async () => {
     setSaveError(false);
     setIsSaving(true);
     try {
@@ -308,6 +284,76 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
     } finally {
       setIsSaving(false);
     }
+  }, [
+    isBrowserDemoRuntime,
+    navigate,
+    savePreferences,
+    selectedCurrency,
+    selectedLanguage,
+    selectedViewMode,
+  ]);
+
+  useEffect(() => {
+    if (!isHydrated || !isEmbeddedPhonePortrait || step !== 'interface' || isSaving || saveError) {
+      return;
+    }
+
+    void completeOnboarding();
+  }, [
+    completeOnboarding,
+    isEmbeddedPhonePortrait,
+    isHydrated,
+    isSaving,
+    saveError,
+    step,
+  ]);
+
+  if (!isHydrated) {
+    return (
+      <div className="flex min-h-svh items-center justify-center px-6">
+        <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
+          <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
+            KAUR KHOR
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+            {translateUiLiteral(language, 'Loading preferences…')}
+          </h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (onboardingCompletedAt && !allowCompleted) {
+    return <Navigate replace to="/" />;
+  }
+
+  if (isEmbeddedPhonePortrait && step === 'interface' && !saveError) {
+    return (
+      <div className="flex min-h-svh items-center justify-center px-6">
+        <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
+          <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
+            KAUR KHOR
+          </p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+            {translateUiLiteral(language, 'Loading workspace…')}
+          </h1>
+        </div>
+      </div>
+    );
+  }
+
+  async function handleContinue() {
+    if (step === 'preferences') {
+      if (isEmbeddedPhonePortrait) {
+        await completeOnboarding();
+        return;
+      }
+      setSaveError(false);
+      setSearchParams({ step: 'interface' }, { replace: true });
+      return;
+    }
+
+    await completeOnboarding();
   }
 
   function handleBack() {
@@ -475,7 +521,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
               </Select>
             </div>
           </div>
-        ) : (
+        ) : showInterfacePicker ? (
           <div className="mt-8 grid gap-3" data-slot="onboarding-controls">
             <p aria-label={copy.interfaceView[interfaceLanguage]} className="text-sm font-semibold text-foreground">
               <LocalizedOnboardingCopy
@@ -489,10 +535,10 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
               language={selectedLanguage}
               modes={['default', 'minimal', 'maximal']}
               onDisplayViewModeChange={setSelectedViewMode}
-              presentation={isEmbeddedPhonePortrait ? 'carousel' : 'grid'}
+              presentation="grid"
             />
           </div>
-        )}
+        ) : null}
 
         {saveError ? (
           <p className="mt-6 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
