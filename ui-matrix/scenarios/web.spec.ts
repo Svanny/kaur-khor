@@ -38,6 +38,7 @@ test.describe('UI matrix: browser and demo surfaces', () => {
     if (await selectedDownload.count()) {
       await expect(selectedDownload.first()).toHaveClass(/pos-metadata-surface-gleam/);
     }
+    await captureUi(page, testInfo, 'web-landing-entry');
     await page.getByRole('link', { name: 'Start Quick Demo' }).click();
     await page.waitForURL(/\/kaur-khor\/demo#\/onboarding$/);
     await expectEmbeddedBannerControls(page, 'demo');

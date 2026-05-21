@@ -46,7 +46,7 @@ Most operators should use Kaur Khor in this order:
 1. Start on **Home**.
 2. Open **Work** to review queue, capture, and intake work.
 3. Use **Work / Capture** when something real changed.
-4. Open **Products** when item definitions or archive state need attention; use **Automations / Sellables exposed** for customer-facing automation exposure.
+4. Open **Products** when item definitions or archive state need attention; use **Products / Automation exposure** for customer-facing automation exposure.
 5. Open **Inventory** from Home or **Insights** when you need stock health, money, or explanation views.
 6. Use **History** from the command palette or Settings when you need saved reports, edits, or deletions.
 7. Use **Settings** for preferences, local data, planning, automation connection, help, benchmarks, and destructive maintenance.
@@ -68,7 +68,7 @@ Moved destinations remain reachable:
 - **History** is available from command palette, Settings, and report contexts.
 - **Archived products** is available in Products with archived status.
 - **Help** lives in Settings at `/settings/help`.
-- **Automation intake** lives in Work; automation exposure lives in Automations / Sellables exposed; Telegram connection lives in Settings.
+- **Automation intake** lives in Work; automation exposure lives in Products / Automation exposure; Telegram connection lives in Settings.
 
 When you enter Settings from another app route, **Back to app** returns to that originating route, including its query filters, instead of always returning to Home.
 
@@ -875,7 +875,7 @@ SENA variables are the raw diagnostic fields stored for the active Explain run. 
 
 Automations covers configuration and customer-facing exposure for Telegram automation. Use it to manage the Telegram connection, decide what sellables the bot may offer, and keep customer-facing products data ready. Intake review has its own Help section because it is a Work subpage, not just a configuration panel.
 
-Automations stays locked to Configuration until a bot token has been saved. After that, the Overview, Sellables exposed, Intake, Chat, and Configuration tabs can appear depending on whether you are in the Automations route or the Work intake route. In browser mode, Telegram polling only runs while the tab is open, visible, and awake; use the desktop app for persistent automation.
+Automation stays locked to Configuration until a bot token has been saved. After that, Overview, Intake, Chat, and Configuration can appear in the automation configuration surface, while Sellables exposed appears from Products / Automation exposure. In browser mode, Telegram polling only runs while the tab is open, visible, and awake; use the desktop app for persistent automation.
 
 Automations follows the app language for operator-facing controls and messages. Customer Telegram text, handles, SKU names, service names, and notes stay as entered.
 
@@ -1006,7 +1006,7 @@ Restoring a snapshot replaces the local workspace with the selected snapshot. Cr
 
 ### Automation Settings {#settings-automation}
 
-Settings / Automation opens the Telegram automation configuration surface. Use it to save or review the bot display name, username, bot link, bot token, and external link behavior. Product exposure lives in Automations / Sellables exposed, and automation intake lives in Work / Intake.
+Settings / Automation opens the Telegram automation configuration surface. Use it to save or review the bot display name, username, bot link, bot token, and external link behavior. Product exposure lives in Products / Automation exposure, and automation intake lives in Work / Intake.
 
 Automation is experimental. Paused, connected, disconnected, and error states should be treated as operational state, not decoration. If Automations and intake is hidden from Interface, Settings redirects back to Interface and highlights the toggle instead of showing the automation setup page.
 
