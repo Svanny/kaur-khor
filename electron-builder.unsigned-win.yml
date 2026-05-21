@@ -1,7 +1,0 @@
-extends: ./electron-builder.yml
-afterPack: ./scripts/after-pack-win-unsigned-icon.mjs
-
-win:
-  signAndEditExecutable: false
-  signExts:
-    - '!.exe'
