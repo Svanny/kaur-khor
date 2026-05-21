@@ -36,7 +36,7 @@ Relevant contracts:
 
 - TypeScript shared shape: [`src/shared/sena.ts`](../../src/shared/sena.ts)
 - Rust SENA shape: [`apps/sena-core/src/types.rs`](../../apps/sena-core/src/types.rs)
-- observation helpers: [`src/renderer/src/routes/observation-payload.ts`](../../src/renderer/src/routes/observation-payload.ts)
+- observation helpers: [`src/renderer/src/routes/records/observation-payload.ts`](../../src/renderer/src/routes/records/observation-payload.ts)
 
 Ticket-only updates count as structured observation signals. They must not be
 collapsed into free-form notes, because downstream projections need family,
