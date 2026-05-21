@@ -381,7 +381,7 @@ function PhonePage({
   slot: string;
 }) {
   return (
-    <div className={cn('grid min-h-full min-w-0 max-w-full gap-4', className)} data-slot={slot}>
+    <div className={cn('grid min-h-full min-w-0 max-w-full auto-rows-max content-start gap-4', className)} data-slot={slot}>
       {children}
     </div>
   );
@@ -6581,12 +6581,12 @@ function PhoneChrome({
                       <NavigationBackIcon aria-hidden="true" className="size-4" />
                     </Link>
                   </Button>
-                  <span className="grid min-w-0 flex-1 gap-0.5">
+                  <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                     <span className="min-w-0 max-w-full break-words" data-slot="embedded-phone-capture-header-title-text">
                       {shellHeader.title}
                     </span>
                     <span
-                      className="min-w-0 text-sm font-medium leading-5 text-muted-foreground empty:hidden"
+                      className="min-w-0 max-w-full text-sm font-medium leading-5 text-muted-foreground empty:hidden"
                       data-slot="embedded-phone-capture-header-title-meta"
                     />
                   </span>

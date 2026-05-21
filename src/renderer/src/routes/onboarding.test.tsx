@@ -342,20 +342,50 @@ describe('OnboardingRoute', () => {
     }
   });
 
-  it('uses the one-wireframe carousel picker in embedded phone portrait onboarding only', async () => {
+  it('skips the interface picker in embedded phone portrait onboarding', async () => {
     document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'true';
     renderRoute();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
 
-    expect(screen.getByRole('radiogroup', { name: 'Display view mode' })).toHaveAttribute(
-      'data-presentation',
-      'carousel',
-    );
-    expect(document.querySelector('[data-slot="interface-view-carousel-viewport"]')).not.toBeNull();
-    expect(document.querySelector('[data-slot="interface-view-carousel-track"]')).toHaveStyle({
-      transform: 'translateX(-0%)',
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        displayViewMode: 'default',
+      }));
     });
+
+    expect(await screen.findByText('Overview screen')).toBeInTheDocument();
+    expect(screen.queryByText('Choose interface view')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Display view mode' })).not.toBeInTheDocument();
+    expect(document.querySelector('[data-slot="interface-view-carousel-viewport"]')).toBeNull();
+  });
+
+  it('skips a direct embedded phone portrait interface step link', async () => {
+    document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'true';
+    renderRoute('/onboarding?step=interface');
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        displayViewMode: 'default',
+      }));
+    });
+
+    expect(screen.queryByText('Choose interface view')).not.toBeInTheDocument();
+  });
+
+  it('does not retry failed direct embedded phone portrait interface saves', async () => {
+    document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'true';
+    savePreferences.mockRejectedValue(new Error('disk full'));
+
+    renderRoute('/onboarding?step=interface');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not save setup. Check the app connection and try again.',
+    );
+    await waitFor(() => expect(savePreferences).toHaveBeenCalledTimes(1));
+
+    expect(screen.queryByRole('radiogroup', { name: 'Display view mode' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
   });
 
   it('keeps the desktop and landscape onboarding picker as a grid', async () => {

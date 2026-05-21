@@ -2068,7 +2068,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(phoneHeaderEyebrow).toHaveTextContent('Queue');
     expect(phoneHeaderTitle).toHaveTextContent('Work that needs a decision');
     expect(container.querySelector('[data-slot="phone-queue-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="phone-queue-page"]')).toHaveClass('max-w-full');
+    expect(container.querySelector('[data-slot="phone-queue-page"]')).toHaveClass('max-w-full', 'auto-rows-max', 'content-start');
     expect(container.querySelector('[data-slot="phone-queue-page"]')).not.toHaveClass('overflow-x-hidden', 'overflow-x-clip');
     expect(container.querySelector('[data-slot="phone-segmented-control"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-queue-summary-strip"]')).not.toBeNull();
@@ -2877,9 +2877,10 @@ describe('WebRoutes embedded app fallback state', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    expect(await screen.findByRole('heading', { name: 'Choose interface view' })).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="interface-view-carousel-viewport"]')).not.toBeNull();
-    expect(screen.getByRole('radiogroup', { name: 'Display view mode' })).toHaveAttribute('data-presentation', 'carousel');
+    await waitFor(() => expect(window.location.hash).toContain(`${hiddenPhoneOperatorHash}`));
+    expect(screen.queryByRole('heading', { name: 'Choose interface view' })).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="interface-view-carousel-viewport"]')).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Display view mode' })).not.toBeInTheDocument();
   });
 
   test.each([
@@ -2922,7 +2923,8 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="embedded-phone-header"] > div')).toHaveClass('relative', 'flex-wrap', 'gap-x-2', 'gap-y-2');
     expect(container.querySelector('[data-slot="embedded-phone-header"] > div > div')).toHaveClass('w-full', 'max-w-full', 'pr-12');
     expect(container.querySelector('[data-slot="embedded-phone-capture-header-title-text"]')).toHaveClass('break-words', 'min-w-0');
-    expect(container.querySelector('[data-slot="embedded-phone-capture-header-title-meta"]')).toHaveClass('empty:hidden', 'min-w-0');
+    expect(container.querySelector('[data-slot="embedded-phone-header-title"]')?.lastElementChild).toHaveClass('flex-wrap', 'items-baseline');
+    expect(container.querySelector('[data-slot="embedded-phone-capture-header-title-meta"]')).toHaveClass('empty:hidden', 'min-w-0', 'max-w-full');
     const headerActions = container.querySelector('[data-slot="embedded-phone-capture-header-actions"]');
     expect(headerActions).toHaveClass('absolute', 'top-0', 'right-0');
     expect(within(headerActions as HTMLElement).getByRole('button', { name: 'Capture actions' })).toHaveClass('rounded-full');

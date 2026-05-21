@@ -1425,6 +1425,32 @@ describe('StockUpdateSessionRoute', () => {
     }
   });
 
+  it('keeps embedded phone reorder scroll controls from opening the save-ordering prompt', () => {
+    vi.useFakeTimers();
+    document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'true';
+
+    try {
+      renderRoute();
+
+      const razorTile = getPosWorkbenchTile('Razor refill');
+      fireEvent.pointerDown(razorTile);
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      fireEvent.pointerUp(razorTile);
+
+      expect(screen.getByRole('button', { name: 'Scroll up' })).toBeInTheDocument();
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Scroll up' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Scroll up' }));
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Scroll down' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Scroll down' }));
+
+      expect(screen.queryByText('Save ordering first?')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not enter embedded phone reorder mode while scrolling workbench rows', () => {
     vi.useFakeTimers();
     document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait = 'true';
