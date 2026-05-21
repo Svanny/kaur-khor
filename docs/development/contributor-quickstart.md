@@ -46,21 +46,34 @@ On Windows PowerShell, use `$env:ALLOW_UNSIGNED_PACKAGING="1"; pnpm package:win:
 The paths that matter most during normal contributor work:
 
 - `src/main`
-  Electron main process. This is where app boot, IPC handlers, desktop-local file paths, backup/restore, and runtime orchestration live.
+  Electron main process. Domain folders own app boot, IPC/runtime orchestration, desktop-local data, backup/restore, automation, benchmark support, updater/source-build, security, desktop assets, and window lifecycle code.
 - `src/preload`
   Narrow bridge between Electron main and the React renderer.
 - `src/renderer`
-  React UI, route-level screens, settings flows, shared workspace components, command palette, and translations.
+  React UI. Routes and lib helpers are grouped by product/domain ownership instead of flat route and utility buckets.
 - `src/shared`
   TypeScript source of truth for IPC contracts and shared data types.
 - `apps/desktop-core`
   Rust runtime used by the desktop app for local storage and core workflows.
 - `apps/sena-core`
   Rust SENA analysis engine.
-- `tool/security`
+- `config`
+  Build, package, TypeScript, Vitest, and Playwright config files. Keep new tool config here unless the tool requires root discovery.
+- `tests`
+  Playwright benchmark, UI matrix, and focused e2e workspaces.
+- `tools/security`
   Security gate and platform-hardening checks.
-- `tool/sync_design_tokens.sh`
+- `tools/scripts`
+  Packaging, benchmark, source-build, screenshot, data-generation, tree-refresh, and icon helpers.
+- `tools/sync_design_tokens.sh`
   Design-token sync helper for the renderer.
+
+Keep the repo root for discovery anchors only: package metadata, lockfile,
+top-level readmes/policies, and dot-tool files that must be discovered from
+root. The root `index.html` is an intentional Vite web entry stub; the desktop
+Electron renderer entry lives at `src/renderer/index.html`. Put new configs in
+`config`, source helpers in `tools`, and Playwright test workspaces in `tests`.
+Keep tests beside the production files they cover inside `src`.
 
 ## Day-One Reading Order
 
@@ -82,15 +95,15 @@ For renderer or settings work:
 For desktop-local data changes:
 
 - start in `src/main/index.ts`
-- inspect backup and restore behavior in `src/main/local-backup.ts`
-- inspect preference persistence in `src/main/preferences.ts`
-- inspect automation state and Telegram orchestration in `src/main/automation-store.ts` and `src/main/automation-telegram.ts`
+- inspect backup and restore behavior in `src/main/local-data/local-backup.ts`
+- inspect preference persistence in `src/main/local-data/preferences.ts`
+- inspect automation state and Telegram orchestration in `src/main/automation/automation-store.ts` and `src/main/automation/automation-telegram.ts`
 
 For SENA analysis changes:
 
 - inspect `apps/sena-core`
-- inspect the renderer screens under `src/renderer/src/routes`
-- inspect settings/export helpers in `src/renderer/src/lib/settings-workspace-actions.ts`
+- inspect the renderer screens under `src/renderer/src/routes/insights`
+- inspect settings/export helpers in `src/renderer/src/lib/settings/settings-workspace-actions.ts`
 
 ## Tests and Checks
 
@@ -103,7 +116,7 @@ Primary contributor checks:
 
 Security gate:
 
-- `bash tool/security/run_security_checks.sh`
+- `bash tools/security/run_security_checks.sh`
 
 ## When To Update Docs
 
@@ -122,3 +135,9 @@ TypeScript source files are the reviewed surface. Do not commit compiled
 `.js` or `.d.ts` siblings emitted beside `src/` files; those are build
 artifacts and are ignored. The node and web TypeScript configs keep `noEmit`
 enabled so type-check style commands do not recreate source-adjacent outputs.
+
+Local runtime data, package output, benchmark output, UI-matrix output,
+Playwright captures, source-build folders, and temporary design/debug files
+belong outside git. The tracked `.codex`, `.opencode`, and `.claude` folders
+are intentional repo-local agent/tooling configuration; generated caches inside
+those tools should stay ignored.

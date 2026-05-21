@@ -63,6 +63,6 @@ This document defines the mandatory secure-by-default controls for the Kaur Khor
 ## Enforcement
 
 Run:
-- `bash ../../tool/security/run_security_checks.sh`
+- `bash ../../tools/security/run_security_checks.sh`
 
 Any finding fails the security gate.

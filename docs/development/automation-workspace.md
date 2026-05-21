@@ -25,16 +25,16 @@ actions. Turning the switch back on resumes the poll loop.
 
 Runtime and storage:
 
-- [`src/main/automation-store.ts`](../../src/main/automation-store.ts):
+- [`src/main/automation/automation-store.ts`](../../src/main/automation/automation-store.ts):
   persisted JSON store, intake staging, wizard session state, promotion helpers
-- [`src/main/automation-telegram.ts`](../../src/main/automation-telegram.ts):
+- [`src/main/automation/automation-telegram.ts`](../../src/main/automation/automation-telegram.ts):
   Telegram transport orchestration, bot commands, callbacks, notifications, and
   connection tests
-- [`src/main/telegram-bot-api.ts`](../../src/main/telegram-bot-api.ts):
+- [`src/main/automation/telegram-bot-api.ts`](../../src/main/automation/telegram-bot-api.ts):
   typed Telegram API client
-- [`src/main/desktop-image.ts`](../../src/main/desktop-image.ts):
+- [`src/main/desktop/desktop-image.ts`](../../src/main/desktop/desktop-image.ts):
   local image lookup for exposed SKU and service images
-- [`src/main/window-activation.ts`](../../src/main/window-activation.ts):
+- [`src/main/window/window-activation.ts`](../../src/main/window/window-activation.ts):
   desktop window activation helper for operator-facing follow-up
 
 Renderer and shared contracts:
@@ -203,9 +203,9 @@ together.
 
 Focused checks for automation changes:
 
-- `pnpm test -- src/main/automation-store.test.ts`
-- `pnpm test -- src/main/automation-telegram.test.ts`
-- `pnpm test -- src/main/telegram-bot-api.test.ts`
+- `pnpm test -- src/main/automation/automation-store.test.ts`
+- `pnpm test -- src/main/automation/automation-telegram.test.ts`
+- `pnpm test -- src/main/automation/telegram-bot-api.test.ts`
 - `pnpm test -- src/renderer/src/routes/automations.test.tsx`
 - `pnpm test -- src/renderer/src/routes/automations/intake-openers.test.tsx`
 - `pnpm test -- src/renderer/src/routes/automations/view-model.test.ts`

@@ -9,7 +9,7 @@ sequenceDiagram
   participant Store as SQLite workspace store
   participant Preload as Preload bridge<br/>src/preload/index.ts
   participant Renderer as React renderer<br/>InventoryProvider
-  participant Metrics as Benchmark summary<br/>bench/helpers/bench-metrics.ts
+  participant Metrics as Benchmark summary<br/>tests/bench/helpers/bench-metrics.ts
 
   Bench->>Main: launch Electron with benchmark env
   Main->>Metrics: record main.boot.start

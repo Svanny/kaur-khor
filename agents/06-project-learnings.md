@@ -34,11 +34,11 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Shared IPC payload types consumed by preload or browser bridges must be re-exported from `@shared/ipc`, and generated/demo preferences must seed current nav ids rather than legacy aliases.
 - Floating title action geometry reads must be coalesced through `requestAnimationFrame`; keep initial measurement immediate and keep scroll/resize handlers light.
 - Release workflow notes must be generated from the current tag diff; do not hardcode feature highlights that will become stale in later releases.
-- Release workflow Cargo caches must include the packaging `build/cargo-target` directory because `scripts/stage-desktop-core.mjs` sets `CARGO_TARGET_DIR` there.
+- Release workflow Cargo caches must include the packaging `build/cargo-target` directory because `tools/scripts/stage-desktop-core.mjs` sets `CARGO_TARGET_DIR` there.
 - Source-build and update scripts must resolve their own script directories physically so symlinked source/update folders still run the intended local script.
 - Release workflow cache fixes must account for GitHub Actions cache scope: tag-created caches do not warm the next tag, so release cache producers must also run on `main` to populate default-branch caches.
 - Windows Electron release caches must use Windows-native path separators and a fresh key namespace when a stale archive fails immediately after cache hit.
-- Keep script-level Vitest files inside `vitest.config.ts` include globs, and route `pnpm test` through the project wrapper so `pnpm test -- path/to/file.test.*` stays file-targeted.
+- Keep script-level Vitest files inside `config/test/vitest.config.ts` include globs, and route `pnpm test` through the project wrapper so `pnpm test -- path/to/file.test.*` stays file-targeted.
 - Test runtime parallelism must keep dependent UI-matrix flows ordered, keep benchmark Playwright workers at one, and provide serial escape hatches for shared-state diagnosis.
 - Source-build updates must keep versioned source folders under a stable `kaur-khor/` parent, ask before pruning old source-build versions, and default Settings / Updates to `latest` while allowing a specific release.
 - Keep browser/demo-only renderer bootstrap code behind a runtime dynamic import so Electron desktop startup does not eagerly load mock bridge data, demo images, or web-only analysis helpers.
@@ -50,3 +50,5 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Embedded phone onboarding must skip the desktop interface picker and complete with the default view mode; phone reorder scroll controls must not open save-ordering prompts.
 - `pnpm dev` must preserve the current local workspace; use `pnpm dev:seed` for generated demo data, and mark cleared dev workspaces blank so startup does not repopulate them.
 - Telegram automation loop tests must await `stopAndDrain()` so pending async fetches cannot leak into later tests or release security gates.
+- Repo cleanup must separate reproducible local artifacts from intentional tracked assets before deleting files or broadening ignore rules.
+- Keep root cleanup aggressive but explicit: root stays for discovery anchors and required tool stubs such as Vite's web `index.html`; configs live in `config`, scripts/tools in `tools`, and Playwright benchmark/UI/e2e workspaces in `tests`.

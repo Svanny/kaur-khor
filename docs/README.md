@@ -32,7 +32,7 @@ This directory is the contributor-facing entrypoint for Kaur Khor as a local Ele
 - [Detail pages flowchart](development/detail-pages-flowchart.mmd)
 - [Stability architecture](development/stability-architecture.mmd)
 - [Stability flowchart](development/stability-flowchart.mmd)
-- [Benchmark guide](../bench/README.md)
+- [Benchmark guide](../tests/bench/README.md)
 
 ## Repo Map
 
@@ -45,8 +45,17 @@ Kaur Khor is a desktop-first Electron app with a local Rust runtime:
 - `src/shared`: IPC contracts and shared TypeScript types
 - `apps/desktop-core`: Rust desktop persistence/runtime
 - `apps/sena-core`: Rust SENA analysis engine
-- `tool/security`: security gate and hardening checks for the desktop app
-- `tool/sync_design_tokens.sh`: design-token sync helper for the renderer
+- `config`: build, package, TypeScript, Vitest, and Playwright configuration
+- `tests/bench`: benchmark scenarios and helpers
+- `tests/ui-matrix`: UI matrix scenarios and helpers
+- `tests/e2e`: focused Playwright specs
+- `tools/security`: security gate and hardening checks for the desktop app
+- `tools/scripts`: packaging, benchmark, source-build, screenshot, and icon helpers
+- `tools/sync_design_tokens.sh`: design-token sync helper for the renderer
+
+The root `index.html` is an intentional Vite web entry stub for GitHub Pages
+and browser UI-matrix runs. The desktop Electron renderer entry lives at
+`src/renderer/index.html`.
 
 ## Local Workflow
 
@@ -108,7 +117,7 @@ On Windows PowerShell, use `$env:ALLOW_UNSIGNED_PACKAGING="1"; pnpm package:win:
 - [Detail pages flowchart](development/detail-pages-flowchart.mmd): detail-pages benchmark control/data flow for products, SKU, service, repeat loads, and cache reads
 - [Stability architecture](development/stability-architecture.mmd): repeated sidebar cycle, ready-event coverage, shared route reads, and memory-slope inputs
 - [Stability flowchart](development/stability-flowchart.mmd): stability benchmark control/data flow across four route cycles and memory snapshots
-- [Benchmark guide](../bench/README.md): scenario commands, fixture sizes, deterministic seed rules, and tiered target budgets
+- [Benchmark guide](../tests/bench/README.md): scenario commands, fixture sizes, deterministic seed rules, and tiered target budgets
 
 ### Security
 

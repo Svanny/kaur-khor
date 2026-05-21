@@ -27,15 +27,15 @@ Developer docs entrypoint: [Kaur Khor developer docs](../README.md)
 
 ## Gate Script
 
-`bash ../../tool/security/run_security_checks.sh`
+`bash ../../tools/security/run_security_checks.sh`
 
 Order:
 1. `pnpm test`
 2. `cargo test --manifest-path ../../apps/desktop-core/Cargo.toml`
 3. `cargo test --manifest-path ../../apps/sena-core/Cargo.toml`
-4. `bash ../../tool/security/check_secret_patterns.sh`
-5. `bash ../../tool/security/check_platform_hardening.sh`
-6. `bash ../../tool/security/check_dependency_audit.sh`
+4. `bash ../../tools/security/check_secret_patterns.sh`
+5. `bash ../../tools/security/check_platform_hardening.sh`
+6. `bash ../../tools/security/check_dependency_audit.sh`
 
 Policy: any finding fails the run.
 
