@@ -20,7 +20,7 @@ describe('dev history generator helpers', () => {
       dataDirectory: '/tmp/kaur-khor/.kaur-khor-dev-data',
       size: 'power-user',
     })).toEqual([
-      './scripts/generate_dev_history.py',
+      './tools/scripts/generate_dev_history.py',
       '--repo-root',
       '/tmp/kaur-khor',
       '--sena-db',

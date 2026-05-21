@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 
 describe('mac icon assets', () => {
-  const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
   it('resolves the generated dock and package icon paths', () => {
     const assets = macIconAssets(projectRoot);

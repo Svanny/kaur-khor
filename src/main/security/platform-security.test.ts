@@ -2,12 +2,12 @@
 
 import { readFileSync } from 'node:fs';
 
-const mainSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-const preloadSource = readFileSync(new URL('../preload/index.ts', import.meta.url), 'utf8');
-const rendererHtml = readFileSync(new URL('../renderer/index.html', import.meta.url), 'utf8');
-const windowActivationSource = readFileSync(new URL('./window-activation.ts', import.meta.url), 'utf8');
-const windowZoomSource = readFileSync(new URL('./window-zoom.ts', import.meta.url), 'utf8');
-const benchmarkRunnerSource = readFileSync(new URL('./benchmark-runner.ts', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../index.ts', import.meta.url), 'utf8');
+const preloadSource = readFileSync(new URL('../../preload/index.ts', import.meta.url), 'utf8');
+const rendererHtml = readFileSync(new URL('../../renderer/index.html', import.meta.url), 'utf8');
+const windowActivationSource = readFileSync(new URL('../window/window-activation.ts', import.meta.url), 'utf8');
+const windowZoomSource = readFileSync(new URL('../window/window-zoom.ts', import.meta.url), 'utf8');
+const benchmarkRunnerSource = readFileSync(new URL('../benchmark/benchmark-runner.ts', import.meta.url), 'utf8');
 
 describe('desktop runtime security contract', () => {
   it('creates the BrowserWindow with an isolated preload bridge', () => {
@@ -140,9 +140,9 @@ describe('desktop runtime security contract', () => {
   });
 
   it('blocks renderer-created windows and top-level external navigation', () => {
-    expect(mainSource).toContain("import { installMainWindowNavigationGuards } from './navigation-guards';");
+    expect(mainSource).toContain("import { installMainWindowNavigationGuards } from './window/navigation-guards';");
     expect(mainSource).toContain('installMainWindowNavigationGuards(mainWindow);');
-    const navigationGuardSource = readFileSync(new URL('./navigation-guards.ts', import.meta.url), 'utf8');
+    const navigationGuardSource = readFileSync(new URL('../window/navigation-guards.ts', import.meta.url), 'utf8');
     expect(navigationGuardSource).toContain('webContents.setWindowOpenHandler');
     expect(navigationGuardSource).toContain("webContents.on('will-navigate'");
     expect(navigationGuardSource).toContain("return { action: 'deny' };");
@@ -151,7 +151,7 @@ describe('desktop runtime security contract', () => {
   });
 
   it('limits renderer file reveal requests to local workspace paths', () => {
-    expect(mainSource).toContain("import { normalizeAllowedLocalDataPath } from './local-path-access';");
+    expect(mainSource).toContain("import { normalizeAllowedLocalDataPath } from './local-data/local-path-access';");
     expect(mainSource).toContain('normalizeAllowedLocalDataPath(targetPath, [desktopDataPath])');
   });
 

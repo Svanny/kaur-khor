@@ -1013,7 +1013,7 @@ export function registerBenchmarkRunnerIpc({
         'playwright',
         'test',
         '-c',
-        'playwright.bench.config.ts',
+        'config/test/playwright.bench.config.ts',
         SCENARIO_FILE_BY_ID[scenario],
       ],
       repeatEnv,

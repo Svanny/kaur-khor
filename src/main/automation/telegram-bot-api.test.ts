@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { prepareDesktopImageUpload } from './desktop-image';
+import { prepareDesktopImageUpload } from '../desktop/desktop-image';
 import {
   telegramAnswerCallbackQuery,
   telegramDeleteMessage,
@@ -18,7 +18,7 @@ import {
   telegramSetMyCommands,
 } from './telegram-bot-api';
 
-vi.mock('./desktop-image', () => ({
+vi.mock('../desktop/desktop-image', () => ({
   prepareDesktopImageUpload: vi.fn(),
 }));
 

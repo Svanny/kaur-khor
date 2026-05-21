@@ -61,7 +61,7 @@ export function buildGenerateDevHistoryArgs({
 }) {
   const historySize = BENCHMARK_WORKSPACE_HISTORY_SIZES[size];
   return [
-    './scripts/generate_dev_history.py',
+    './tools/scripts/generate_dev_history.py',
     '--repo-root',
     repoRoot,
     '--sena-db',

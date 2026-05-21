@@ -6,7 +6,7 @@ import {
   recordBenchmarkEvent,
   snapshotProcessMemory,
   startBenchmarkSpan,
-} from './benchmark';
+} from '../benchmark/benchmark';
 
 interface CoreRequestEnvelope {
   id: number;

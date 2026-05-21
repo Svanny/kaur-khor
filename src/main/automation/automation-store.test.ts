@@ -29,7 +29,7 @@ import {
 import type { SenaTicketEvent } from '@shared/sena';
 
 const AUTOMATION_STORE_SOURCE_PATH = new URL('./automation-store.ts', import.meta.url);
-const MAIN_INDEX_SOURCE_PATH = new URL('./index.ts', import.meta.url);
+const MAIN_INDEX_SOURCE_PATH = new URL('../index.ts', import.meta.url);
 
 const context = {
   catalog: {

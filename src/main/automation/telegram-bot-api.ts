@@ -1,4 +1,4 @@
-import { prepareDesktopImageUpload } from './desktop-image';
+import { prepareDesktopImageUpload } from '../desktop/desktop-image';
 
 const TELEGRAM_REQUEST_TIMEOUT_MS = 30_000;
 

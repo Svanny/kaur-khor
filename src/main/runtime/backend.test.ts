@@ -19,8 +19,8 @@ import {
   terminateManagedChildProcess,
 } from './backend';
 
-const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const backendSource = readFileSync(resolve(projectRoot, 'src/main/backend.ts'), 'utf8');
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const backendSource = readFileSync(resolve(projectRoot, 'src/main/runtime/backend.ts'), 'utf8');
 
 describe('desktop core host helpers', () => {
   it('accepts only well-formed core response envelopes', () => {

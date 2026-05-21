@@ -7,9 +7,9 @@ import { pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { describe, expect, test, vi } from 'vitest';
 
-const scriptPath = resolve('scripts/build-from-source.mjs');
-const shellBootstrapPath = resolve('scripts/build-from-source.sh');
-const powershellBootstrapPath = resolve('scripts/build-from-source.ps1');
+const scriptPath = resolve('tools/scripts/build-from-source.mjs');
+const shellBootstrapPath = resolve('tools/scripts/build-from-source.sh');
+const powershellBootstrapPath = resolve('tools/scripts/build-from-source.ps1');
 
 function runScript(args: string[], env: NodeJS.ProcessEnv = process.env) {
   return spawnSync(process.execPath, [scriptPath, ...args], {
@@ -308,7 +308,7 @@ chmod +x "$node_dir/node"
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('verified fake node');
     expect(result.stdout).toContain(`${fixture.root}/tools/node-v22.21.1/bin`);
-    expect(result.stdout).toContain('scripts/build-from-source.mjs --resolve-only');
+    expect(result.stdout).toContain('tools/scripts/build-from-source.mjs --resolve-only');
     expect(existsSync(fixture.tarMarker)).toBe(true);
   });
 
@@ -403,13 +403,13 @@ chmod +x "$node_dir/node"
   });
 
   test('Windows packaging applies app icon without signing tools for unsigned local packages', () => {
-    const script = readFileSync(resolve('scripts/package-win-native.mjs'), 'utf8');
-    const unsignedConfig = readFileSync(resolve('electron-builder.unsigned-win.yml'), 'utf8');
-    const iconHook = readFileSync(resolve('scripts/after-pack-win-unsigned-icon.mjs'), 'utf8');
+    const script = readFileSync(resolve('tools/scripts/package-win-native.mjs'), 'utf8');
+    const unsignedConfig = readFileSync(resolve('config/package/electron-builder.unsigned-win.yml'), 'utf8');
+    const iconHook = readFileSync(resolve('tools/scripts/after-pack-win-unsigned-icon.mjs'), 'utf8');
     const packageJson = readFileSync(resolve('package.json'), 'utf8');
 
     expect(script).toContain("const isUnsignedLocalPackage = process.env.ALLOW_UNSIGNED_PACKAGING === '1' && !hasWindowsSigningConfig");
-    expect(script).toContain("const electronBuilderConfig = isUnsignedLocalPackage ? 'electron-builder.unsigned-win.yml' : 'electron-builder.yml'");
+    expect(script).toContain("const electronBuilderConfig = isUnsignedLocalPackage ? 'config/package/electron-builder.unsigned-win.yml' : 'config/package/electron-builder.yml'");
     expect(script).toContain("process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE = 'true'");
     expect(script).toContain('ensureProjectDependencies();');
     expect(script).toContain("command.toLowerCase().endsWith('.cmd')");
@@ -417,7 +417,7 @@ chmod +x "$node_dir/node"
     expect(script).toContain("hasResolvablePackage('rcedit')");
     expect(script).toContain("'install', '--frozen-lockfile'");
     expect(unsignedConfig).toContain('extends: ./electron-builder.yml');
-    expect(unsignedConfig).toContain('afterPack: ./scripts/after-pack-win-unsigned-icon.mjs');
+    expect(unsignedConfig).toContain('afterPack: ../../tools/scripts/after-pack-win-unsigned-icon.mjs');
     expect(unsignedConfig).toContain('signAndEditExecutable: false');
     expect(unsignedConfig).toContain("    - '!.exe'");
     expect(iconHook).toContain("import { rcedit } from 'rcedit'");
@@ -427,7 +427,7 @@ chmod +x "$node_dir/node"
   });
 
   test('Windows packaging opens the generated installer for interactive local packaging', () => {
-    const script = readFileSync(resolve('scripts/package-win-native.mjs'), 'utf8');
+    const script = readFileSync(resolve('tools/scripts/package-win-native.mjs'), 'utf8');
 
     expect(script).toContain('handoffInstaller();');
     expect(script).toContain("const releaseDir = resolve(root, 'release');");
@@ -456,7 +456,7 @@ chmod +x "$node_dir/node"
   });
 
   test('Linux packaging installs the generated deb and falls back to release folder', () => {
-    const script = readFileSync(resolve('scripts/package-linux.sh'), 'utf8');
+    const script = readFileSync(resolve('tools/scripts/package-linux.sh'), 'utf8');
     const sourceScript = readFileSync(scriptPath, 'utf8');
 
     expect(sourceScript).toContain('const linuxInstallEnv = prepareLinuxInstallPrivilege(target);');
@@ -660,7 +660,7 @@ Resolve-PhysicalPath "C:\\source\\link-one"
   test('source archive extraction rejects truncated tar entries before writing partial files', async () => {
     const root = mkdtempSync(join(tmpdir(), 'kaur-khor-source-extract-'));
     try {
-      const { extractTarGz } = await import(pathToFileURL(resolve('scripts/build-from-source.mjs')).href) as {
+      const { extractTarGz } = await import(pathToFileURL(resolve('tools/scripts/build-from-source.mjs')).href) as {
         extractTarGz: (archive: Buffer, destination: string) => void;
       };
       const archive = gzipSync(tarHeader('kaur-khor-source/file.txt', 10));
@@ -678,7 +678,7 @@ Resolve-PhysicalPath "C:\\source\\link-one"
   test('source archive extraction rejects root-level file entries', async () => {
     const root = mkdtempSync(join(tmpdir(), 'kaur-khor-source-root-file-'));
     try {
-      const { extractTarGz } = await import(pathToFileURL(resolve('scripts/build-from-source.mjs')).href) as {
+      const { extractTarGz } = await import(pathToFileURL(resolve('tools/scripts/build-from-source.mjs')).href) as {
         extractTarGz: (archive: Buffer, destination: string) => void;
       };
       const archive = gzipSync(Buffer.concat([
@@ -701,7 +701,7 @@ Resolve-PhysicalPath "C:\\source\\link-one"
   test('source archive extraction rejects absolute file entries before rewriting paths', async () => {
     const root = mkdtempSync(join(tmpdir(), 'kaur-khor-source-absolute-file-'));
     try {
-      const { extractTarGz } = await import(pathToFileURL(resolve('scripts/build-from-source.mjs')).href) as {
+      const { extractTarGz } = await import(pathToFileURL(resolve('tools/scripts/build-from-source.mjs')).href) as {
         extractTarGz: (archive: Buffer, destination: string) => void;
       };
       const archive = gzipSync(Buffer.concat([
@@ -795,7 +795,7 @@ Resolve-PhysicalPath "C:\\source\\link-one"
   });
 
   test('production source archive keeps logos and excludes developer collateral', () => {
-    const script = readFileSync(resolve('scripts/package-source-release.mjs'), 'utf8');
+    const script = readFileSync(resolve('tools/scripts/package-source-release.mjs'), 'utf8');
     const packageJson = readFileSync(resolve('package.json'), 'utf8');
     const workflow = readFileSync(resolve('.github/workflows/release.yml'), 'utf8');
 
@@ -810,22 +810,22 @@ Resolve-PhysicalPath "C:\\source\\link-one"
     expect(script).toContain("filePath.includes('/tests/')");
     expect(script).toContain('/\\.(?:test|spec)\\.(?:[cm]?js|tsx?)$/i');
     expect(script).toContain('SOURCE-BUILD-README.md');
-    expect(packageJson).toContain('"package:source": "node ./scripts/package-source-release.mjs"');
+    expect(packageJson).toContain('"package:source": "node ./tools/scripts/package-source-release.mjs"');
     expect(workflow).toContain('Build production source-build archive');
-    expect(workflow).toContain('node scripts/package-source-release.mjs');
+    expect(workflow).toContain('node tools/scripts/package-source-release.mjs');
   });
 
   test('release workflow builds tag-specific release notes without stale hardcoded highlights', () => {
     const workflow = readFileSync(resolve('.github/workflows/release.yml'), 'utf8');
 
-    expect(workflow).toContain('node scripts/build-release-notes.mjs "${RUNNER_TEMP}/release-notes.md"');
+    expect(workflow).toContain('node tools/scripts/build-release-notes.mjs "${RUNNER_TEMP}/release-notes.md"');
     expect(workflow).not.toContain('Added a desktop-only Settings / Updates page');
     expect(workflow).not.toContain('Added pre-update snapshot export prompts');
     expect(workflow).not.toContain('Harmonized source-build archive names');
   });
 
   test('release note builder renders the current tag diff instead of stale feature copy', async () => {
-    const { buildReleaseNotes } = await import(pathToFileURL(resolve('scripts/build-release-notes.mjs')).href) as {
+    const { buildReleaseNotes } = await import(pathToFileURL(resolve('tools/scripts/build-release-notes.mjs')).href) as {
       buildReleaseNotes: (input: {
         releaseTag: string;
         previousTag: string;
@@ -857,7 +857,7 @@ Resolve-PhysicalPath "C:\\source\\link-one"
   });
 
   test('Windows packaging uses a Windows ico for installed app identity', () => {
-    const config = readFileSync(resolve('electron-builder.yml'), 'utf8');
+    const config = readFileSync(resolve('config/package/electron-builder.yml'), 'utf8');
 
     expect(config).toContain('icon: resources/windows/kaur-khor.ico');
     expect(existsSync(resolve('resources/windows/kaur-khor.ico'))).toBe(true);

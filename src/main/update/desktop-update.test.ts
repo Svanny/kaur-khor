@@ -37,7 +37,7 @@ function extractPowerShellResolver(script: string) {
 
 describe('desktop source-build updater', () => {
   it('verifies the downloaded source-build checksum before extracting on shell platforms', async () => {
-    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+    const source = await readFile(join(process.cwd(), 'src/main/update/desktop-update.ts'), 'utf8');
     const shellScriptStart = source.indexOf('function shellUpdateScript');
     const shellScriptEnd = source.indexOf('function windowsUpdateScript', shellScriptStart);
     const shellScriptSource = source.slice(shellScriptStart, shellScriptEnd);
@@ -57,7 +57,7 @@ describe('desktop source-build updater', () => {
   });
 
   it('verifies the downloaded source-build checksum before extracting on Windows', async () => {
-    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+    const source = await readFile(join(process.cwd(), 'src/main/update/desktop-update.ts'), 'utf8');
     const windowsScriptStart = source.indexOf('function windowsUpdateScript');
     const windowsScriptEnd = source.indexOf('function launchScriptInTerminal', windowsScriptStart);
     const windowsScriptSource = source.slice(windowsScriptStart, windowsScriptEnd);
@@ -98,7 +98,7 @@ describe('desktop source-build updater', () => {
       return;
     }
 
-    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+    const source = await readFile(join(process.cwd(), 'src/main/update/desktop-update.ts'), 'utf8');
     const windowsScriptStart = source.indexOf('function windowsUpdateScript');
     const windowsScriptEnd = source.indexOf('function launchScriptInTerminal', windowsScriptStart);
     const windowsScriptSource = source.slice(windowsScriptStart, windowsScriptEnd);
@@ -152,7 +152,7 @@ if ($Resolved -ne "C:\\real-update") {
       return;
     }
 
-    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+    const source = await readFile(join(process.cwd(), 'src/main/update/desktop-update.ts'), 'utf8');
     const windowsScriptStart = source.indexOf('function windowsUpdateScript');
     const windowsScriptEnd = source.indexOf('function launchScriptInTerminal', windowsScriptStart);
     const windowsScriptSource = source.slice(windowsScriptStart, windowsScriptEnd);
@@ -557,7 +557,7 @@ Resolve-PhysicalPath "C:\\update\\link-one"
   });
 
   it('passes selected source-build version and pruning flags to update scripts', async () => {
-    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+    const source = await readFile(join(process.cwd(), 'src/main/update/desktop-update.ts'), 'utf8');
 
     expect(source).toContain('const updatePayload = normalizeDesktopUpdateRunPayload(payload)');
     expect(source).toContain('sourceVersion: updatePayload.sourceVersion');
@@ -597,7 +597,7 @@ Resolve-PhysicalPath "C:\\update\\link-one"
   });
 
   it('single-quotes Windows updater path arguments', async () => {
-    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+    const source = await readFile(join(process.cwd(), 'src/main/update/desktop-update.ts'), 'utf8');
 
     expect(source).toContain('function powerShellQuote(value: string)');
     expect(source).toContain("` --backup-dir=${powerShellQuote(backupDirectoryPath)}`");

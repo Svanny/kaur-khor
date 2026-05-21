@@ -1,5 +1,5 @@
 import { shell, type BrowserWindow } from 'electron';
-import { normalizeAllowedExternalUrl } from './external-url';
+import { normalizeAllowedExternalUrl } from '../security/external-url';
 
 function isSameRendererLocation(currentUrl: string, nextUrl: string) {
   try {

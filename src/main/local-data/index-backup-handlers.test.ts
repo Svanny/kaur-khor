@@ -20,7 +20,7 @@ describe('backup IPC handlers', () => {
 
   it('suspends Telegram automation and core maintenance through the shared replacement queue', async () => {
     const source = await readFile(join(process.cwd(), 'src/main/index.ts'), 'utf8');
-    const automationSource = await readFile(join(process.cwd(), 'src/main/automation-telegram.ts'), 'utf8');
+    const automationSource = await readFile(join(process.cwd(), 'src/main/automation/automation-telegram.ts'), 'utf8');
     const suspensionStart = source.indexOf('function stopDesktopRuntimeForShutdown');
     const suspensionEnd = source.indexOf('function requestDesktopQuit', suspensionStart);
     const suspensionSource = source.slice(suspensionStart, suspensionEnd);
@@ -141,7 +141,7 @@ describe('backup IPC handlers', () => {
     const handlerEnd = source.indexOf('IPC_CHANNELS.systemStoreDroppedImage', handlerStart);
     const handlerSource = source.slice(handlerStart, handlerEnd);
 
-    expect(source).toContain("import { assertDesktopImageFileIsSafeForImport } from './desktop-image-import';");
+    expect(source).toContain("import { assertDesktopImageFileIsSafeForImport } from './desktop/desktop-image-import';");
     expect(handlerSource).toContain('await assertDesktopImageFileIsSafeForImport(sourcePath);');
     expect(handlerSource.indexOf('await assertDesktopImageFileIsSafeForImport(sourcePath);')).toBeLessThan(
       handlerSource.indexOf('normalizedImage = await normalizeDesktopImage(sourcePath);'),

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { DesktopStoreDroppedImagePayload } from '@shared/ipc';
 import { normalizeDesktopImage } from './desktop-image';
 import { assertDesktopImageBytesAreSafeForImport } from './desktop-image-import';
-import { startBenchmarkSpan } from './benchmark';
+import { startBenchmarkSpan } from '../benchmark/benchmark';
 
 const DESKTOP_ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const DESKTOP_IMAGE_EXTENSION_BY_TYPE = new Map([

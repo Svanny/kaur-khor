@@ -403,7 +403,7 @@ while IFS= read -r archive_entry; do
 done < <(tar -tzf ${shellQuote(sourceArchiveName)})
 tar -xzf ${shellQuote(sourceArchiveName)}
 cd kaur-khor-*-source-build
-./scripts/build-from-source.sh --update --data-dir=${shellQuote(dataDirectoryPath)}${backupArg}${skipArg}${oldSourceBuildsArg}
+./tools/scripts/build-from-source.sh --update --data-dir=${shellQuote(dataDirectoryPath)}${backupArg}${skipArg}${oldSourceBuildsArg}
 echo "Update finished. Reopen Kaur Khor and restore the exported snapshot from your chosen backup folder if needed."
 `;
 }

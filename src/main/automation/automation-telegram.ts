@@ -25,7 +25,7 @@ import {
 import type { AutomationPendingTelegramOutboundJob } from './automation-store';
 import type { AutomationOrderIntake } from '@shared/automation';
 import type { SenaTicketEvent } from '@shared/sena';
-import { loadDesktopPreferences } from './preferences';
+import { loadDesktopPreferences } from '../local-data/preferences';
 import {
   telegramAnswerCallbackQuery,
   telegramDeleteMessage,
