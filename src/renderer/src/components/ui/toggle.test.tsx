@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 import { EntityLayersIcon } from '@icons/entities';
-import { pillHoverClassName } from '@/lib/interactive-surface';
+import { pillHoverClassName } from '@/lib/ui/interactive-surface';
 import { Toggle } from './toggle';
 import { ToggleGroup, ToggleGroupItem } from './toggle-group';
 

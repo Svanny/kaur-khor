@@ -33,14 +33,14 @@ import {
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { statusPillClassName } from '@/lib/state-tones';
-import { translateUiLiteral } from '@/lib/translations';
+import { statusPillClassName } from '@/lib/ui/state-tones';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import {
   ActionSheetField,
   actionSheetInputClassName,
   actionSheetSelectTriggerClassName,
   actionSheetTextareaClassName,
-} from '@/routes/detail-action-sheet';
+} from '@/routes/inventory/detail-action-sheet';
 
 type DrawerAction = 'create_ticket' | 'append_ticket' | 'needs_review' | 'canceled';
 export interface AutomationIntakeTicketOption {

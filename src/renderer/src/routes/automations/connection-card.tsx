@@ -5,7 +5,7 @@ import type { AutomationChannelConnection } from '@shared/automation';
 import type { AppLanguage } from '@shared/inventory';
 import { ActionSaveIcon } from '@icons/actions';
 import { StatusWarningIcon } from '@icons/status';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 
 function connectionLabel(status: AutomationChannelConnection['status'] | undefined, language: AppLanguage) {
   if (status === 'connected') {

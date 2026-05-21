@@ -1,5 +1,5 @@
 import type { AppLanguage } from '@shared/inventory';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 
 type WebLoadingFallbackProps = {
   embeddedMode: boolean;

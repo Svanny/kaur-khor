@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ActionCreatePackageIcon } from '@icons/actions';
 import { Button } from '@/components/ui/button';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 

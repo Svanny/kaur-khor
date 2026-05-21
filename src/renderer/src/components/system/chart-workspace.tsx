@@ -27,8 +27,8 @@ import {
 import { FloatingActionsIsland, useFloatingTitleActions, useObservedFloatingIslandWidth } from '@/components/system/floating-title-actions';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { translateChartTimeframeLabel } from '@/lib/localized-display';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateChartTimeframeLabel } from '@/lib/localization/localized-display';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { CHART_TIMEFRAME_OPTIONS, type ChartTimeframe } from '@/components/system/chart-timeframe';

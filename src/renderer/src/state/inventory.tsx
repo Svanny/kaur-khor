@@ -36,17 +36,17 @@ import type {
   SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from '@shared/sena';
-import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
-import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
-import { projectStockReportsFromSena } from '@/lib/project-stock-reports-from-sena';
+import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena/sena-detail-pages';
+import { projectInventorySnapshotFromSena } from '@/lib/sena/project-inventory-snapshot-from-sena';
+import { projectStockReportsFromSena } from '@/lib/sena/project-stock-reports-from-sena';
 import {
   clearPersistedSenaDetailPagesForEntity,
   deriveSenaDetailCacheFreshnessFingerprint,
   prunePersistedSenaDetailPages,
   readPersistedSenaDetailPage,
   writePersistedSenaDetailPage,
-} from '@/lib/sena-detail-page-cache';
-import { normalizeSenaCatalog } from '@/lib/sena-catalog';
+} from '@/lib/sena/sena-detail-page-cache';
+import { normalizeSenaCatalog } from '@/lib/catalog/sena-catalog';
 import {
   archiveSenaService,
   archiveSenaSku,
@@ -57,7 +57,7 @@ import {
   unarchiveSenaSku,
   upsertSenaService,
   upsertSenaSku,
-} from '@/lib/sena-catalog';
+} from '@/lib/catalog/sena-catalog';
 
 type ReadCacheValue =
   | InventorySnapshot

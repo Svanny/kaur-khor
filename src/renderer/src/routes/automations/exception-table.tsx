@@ -12,12 +12,12 @@ import {
   HeaderedTableRow,
 } from '@/components/system/headered-table';
 import { Button } from '@/components/ui/button';
-import { statusPillClassName } from '@/lib/state-tones';
-import { rowHoverClassName } from '@/lib/interactive-surface';
+import { statusPillClassName } from '@/lib/ui/state-tones';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
 import { ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
 import { EntityCustomerIcon } from '@icons/entities';
-import { SectionLabel } from '@/routes/sku-detail/section-heading';
-import { translateUiLiteral } from '@/lib/translations';
+import { SectionLabel } from '@/routes/inventory/sku-detail/section-heading';
+import { translateUiLiteral } from '@/lib/localization/translations';
 
 const automationActionButtonClassName = 'min-w-[152px] justify-center';
 

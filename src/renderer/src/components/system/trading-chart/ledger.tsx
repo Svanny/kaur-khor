@@ -11,16 +11,16 @@ import {
   type ChartLayoutPreferenceMergeOptions,
   writeSubtypeDefaultChartLayoutPreferences,
   type PersistedChartLayoutPreferences,
-} from '@/lib/chart-layout-preferences';
+} from '@/lib/chart/chart-layout-preferences';
 import {
   readEntityChartSettings,
   readSubtypeDefaultChartSettings,
   writeEntityChartSettings,
   writeSubtypeDefaultChartSettings,
   type ChartSettingsSubtype,
-} from '@/lib/chart-settings-memory';
+} from '@/lib/chart/chart-settings-memory';
 import { cn } from '@/lib/utils';
-import { SectionTitle } from '@/routes/sku-detail/section-heading';
+import { SectionTitle } from '@/routes/inventory/sku-detail/section-heading';
 import { SkuTradingChart } from './chart';
 import {
   defaultAnalysisTradingChartIndicators,

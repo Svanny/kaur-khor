@@ -1,0 +1,258 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
+import { ItemAvatar } from '@/components/system/item-identity';
+import { Button } from '@/components/ui/button';
+import { translateUiLiteral } from '@/lib/localization/translations';
+import { cn } from '@/lib/utils';
+import { usePreferences } from '@/state/preferences';
+import { useRuntimeMode } from '@/hooks/use-runtime-mode';
+import { EditorField } from './editor-form-primitives';
+
+const SUPPORTED_INGEST_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const SUPPORTED_INGEST_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const MAX_INGEST_IMAGE_BYTES = 20 * 1024 * 1024;
+const activeCatalogImagePasteOwners: symbol[] = [];
+
+function isSupportedImageType(type: string): boolean {
+  return SUPPORTED_INGEST_IMAGE_TYPES.has(type);
+}
+
+function hasSupportedImageExtension(name: string): boolean {
+  const normalizedName = name.toLowerCase();
+  return Array.from(SUPPORTED_INGEST_IMAGE_EXTENSIONS).some((extension) => normalizedName.endsWith(extension));
+}
+
+function isSupportedImageFile(file: File): boolean {
+  return isSupportedImageType(file.type) || hasSupportedImageExtension(file.name);
+}
+
+function imageIngestErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Could not store this image.';
+}
+
+function findClipboardImageFile(clipboardData: DataTransfer): File | null {
+  const files = Array.from(clipboardData.files);
+  const imageFile = files.find((file) => isSupportedImageFile(file));
+  if (imageFile) {
+    return imageFile;
+  }
+
+  if (!clipboardData.items) {
+    return null;
+  }
+
+  for (const item of Array.from(clipboardData.items)) {
+    if (item.kind === 'file') {
+      const file = item.getAsFile();
+      if (file && (isSupportedImageType(item.type) || isSupportedImageFile(file))) {
+        return file;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function CatalogImageField({
+  helper,
+  imagePath,
+  label,
+  name,
+  type,
+  onChange,
+}: {
+  helper: string;
+  imagePath?: string | null;
+  label: string;
+  name: string;
+  type: 'sku' | 'service';
+  onChange: (value: string | null) => void;
+}) {
+  const { language } = usePreferences();
+  const { isBrowserRuntime } = useRuntimeMode();
+  const browserFileInputRef = useRef<HTMLInputElement | null>(null);
+  const pasteOwnerRef = useRef(Symbol('catalog-image-paste-owner'));
+  const [busy, setBusy] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const storeImageFile = useCallback(async (imageFile: File) => {
+    if (imageFile.size > MAX_INGEST_IMAGE_BYTES) {
+      setError(translateUiLiteral(language, 'Images must be 20 MB or smaller.'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const arrayBuffer = await imageFile.arrayBuffer();
+      const nextImagePath = await window.kaurKhorDesktop.system.storeDroppedImage({
+        name: imageFile.name || 'clipboard-image.png',
+        type: imageFile.type,
+        data: arrayBuffer,
+      });
+      if (nextImagePath) {
+        onChange(nextImagePath);
+      } else if (isBrowserRuntime) {
+        setError(translateUiLiteral(language, 'Browser image storage is unavailable in this release. Use the desktop app to attach persistent item pictures.'));
+      }
+    } catch (nextError) {
+      setError(imageIngestErrorMessage(nextError));
+    } finally {
+      setBusy(false);
+    }
+  }, [isBrowserRuntime, language, onChange]);
+
+  async function handleChooseImage() {
+    if (isBrowserRuntime) {
+      browserFileInputRef.current?.click();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const nextImagePath = await window.kaurKhorDesktop.system.pickAndStoreImage();
+      if (nextImagePath) {
+        onChange(nextImagePath);
+      }
+    } catch (nextError) {
+      setError(imageIngestErrorMessage(nextError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+
+    const files = Array.from(event.dataTransfer.files);
+    const imageFile = files.find((file) => isSupportedImageFile(file));
+    if (!imageFile) {
+      return;
+    }
+
+    await storeImageFile(imageFile);
+  }
+
+  async function handlePaste(event: React.ClipboardEvent<HTMLDivElement>) {
+    const imageFile = findClipboardImageFile(event.clipboardData);
+    if (!imageFile) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    await storeImageFile(imageFile);
+  }
+
+  useEffect(() => {
+    const pasteOwner = pasteOwnerRef.current;
+    activeCatalogImagePasteOwners.push(pasteOwner);
+    return () => {
+      const ownerIndex = activeCatalogImagePasteOwners.indexOf(pasteOwner);
+      if (ownerIndex >= 0) {
+        activeCatalogImagePasteOwners.splice(ownerIndex, 1);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const pasteOwner = pasteOwnerRef.current;
+    function handleDocumentPaste(event: ClipboardEvent) {
+      if (!event.clipboardData || event.defaultPrevented) {
+        return;
+      }
+
+      if (activeCatalogImagePasteOwners[activeCatalogImagePasteOwners.length - 1] !== pasteOwner) {
+        return;
+      }
+
+      const imageFile = findClipboardImageFile(event.clipboardData);
+      if (!imageFile) {
+        return;
+      }
+
+      event.preventDefault();
+      void storeImageFile(imageFile);
+    }
+
+    document.addEventListener('paste', handleDocumentPaste);
+    return () => document.removeEventListener('paste', handleDocumentPaste);
+  }, [storeImageFile]);
+
+  return (
+    <EditorField
+      error={error ?? undefined}
+      helper={translateUiLiteral(language, helper)}
+      label={translateUiLiteral(language, label)}
+    >
+      <div
+        className={cn(
+          'flex flex-col gap-3 rounded-[1.25rem] border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center transition-colors',
+          dragActive && 'border-primary bg-primary/5',
+        )}
+        data-testid="catalog-image-dropzone"
+        tabIndex={0}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onPaste={handlePaste}
+      >
+        <ItemAvatar imagePath={imagePath} name={name} size="default" type={type} />
+        <div className="grid gap-2">
+          <div className="text-sm text-muted-foreground">
+            {imagePath
+              ? translateUiLiteral(language, 'Picture shows anywhere this item identity appears.')
+              : translateUiLiteral(language, 'No picture selected.')}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={busy} type="button" variant="outline" onClick={() => void handleChooseImage()}>
+              <ActionEditIcon className="size-4" />
+              {imagePath ? translateUiLiteral(language, 'Replace image') : translateUiLiteral(language, 'Choose image')}
+            </Button>
+            {imagePath ? (
+              <Button disabled={busy} type="button" variant="destructive-outline" onClick={() => onChange(null)}>
+                <ActionDeleteIcon className="size-4" />
+                {translateUiLiteral(language, 'Remove image')}
+              </Button>
+            ) : null}
+            {isBrowserRuntime ? (
+              <input
+                ref={browserFileInputRef}
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                type="file"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  if (file) {
+                    void storeImageFile(file);
+                  }
+                }}
+              />
+            ) : null}
+          </div>
+          {isBrowserRuntime ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              {translateUiLiteral(language, 'Browser mode keeps products data in OPFS, but persistent image assets are desktop-only for now.')}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </EditorField>
+  );
+}

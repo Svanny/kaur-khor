@@ -12,9 +12,9 @@ import {
   writeEntityChartLayoutPreferences,
   type ChartLayoutPreferenceMergeOptions,
   type PersistedChartLayoutPreferences,
-} from '@/lib/chart-layout-preferences';
-import type { ChartSettingsSubtype } from '@/lib/chart-settings-memory';
-import { traceRenderer } from '@/lib/trace';
+} from '@/lib/chart/chart-layout-preferences';
+import type { ChartSettingsSubtype } from '@/lib/chart/chart-settings-memory';
+import { traceRenderer } from '@/lib/ui/trace';
 
 export type TradingChartHydrationProgress = { current: number; total: number } | null;
 const DEFAULT_CHART_BUSY_HOLD_MS = 450;

@@ -26,7 +26,7 @@ import {
   shouldLoadOlderIntervals,
 } from './interval-strip';
 import { buildPointCoordinatesWithDomain, buildTrajectoryBandPath } from './timeline-chart';
-import { formatSenaLongDateTime24 } from '@/routes/sku-detail/format';
+import { formatSenaLongDateTime24 } from '@/routes/inventory/sku-detail/format';
 
 describe('interval strip helpers', () => {
   test('uses one shared axis contract for slot left and center positions', () => {

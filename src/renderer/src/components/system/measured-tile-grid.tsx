@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
-import { deriveMeasuredGridColumnCount, DEFAULT_MEASURED_GRID_GAP } from '@/lib/measured-grid';
+import { deriveMeasuredGridColumnCount, DEFAULT_MEASURED_GRID_GAP } from '@/lib/ui/measured-grid';
 
 export function MeasuredTileGrid<T>({
   gap = DEFAULT_MEASURED_GRID_GAP,

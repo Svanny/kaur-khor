@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import type { AppLanguage } from '@shared/inventory';
-import { rowHoverClassName } from '@/lib/interactive-surface';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
 import type { AutomationRailRow } from './view-model';
 import { StatusAutomationIcon } from '@icons/status';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 
 export function RecentAutomationActivityRail({
   rows,

@@ -14,10 +14,10 @@ import {
 } from '@/components/system/headered-table';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { statusPillClassName } from '@/lib/state-tones';
-import { rowHoverClassName } from '@/lib/interactive-surface';
-import { SectionLabel } from '@/routes/sku-detail/section-heading';
-import { translateUiLiteral } from '@/lib/translations';
+import { statusPillClassName } from '@/lib/ui/state-tones';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
+import { SectionLabel } from '@/routes/inventory/sku-detail/section-heading';
+import { translateUiLiteral } from '@/lib/localization/translations';
 
 const layout = createHeaderedTableLayout({
   breakpoint: 'xl',

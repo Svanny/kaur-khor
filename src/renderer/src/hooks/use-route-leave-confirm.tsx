@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ActionSaveIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { usePreferences } from '@/state/preferences';
 
 const DEFAULT_DISCARD_TITLE = 'Discard changes?';

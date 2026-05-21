@@ -3,8 +3,8 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 import { ActionCloseIcon, ActionConfirmIcon, ActionResetIcon } from '@icons/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { translateUiLiteral } from '@/lib/translations';
-import { dateInputValueFromIsoString, isoStringFromDateInput } from '@/lib/date-input-utils';
+import { translateUiLiteral } from '@/lib/localization/translations';
+import { dateInputValueFromIsoString, isoStringFromDateInput } from '@/lib/formatting/date-input-utils';
 import type { AppLanguage } from '@shared/inventory';
 
 export interface CustomTimeframeDialogProps {

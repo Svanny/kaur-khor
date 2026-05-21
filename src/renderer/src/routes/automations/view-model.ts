@@ -7,10 +7,10 @@ import type {
   AutomationWorkspace,
 } from '@shared/automation';
 import { formatPhoneForDisplay } from '@shared/phone';
-import { formatCurrency } from '@/lib/format';
-import { buildAutomationHref, buildOverviewHref } from '@/lib/navigation-state';
-import type { StatusPillTone } from '@/lib/state-tones';
-import { translateUiLiteral } from '@/lib/translations';
+import { formatCurrency } from '@/lib/formatting/format';
+import { buildAutomationHref, buildOverviewHref } from '@/lib/navigation/navigation-state';
+import type { StatusPillTone } from '@/lib/ui/state-tones';
+import { translateUiLiteral } from '@/lib/localization/translations';
 
 export type AutomationRibbonMetric = {
   key:

@@ -4,9 +4,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import type { ProductAttributeDraft, ProductAttributeDraftRow, ProductAttributePreset } from '@/lib/product-attributes';
-import { MAX_PRODUCT_ATTRIBUTE_VARIANTS, productAttributeCombinationCount, sanitizeProductAttributeOptions } from '@/lib/product-attributes';
-import { translateUiLiteral } from '@/lib/translations';
+import type { ProductAttributeDraft, ProductAttributeDraftRow, ProductAttributePreset } from '@/lib/catalog/product-attributes';
+import { MAX_PRODUCT_ATTRIBUTE_VARIANTS, productAttributeCombinationCount, sanitizeProductAttributeOptions } from '@/lib/catalog/product-attributes';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
 
 type ProductAttributesFieldProps = {

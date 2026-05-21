@@ -55,13 +55,13 @@ import {
   buildAutomationSearchParams,
   readAutomationRouteState,
   type AutomationIntakeFilterValue,
-} from '@/lib/navigation-state';
-import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
-import { deriveNavigationAvailability } from '@/lib/navigation-availability';
-import { rowHoverClassName } from '@/lib/interactive-surface';
-import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
-import { getTranslation, translateUiLiteral } from '@/lib/translations';
-import { recordTicketOptions, sortRecordTicketOptionsByRecent } from '@/lib/record-activity';
+} from '@/lib/navigation/navigation-state';
+import { useBenchmarkRouteReady } from '@/lib/ui/benchmark-route-ready';
+import { deriveNavigationAvailability } from '@/lib/navigation/navigation-availability';
+import { rowHoverClassName } from '@/lib/ui/interactive-surface';
+import { statusPillClassName, tintedSurfaceClassName } from '@/lib/ui/state-tones';
+import { getTranslation, translateUiLiteral } from '@/lib/localization/translations';
+import { recordTicketOptions, sortRecordTicketOptionsByRecent } from '@/lib/records/record-activity';
 import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { useAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
@@ -80,8 +80,8 @@ import {
   type AutomationIntakeTableRow,
   type AutomationRailRow,
 } from './automations/view-model';
-import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './performance/chrome';
-import { SectionLabel } from './sku-detail/section-heading';
+import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './insights/performance/chrome';
+import { SectionLabel } from './inventory/sku-detail/section-heading';
 
 type ExposureTypeFilter = 'all' | 'sku' | 'service';
 type ExceptionIssueFilter = 'all' | 'parser_failed' | 'quantity_ambiguous' | 'item_not_found' | 'availability_unknown';

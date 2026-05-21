@@ -50,15 +50,15 @@ import {
   buildRememberedInventoryHref,
   buildRememberedPageHref,
   usePageStateMemoryVersion,
-} from '@/lib/page-state-memory';
-import { resolveSettingsSection, visibleSettingsSections, type SettingsSectionConfig } from '@/lib/settings-navigation';
+} from '@/lib/settings/page-state-memory';
+import { resolveSettingsSection, visibleSettingsSections, type SettingsSectionConfig } from '@/lib/navigation/settings-navigation';
 import {
   deriveNavigationAvailability,
   isUnlockedNavItemNew,
   isUnlockedNavItemVisible,
   type NavigationAvailability,
-} from '@/lib/navigation-availability';
-import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
+} from '@/lib/navigation/navigation-availability';
+import { translateUiLiteral, type TranslationKey } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { buildKaurKhorNavigationState, buildSidebarNavigationState, SIDEBAR_NAVIGATION_SOURCE, useNavigationHistory } from '@/state/navigation-history';
@@ -66,7 +66,7 @@ import { usePreferences } from '@/state/preferences';
 import { useRuntimeMode } from '@/hooks/use-runtime-mode';
 import brandLogo from '@/assets/kaur-khor-logo.svg';
 import { ActionCreatePackageIcon, ActionRefreshIcon } from '@icons/actions';
-import { RECORD_UPDATE_LANES } from '@/lib/record-update-routes';
+import { RECORD_UPDATE_LANES } from '@/lib/navigation/record-update-routes';
 import {
   EntityRevenueIcon,
   EntityServiceIcon,

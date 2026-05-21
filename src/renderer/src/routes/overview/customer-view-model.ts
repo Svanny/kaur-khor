@@ -7,17 +7,17 @@ import {
   buildSkuCommercialSnapshots,
   filterObservationsForDays,
   observationCommercialSummary,
-} from '@/lib/commercial-flow';
+} from '@/lib/records/commercial-flow';
 import {
   buildCaptureSessionHref,
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
   RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   type OverviewTaskAction,
-} from '@/lib/record-update-routes';
-import { formatLocalDateInputValue } from '@/lib/date-input-utils';
-import { buildAutomationHref } from '@/lib/navigation-state';
-import type { StatusPillTone } from '@/lib/state-tones';
-import { translateUiLiteral } from '@/lib/translations';
+} from '@/lib/navigation/record-update-routes';
+import { formatLocalDateInputValue } from '@/lib/formatting/date-input-utils';
+import { buildAutomationHref } from '@/lib/navigation/navigation-state';
+import type { StatusPillTone } from '@/lib/ui/state-tones';
+import { translateUiLiteral } from '@/lib/localization/translations';
 
 export type OverviewCustomerFilter =
   | 'all'

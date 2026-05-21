@@ -112,11 +112,11 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { ChartLayoutPreferenceMergeOptions, ChartVisibleDateRange } from '@/lib/chart-layout-preferences';
-import { dateInputValueFromIsoString, isoStringFromDateInput } from '@/lib/date-input-utils';
-import { translateChartTimeframeLabel, translateRegimeLabel } from '@/lib/localized-display';
-import { regimeChartFill } from '@/lib/state-tones';
-import { translateUiLiteral } from '@/lib/translations';
+import type { ChartLayoutPreferenceMergeOptions, ChartVisibleDateRange } from '@/lib/chart/chart-layout-preferences';
+import { dateInputValueFromIsoString, isoStringFromDateInput } from '@/lib/formatting/date-input-utils';
+import { translateChartTimeframeLabel, translateRegimeLabel } from '@/lib/localization/localized-display';
+import { regimeChartFill } from '@/lib/ui/state-tones';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import type {

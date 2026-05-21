@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Sparklines } from 'react-sparklines';
-import { demandSparklineToneColors } from '@/lib/state-tones';
+import { demandSparklineToneColors } from '@/lib/ui/state-tones';
 
 export type CompactSparklineTone = 'up' | 'flat' | 'down';
 

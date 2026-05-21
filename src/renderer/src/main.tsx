@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { BrowserRouter, HashRouter } from 'react-router-dom';
 import App from './App';
-import { isBenchmarkRendererMode } from './lib/benchmark-mode';
+import { isBenchmarkRendererMode } from './lib/settings/benchmark-mode';
 import { embeddedModeForPath, webLandingMountForPath } from './routes/web/embedded-entry';
 import './globals.css';
 

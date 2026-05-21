@@ -2,7 +2,7 @@ import type { AppLanguage } from '@shared/inventory';
 import { EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { CompactSparkline, type CompactSparklineTone } from '@/components/ui/compact-sparkline';
-import { translateUiLiteral } from '@/lib/translations';
+import { translateUiLiteral } from '@/lib/localization/translations';
 import type { ProjectionCell, ProjectionMatrixRow } from './view-model';
 
 const sparklineKeys = ['today', '7d', '14d', '30d'] as const;

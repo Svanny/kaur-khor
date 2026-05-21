@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { formatEditableNumberWithCommas, sanitizeEditableNumberDraft } from "@/lib/format"
+import { formatEditableNumberWithCommas, sanitizeEditableNumberDraft } from "@/lib/formatting/format"
 import { cn } from "@/lib/utils"
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(

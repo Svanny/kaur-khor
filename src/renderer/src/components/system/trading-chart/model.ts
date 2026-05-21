@@ -4,7 +4,7 @@ import {
   type ChartResolutionSpec,
 } from '@/components/system/chart-resolution';
 import type { ChartInputValueSource } from '@/components/system/chart-series-config';
-import type { SenaSkuDetailPipelineChartInterval, SenaSkuDetailViewModel } from '@/routes/sku-detail/view-model';
+import type { SenaSkuDetailPipelineChartInterval, SenaSkuDetailViewModel } from '@/routes/inventory/sku-detail/view-model';
 
 export type TradingChartIndicatorId =
   | 'inventory'

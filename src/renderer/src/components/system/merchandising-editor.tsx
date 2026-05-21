@@ -26,11 +26,11 @@ import { rankingEntryTypeIcons } from '@icons/domain';
 import type { IconComponent } from '@icons';
 import { StatusDeltaTriangleIcon } from '@icons/status';
 import type { InventorySnapshot } from '@shared/inventory';
-import { formatCurrency, rankLabel } from '@/lib/format';
+import { formatCurrency, rankLabel } from '@/lib/formatting/format';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
-import { clampOverlayTransformToBoundary } from '@/routes/ranking-drag';
-import { buildRankingEntryId, reorderRankingEntries } from '@/routes/ranking-order';
+import { clampOverlayTransformToBoundary } from '@/routes/records/ranking-drag';
+import { buildRankingEntryId, reorderRankingEntries } from '@/routes/records/ranking-order';
 import { recordUpdateTableRowClassName } from './record-update-table-styles';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
