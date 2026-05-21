@@ -11,7 +11,7 @@ pnpm bench
 
 By default this runs only the managed scenario list in
 `src/shared/benchmark-scenarios.json`; ad hoc diagnostic files under
-`tests/tests/bench/scenarios` are ignored unless passed explicitly.
+`tests/bench/scenarios` are ignored unless passed explicitly.
 
 List the managed default scenario files without building or launching:
 

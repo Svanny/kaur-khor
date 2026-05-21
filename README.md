@@ -245,8 +245,8 @@ The current local app is organized around these paths:
 - `src/shared`: shared IPC contracts and TypeScript types
 - `apps/desktop-core`: Rust desktop runtime used for local persistence and core workflows
 - `apps/sena-core`: Rust SENA analysis engine
-- `tool/security`: desktop security gate scripts
-- `tool/sync_design_tokens.sh`: design-token sync helper
+- `tools/security`: desktop security gate scripts
+- `tools/sync_design_tokens.sh`: design-token sync helper
 
 The repository is licensed under `GPL-2.0-only`.
 
