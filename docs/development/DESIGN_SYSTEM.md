@@ -17,9 +17,9 @@
 
 ## Token Sources
 
-- Tokens live in [`src/renderer/src/globals.css`](src/renderer/src/globals.css).
-- UI primitives live in [`src/renderer/src/components/ui`](src/renderer/src/components/ui).
-- Kaur Khor-specific reusable compositions live in [`src/renderer/src/components/system`](src/renderer/src/components/system).
+- Tokens live in [`src/renderer/src/globals.css`](../../src/renderer/src/globals.css).
+- UI primitives live in [`src/renderer/src/components/ui`](../../src/renderer/src/components/ui).
+- Kaur Khor-specific reusable compositions live in [`src/renderer/src/components/system`](../../src/renderer/src/components/system).
 
 ## System Structure
 

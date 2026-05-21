@@ -416,8 +416,8 @@ chmod +x "$node_dir/node"
     expect(script).toContain('shell: true');
     expect(script).toContain("hasResolvablePackage('rcedit')");
     expect(script).toContain("'install', '--frozen-lockfile'");
-    expect(unsignedConfig).toContain('extends: ./electron-builder.yml');
-    expect(unsignedConfig).toContain('afterPack: ../../tools/scripts/after-pack-win-unsigned-icon.mjs');
+    expect(unsignedConfig).toContain('extends: config/package/electron-builder.yml');
+    expect(unsignedConfig).toContain('afterPack: tools/scripts/after-pack-win-unsigned-icon.mjs');
     expect(unsignedConfig).toContain('signAndEditExecutable: false');
     expect(unsignedConfig).toContain("    - '!.exe'");
     expect(iconHook).toContain("import { rcedit } from 'rcedit'");
