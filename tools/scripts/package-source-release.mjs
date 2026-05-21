@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { sourceBuildArchiveNames } from './update-support.mjs';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const outputDir = resolve(root, 'dist');
 const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 const releaseVersion = resolveReleaseVersion();
@@ -192,7 +192,7 @@ It intentionally excludes developer docs, benchmark suites, screenshots, tests, 
 Run the source-build script for your platform:
 
 - macOS/Linux: ./tools/scripts/build-from-source.sh
-- Windows: .\\scripts\\build-from-source.ps1
+- Windows: .\\tools\\scripts\\build-from-source.ps1
 
 The script installs project dependencies, compiles the Rust desktop runtime, and packages the native desktop app for the current computer.
 `;

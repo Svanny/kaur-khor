@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 
 import { chromium } from 'playwright';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const screenshotDir = join(repoRoot, 'docs/readme');
 const publicScreenshotDir = join(repoRoot, 'public/screenshots');
 const host = process.env.KAUR_KHOR_MOBILE_SCREENSHOT_HOST ?? '127.0.0.1';

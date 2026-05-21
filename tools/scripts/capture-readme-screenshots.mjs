@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import electronPath from 'electron';
 import { _electron as electron } from 'playwright';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const screenshotDir = join(repoRoot, 'docs/readme');
 const viewport = { width: 1728, height: 996 };
 const finalPixelSize = { width: 3456, height: 1984 };

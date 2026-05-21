@@ -3666,7 +3666,7 @@ describe('WebRoutes build from source section', () => {
     expect(section).toHaveTextContent('Open PowerShell.');
     expect(section).toHaveTextContent('Copy the code below and paste it inside PowerShell.');
     expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run tools/scripts/build-from-source.ps1 for your platform.');
-    expect(section).toHaveTextContent('.\\scripts\\build-from-source.ps1 --platform=windows-x64');
+    expect(section).toHaveTextContent('.\\tools\\scripts\\build-from-source.ps1 --platform=windows-x64');
     expect(snippet).toHaveTextContent('Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz" -OutFile "kaur-khor-latest-source-build.tar.gz"');
     expect(snippet).toHaveTextContent('kaur-khor-latest-source-build.tar.gz.sha256');
     expect(snippet).toHaveTextContent('Get-FileHash -Algorithm SHA256');
@@ -3675,7 +3675,7 @@ describe('WebRoutes build from source section', () => {
     expect(snippet).toHaveTextContent('tar -xzf "kaur-khor-latest-source-build.tar.gz"');
     expect(snippet).toHaveTextContent('Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"');
     expect(snippet).toHaveTextContent('Set-Location "kaur-khor-*-source-build"');
-    expect(snippet).toHaveTextContent('.\\scripts\\build-from-source.ps1 --update');
+    expect(snippet).toHaveTextContent('.\\tools\\scripts\\build-from-source.ps1 --update');
     expect(snippet).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');
     expect(snippet).not.toHaveTextContent('tar -xzf kaur-khor-source.tar.gz');
     expect(snippet).not.toHaveTextContent('./tools/scripts/build-from-source.sh');

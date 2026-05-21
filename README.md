@@ -90,7 +90,7 @@ All entry points are free, require no sign-up or login, and keep data on the use
 
 Kaur Khor uses **SENA** as its local analysis engine. SENA is what turns saved observations into reorder pressure, timing risk, blocker detection, and explanation surfaces inside the app.
 
-If you want the reference document, see [References/SENA/SENA.pdf](References/SENA/SENA.pdf).
+If you want the reference document, see [docs/reference/assets/SENA/SENA.pdf](docs/reference/assets/SENA/SENA.pdf).
 
 ## Downloads
 

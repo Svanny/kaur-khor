@@ -18,7 +18,7 @@ This policy applies to the Kaur Khor local Electron app and all code and configu
 
 ## Secure Development Rules
 - Security checks are required before merge:
-  - `bash tool/security/run_security_checks.sh`
+  - `bash tools/security/run_security_checks.sh`
 - No hardcoded credentials, API keys, tokens, or private keys.
 - New user-controlled input paths must use shared validation utilities in the Electron/TypeScript codebase under `src`.
 - New externally visible identifiers must use opaque random IDs.

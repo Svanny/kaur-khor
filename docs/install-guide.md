@@ -114,7 +114,7 @@ foreach ($archiveEntry in $archiveEntries) {
 tar -xzf "kaur-khor-latest-source-build.tar.gz"
 Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"
 Set-Location "kaur-khor-*-source-build"
-.\scripts\build-from-source.ps1 --update
+.\tools\scripts\build-from-source.ps1 --update
 ```
 
 After a successful Windows source build, the script opens the generated setup installer from `release\`. Complete that installer to register the app with Windows instead of launching `release\win-unpacked` directly.

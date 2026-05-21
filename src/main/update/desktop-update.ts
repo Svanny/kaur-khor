@@ -490,7 +490,7 @@ foreach ($archiveEntry in $archiveEntries) {
 }
 tar -xzf "${sourceArchiveName}"
 Set-Location "kaur-khor-*-source-build"
-.\\scripts\\build-from-source.ps1 --update --data-dir=${powerShellQuote(dataDirectoryPath)}${backupArg}${skipArg}${oldSourceBuildsArg}
+.\\tools\\scripts\\build-from-source.ps1 --update --data-dir=${powerShellQuote(dataDirectoryPath)}${backupArg}${skipArg}${oldSourceBuildsArg}
 Write-Host "Update finished. Reopen Kaur Khor and restore the exported snapshot from your chosen backup folder if needed."
 `;
 }
