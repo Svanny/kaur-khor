@@ -384,7 +384,7 @@ describe('telegram automation connection setup', () => {
       expect(fetchMock).toHaveBeenCalledTimes(5);
       expect(loadPreferences).toHaveBeenCalledTimes(2);
     });
-    loop.stop();
+    await loop.stopAndDrain();
   });
 
   it('keeps polling after a transient Telegram transport error so pending updates recover', async () => {
@@ -456,7 +456,7 @@ describe('telegram automation connection setup', () => {
     await waitForAssertion(() => {
       expect(fetchMock).toHaveBeenCalledTimes(6);
     });
-    loop.stop();
+    await loop.stopAndDrain();
 
     const transport = await readAutomationTransportState(userDataPath);
     expect(transport.connection.status).toBe('connected');
@@ -554,7 +554,7 @@ describe('telegram automation connection setup', () => {
       await expect(listAutomationPendingTelegramOutboundJobs(userDataPath))
         .resolves.toHaveLength(1);
     });
-    firstLoop.stop();
+    await firstLoop.stopAndDrain();
 
     const transportAfterFailure = await readAutomationTransportState(userDataPath);
     expect(transportAfterFailure.telegramUpdateCursor).toBe(43);
@@ -565,7 +565,7 @@ describe('telegram automation connection setup', () => {
       await expect(listAutomationPendingTelegramOutboundJobs(userDataPath))
         .resolves.toHaveLength(0);
     });
-    secondLoop.stop();
+    await secondLoop.stopAndDrain();
 
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
     const conversationId = workspace.conversations[0]?.conversationId;
@@ -801,7 +801,7 @@ describe('telegram automation connection setup', () => {
       expect(session?.lastWizardMessageId).toBe(78);
       expect(session?.generatedWizardMessageIds).toEqual([78]);
     });
-    loop.stop();
+    await loop.stopAndDrain();
 
     const session = await readAutomationWizardSessionForConversation(userDataPath, conversationId);
     expect(session?.lastWizardMessageId).toBe(78);
