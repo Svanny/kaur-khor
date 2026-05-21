@@ -47,7 +47,7 @@ export const UI_MATRIX_CASES: UiMatrixCase[] = [
     consistency: 'Catalog counts and first detail ids match bridge probes across Catalog and detail pages.',
     priority: 'P0',
     testTypes: ['regression', 'visual', 'interaction'],
-    captures: ['home', 'work-queue', 'catalog', 'sku-detail', 'service-detail', 'insights'],
+    captures: ['home', 'work-queue', 'catalog', 'sku-detail-chart', 'service-detail', 'insights'],
     edgeNotes: 'Run medium by default; heavier fixtures can be selected by environment or focused command.',
   },
   {

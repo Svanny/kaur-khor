@@ -31,7 +31,8 @@ test.describe('UI matrix: browser and demo surfaces', () => {
     await expect(page.getByRole('link', { name: /Get started/i })).toHaveClass(/pos-metadata-surface-gleam/);
     const releaseSelector = page.getByLabel('Download');
     if (await releaseSelector.count()) {
-      await expect(releaseSelector.locator('xpath=..').locator('xpath=..').first()).toHaveClass(/sm:max-w-xl/);
+      const releaseSelectorBox = await releaseSelector.boundingBox();
+      expect(releaseSelectorBox?.width, 'release selector should have enough rendered width for long asset labels').toBeGreaterThan(430);
     }
     const selectedDownload = page.getByRole('link', { name: /Download selected/i });
     if (await selectedDownload.count()) {

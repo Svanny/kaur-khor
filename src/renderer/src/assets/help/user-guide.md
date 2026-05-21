@@ -46,7 +46,7 @@ Most operators should use Kaur Khor in this order:
 1. Start on **Home**.
 2. Open **Work** to review queue, capture, and intake work.
 3. Use **Work / Capture** when something real changed.
-4. Open **Products** when item definitions, archive state, or automation exposure need attention.
+4. Open **Products** when item definitions or archive state need attention; use **Automations / Sellables exposed** for customer-facing automation exposure.
 5. Open **Inventory** from Home or **Insights** when you need stock health, money, or explanation views.
 6. Use **History** from the command palette or Settings when you need saved reports, edits, or deletions.
 7. Use **Settings** for preferences, local data, planning, automation connection, help, benchmarks, and destructive maintenance.
@@ -59,7 +59,7 @@ The persistent sidebar is intentionally small:
 
 - **Home**: command home and daily entry point
 - **Work**: queue, capture, and intake
-- **Products**: active items, archived items, details, edits, and automation exposure
+- **Products**: active items, archived items, details, and edits
 - **Insights**: Inventory, Money, and Explain modes
 - **Settings**: system, support, local data, automation connection, and maintenance
 
@@ -68,7 +68,7 @@ Moved destinations remain reachable:
 - **History** is available from command palette, Settings, and report contexts.
 - **Archived products** is available in Products with archived status.
 - **Help** lives in Settings at `/settings/help`.
-- **Automation intake** lives in Work; automation exposure lives in Products; Telegram connection lives in Settings.
+- **Automation intake** lives in Work; automation exposure lives in Automations / Sellables exposed; Telegram connection lives in Settings.
 
 When you enter Settings from another app route, **Back to app** returns to that originating route, including its query filters, instead of always returning to Home.
 
