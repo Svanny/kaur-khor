@@ -21,13 +21,13 @@ This document defines the mandatory secure-by-default controls for the Kaur Khor
   exponent and hexadecimal literals unless the UI explicitly models them.
 - CSV exports must neutralize spreadsheet formula-leading cells before writing
   user-controlled values.
-- Source of truth: [`src/renderer/src/lib/validation.ts`](../../src/renderer/src/lib/validation.ts)
+- Source of truth: [`src/renderer/src/lib/ui/validation.ts`](../../src/renderer/src/lib/ui/validation.ts)
 
 ### 2) Identifier Security
 
 - Externally visible SKU and service IDs must be opaque and non-predictable.
 - Timestamp-derived IDs are prohibited for user-facing resources.
-- Source of truth: [`src/renderer/src/lib/ids.ts`](../../src/renderer/src/lib/ids.ts)
+- Source of truth: [`src/renderer/src/lib/formatting/ids.ts`](../../src/renderer/src/lib/formatting/ids.ts)
 
 ### 3) Secret Handling
 

@@ -174,7 +174,7 @@ recent revisions for the same ticket or entity. Do not derive user-visible
 history solely from latest hot anchors; anchors answer current state, while
 recent activity answers what changed.
 
-Renderer surfaces should use `src/renderer/src/lib/record-activity.ts` for
+Renderer surfaces should use `src/renderer/src/lib/records/record-activity.ts` for
 read-side ticket options, customer link directories, delivery-fee defaults, and
 activity cards. `SenaTicketEvent.lines` is the canonical line field; do not
 reintroduce legacy `lineItems` readers.
