@@ -29,10 +29,12 @@ migrate_working_dir/
 /dist/
 /release/
 /kaur-khor-v*-source-build/
+/output/
 /coverage/
 /bench-results/
 /ui-matrix-results/
 /test-results/
+/e2e-results/
 /apps/api/target/
 /apps/desktop-core/target/
 /apps/sena-core/target/
@@ -51,6 +53,7 @@ tree_dir.txt
 /.playwright/
 /.playwright-cli/
 .kaur-khor-dev-data/
+banji-dev.log
 .env.local
 .env
 .env.*.local
@@ -68,6 +71,7 @@ app.*.map.json
 
 # Screenshots and local debug artifacts
 *.png
+/.tmp_fig/
 !docs/readme/*.png
 !docs/development/*.png
 !public/icons/*.png
