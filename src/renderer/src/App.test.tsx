@@ -60,7 +60,7 @@ vi.mock('@/routes/insights/financials', () => ({
 vi.mock('@/routes/automations', () => ({
   AutomationsRoute: () => <div>Automations screen</div>,
 }));
-vi.mock('@/routes/inventory', () => ({
+vi.mock('@/routes/inventory/catalog-route', () => ({
   InventoryRoute: () => <div>Products screen</div>,
 }));
 vi.mock('@/routes/help/help', () => ({
@@ -137,6 +137,24 @@ describe('AppRoutes', () => {
     renderRoutes('/catalog/skus/new');
 
     expect(screen.getByText('SKU form screen')).toBeInTheDocument();
+  });
+
+  it('renders the catalog route through the moved catalog route module after unlock', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{ archived: false, costPerUnit: 4, description: 'SKU', name: 'SKU 1', skuId: 'sku-1' }],
+      },
+      isLoading: false,
+      observations: [{ observationId: 'obs-1' }],
+    });
+
+    renderRoutes('/catalog');
+
+    expect(await screen.findByText('Products screen')).toBeInTheDocument();
   });
 
   it('sends removed operations routes to home', () => {

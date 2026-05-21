@@ -100,7 +100,7 @@ Releases are published through GitHub Releases:
 - Windows: x64 installer
 - Linux: x64 AppImage and `.deb`
 
-Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts. Release assets follow the repo packaging template `kaur-khor-<version>-<os>-<arch>.<ext>`, matching `electron-builder.yml`.
+Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts. Release assets follow the repo packaging template `kaur-khor-<version>-<os>-<arch>.<ext>`, matching `config/package/electron-builder.yml`.
 
 Verify release downloads against the `SHA256SUMS` asset on the same GitHub Release when it is present. Do not disable Gatekeeper or SmartScreen globally, and do not strip macOS quarantine attributes to force a launch. For more detail, see [docs/install-guide.md](docs/install-guide.md).
 
