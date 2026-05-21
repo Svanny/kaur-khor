@@ -1,3 +1,4 @@
+import guideSourceEn from '../../../../docs/user-guide.md?raw';
 import guideSourceKm from '../../../../docs/user-guide.km.md?raw';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -140,7 +141,8 @@ describe('HelpRoute', () => {
     });
 
     expect(screen.getAllByText('Settings').length).toBeGreaterThan(0);
-    expect(screen.queryAllByText('Work')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Work' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Work' })).not.toBeInTheDocument();
     expect(screen.getByTestId('help-best-match-badge')).toBeInTheDocument();
   });
 
@@ -159,6 +161,17 @@ describe('HelpRoute', () => {
     expect(screen.getByTestId('help-best-match-badge').closest('[data-slot="card"]')).toHaveTextContent('Work');
   });
 
+  test('keeps common operator search terms discoverable in the guide', () => {
+    const parsed = parseHelpContent(guideSourceEn);
+
+    expect(parsed.search.search('backup').map((result) => result.item.id)).toContain('settings');
+    expect(parsed.search.search('stock count').map((result) => result.item.id)).toContain('capture');
+    expect(parsed.search.search('customer request').map((result) => result.item.id)).toContain('intake');
+    expect(parsed.search.search('price').map((result) => result.item.id)).toEqual(
+      expect.arrayContaining(['capture', 'products']),
+    );
+  });
+
   test('loads the Khmer guide when the app language is Khmer', () => {
     mockPreferences('km');
 
@@ -171,6 +184,27 @@ describe('HelpRoute', () => {
     expect(screen.getByText('មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់')).toBeInTheDocument();
     expect(screen.getAllByText('ការងារ').length).toBeGreaterThan(0);
     expect(screen.getAllByText('សំណួរញឹកញាប់').length).toBeGreaterThan(0);
+  });
+
+  test('keeps localized top-level guide sections on stable help anchors', () => {
+    const parsed = parseHelpContent(guideSourceKm);
+
+    expect(parsed.sections.map((section) => section.id)).toEqual(
+      expect.arrayContaining([
+        'what-kaur-khor-is-for',
+        'daily-workflow',
+        'navigation',
+        'home',
+        'work',
+        'capture',
+        'products',
+        'insights',
+        'history',
+        'settings',
+        'first-useful-workflow',
+        'faq',
+      ]),
+    );
   });
 
   test('uses the Khmer overview CTA and descriptor without stale English settings copy', () => {
@@ -308,6 +342,42 @@ describe('HelpRoute', () => {
     expect(parsed.sections[0]?.blocks).toEqual([{ text: 'មាតិកាផ្នែកការងារ។', type: 'paragraph' }]);
   });
 
+  test('preserves inline bold source while keeping searchable plain text', () => {
+    const parsed = parseHelpContent(`# Guide
+
+## Settings
+
+- **Regional preferences** choose language.
+
+Paragraph with **bold words** and [a link](#target).`);
+
+    expect(parsed.sections[0]?.blocks).toEqual([
+      {
+        items: ['Regional preferences choose language.'],
+        rawItems: ['**Regional preferences** choose language.'],
+        type: 'unordered-list',
+      },
+      {
+        rawText: 'Paragraph with **bold words** and [a link](#target).',
+        text: 'Paragraph with bold words and a link.',
+        type: 'paragraph',
+      },
+    ]);
+    expect(parsed.sections[0]?.searchText).toContain('Regional preferences choose language.');
+    expect(parsed.sections[0]?.searchText).not.toContain('**Regional preferences**');
+  });
+
+  test('renders inline bold markdown in Settings help copy', () => {
+    render(
+      <MemoryRouter initialEntries={['/help']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText('Regional preferences').some((node) => node.tagName === 'STRONG')).toBe(true);
+    expect(screen.getAllByText('USD-to-KHR exchange rate').some((node) => node.tagName === 'STRONG')).toBe(true);
+  });
+
   test('keeps bottom breathing room at the end of the Help page', () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/help']}>
@@ -385,7 +455,7 @@ describe('HelpRoute', () => {
     expect(delayedHighlightedGroup).not.toHaveClass('py-3');
     expect(delayedHighlightedGroup).not.toHaveClass('text-primary');
     expect(screen.getByTestId('help-subsection-highlight')).toHaveClass('motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1]');
-    expect(delayedHighlightedGroup).toHaveTextContent('The Request column summarizes what the customer appears to be asking for');
+    expect(delayedHighlightedGroup).toHaveTextContent('The Request column summarizes the parsed order lines before the intake is attached to a ticket');
     expect(intersectionObserver.disconnect).toHaveBeenCalled();
     intersectionObserver.restore();
   });

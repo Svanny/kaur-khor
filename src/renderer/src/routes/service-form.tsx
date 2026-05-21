@@ -765,7 +765,7 @@ export function ServiceFormRoute() {
         <WorkspacePanel
           className={editorPanelClassName}
           descriptor={translateUiLiteral(language, 'Create active variants from selected attributes when saving this service.')}
-          title={<SectionTitle helpHref="/settings/help#catalog-service-editor-details" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate service variants without copying logs, observations, or captures.')} />}
+          title={<SectionTitle helpHref="/settings/help#catalog-product-attributes" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate service variants without copying logs, observations, or captures.')} />}
         >
           <ProductAttributesField
             draft={attributeDraft}

@@ -1,9 +1,9 @@
 import Fuse from 'fuse.js';
 
 export type HelpBlock =
-  | { type: 'paragraph'; text: string }
-  | { type: 'unordered-list'; items: string[] }
-  | { type: 'ordered-list'; items: string[] }
+  | { type: 'paragraph'; rawText?: string; text: string }
+  | { type: 'unordered-list'; items: string[]; rawItems?: string[] }
+  | { type: 'ordered-list'; items: string[]; rawItems?: string[] }
   | { type: 'heading'; depth: 3 | 4; id: string; text: string };
 
 export type HelpSection = {
@@ -74,7 +74,8 @@ export function parseHelpContent(markdown: string): ParsedHelpContent {
   let collectingIntro = true;
 
   function readParagraph(startIndex: number) {
-    const parts: string[] = [];
+    const normalizedParts: string[] = [];
+    const rawParts: string[] = [];
     let nextIndex = startIndex;
 
     while (nextIndex < lines.length) {
@@ -82,15 +83,20 @@ export function parseHelpContent(markdown: string): ParsedHelpContent {
       if (line.length === 0 || line.startsWith('#') || line.startsWith('- ') || /^\d+\.\s/.test(line)) {
         break;
       }
-      parts.push(normalizeInlineMarkdown(line));
+      rawParts.push(line);
+      normalizedParts.push(normalizeInlineMarkdown(line));
       nextIndex += 1;
     }
 
-    return { nextIndex, text: parts.join(' ') };
+    const rawText = rawParts.join(' ');
+    const text = normalizedParts.join(' ');
+
+    return { nextIndex, rawText: rawText === text ? undefined : rawText, text };
   }
 
   function readList(startIndex: number, ordered: boolean) {
     const items: string[] = [];
+    const rawItems: string[] = [];
     let nextIndex = startIndex;
 
     while (nextIndex < lines.length) {
@@ -99,11 +105,16 @@ export function parseHelpContent(markdown: string): ParsedHelpContent {
       if (!match) {
         break;
       }
+      rawItems.push(match[1] ?? '');
       items.push(normalizeInlineMarkdown(match[1] ?? ''));
       nextIndex += 1;
     }
 
-    return { items, nextIndex };
+    return {
+      items,
+      nextIndex,
+      rawItems: rawItems.some((rawItem, itemIndex) => rawItem !== items[itemIndex]) ? rawItems : undefined,
+    };
   }
 
   while (index < lines.length) {
@@ -156,22 +167,22 @@ export function parseHelpContent(markdown: string): ParsedHelpContent {
     }
 
     if (line.startsWith('- ')) {
-      const { items, nextIndex } = readList(index, false);
-      currentSection.blocks.push({ items, type: 'unordered-list' });
+      const { items, nextIndex, rawItems } = readList(index, false);
+      currentSection.blocks.push(rawItems ? { items, rawItems, type: 'unordered-list' } : { items, type: 'unordered-list' });
       index = nextIndex;
       continue;
     }
 
     if (/^\d+\.\s/.test(line)) {
-      const { items, nextIndex } = readList(index, true);
-      currentSection.blocks.push({ items, type: 'ordered-list' });
+      const { items, nextIndex, rawItems } = readList(index, true);
+      currentSection.blocks.push(rawItems ? { items, rawItems, type: 'ordered-list' } : { items, type: 'ordered-list' });
       index = nextIndex;
       continue;
     }
 
-    const { nextIndex, text } = readParagraph(index);
+    const { nextIndex, rawText, text } = readParagraph(index);
     if (text.length > 0) {
-      currentSection.blocks.push({ text, type: 'paragraph' });
+      currentSection.blocks.push(rawText ? { rawText, text, type: 'paragraph' } : { text, type: 'paragraph' });
     }
     index = nextIndex === index ? index + 1 : nextIndex;
   }

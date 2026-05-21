@@ -12,7 +12,7 @@ describe('PerformanceSectionShell', () => {
   it('renders header controls below the title block when provided', () => {
     render(
       <PerformanceSectionShell
-        helpHref="/settings/help#automation-intake"
+        helpHref="/settings/help#automation-live-intake"
         title="Automation intake"
         tooltip="Tooltip copy"
         headerControls={<div>Header controls</div>}
@@ -30,7 +30,7 @@ describe('PerformanceSectionShell', () => {
     const { container } = render(
       <PerformanceSectionShell
         hideWhenEmpty
-        helpHref="/settings/help#automation-intake"
+        helpHref="/settings/help#automation-live-intake"
         title="Automation intake"
         tooltip="Tooltip copy"
       >
@@ -47,7 +47,7 @@ describe('PerformanceRightRailBlock', () => {
     const { container } = render(
       <PerformanceRightRailBlock
         hideWhenEmpty
-        helpHref="/settings/help#automation-intake"
+        helpHref="/settings/help#automation-live-intake"
         title="Automation intake"
         tooltip="Tooltip copy"
       />,
