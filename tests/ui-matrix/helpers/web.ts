@@ -106,15 +106,15 @@ export async function completeEmbeddedOnboardingIfPresent(page: Page) {
   }
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForFunction(() => (
-    window.location.hash === '#/'
-    || window.location.hash === ''
+    !document.body.innerText.includes('Set up Kaur Khor')
     || document.body.innerText.includes('Choose interface view')
-    || document.body.innerText.includes('Loading workspace')
   ), undefined, { timeout: 10_000 });
   const interfaceHeading = page.getByRole('heading', { name: 'Choose interface view' });
   if (await interfaceHeading.isVisible().catch(() => false)) {
     await page.getByRole('button', { name: 'Continue' }).click();
   }
+  await expect(setupHeading).toHaveCount(0, { timeout: 10_000 });
+  await expect(interfaceHeading).toHaveCount(0, { timeout: 10_000 });
   await page.waitForFunction(() => window.location.hash === '#/' || window.location.hash === '', undefined, { timeout: 10_000 });
   await page.waitForTimeout(500);
 }

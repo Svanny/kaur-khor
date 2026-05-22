@@ -26,7 +26,7 @@ Browser SENA is single-threaded in this phase. `apps/sena-core` has a browser-sa
 
 ## Content security policy
 
-The shared web entry in `src/renderer/index.html` carries the deployable CSP for `/kaur-khor/`, `/kaur-khor/demo`, and `/kaur-khor/app`. Keep it restrictive by default:
+The root `index.html` carries the deployable CSP for `/kaur-khor/`, `/kaur-khor/demo`, and `/kaur-khor/app`; Electron also carries a matching renderer CSP in `src/renderer/index.html`. Keep both restrictive and aligned by default:
 
 - `default-src 'self'`, `base-uri 'self'`, `object-src 'none'`, and `form-action 'none'` keep the static entry closed to unexpected forms, plugins, and remote defaults.
 - `script-src 'self' 'wasm-unsafe-eval'` allows Vite's bundled modules and SQLite WASM compilation without allowing remote scripts.

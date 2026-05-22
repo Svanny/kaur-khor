@@ -21,7 +21,7 @@ function phoneCaptureMenuLink(page: import('@playwright/test').Page, name: strin
 
 async function expectSharedPhoneCaptureHeader(page: import('@playwright/test').Page) {
   await expect(page.getByRole('banner').getByRole('link', { name: 'Back' })).toBeVisible();
-  await expect(page.getByRole('banner').getByRole('button', { name: 'Capture actions' })).toBeVisible();
+  await expect(page.locator('[data-slot="embedded-phone-capture-header-actions"]')).toBeVisible();
 }
 
 async function seedFullCaptureDraft(page: import('@playwright/test').Page, laneId: string) {

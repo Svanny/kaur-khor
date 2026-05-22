@@ -42,7 +42,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Test runtime parallelism must keep dependent UI-matrix flows ordered, keep benchmark Playwright workers at one, and provide serial escape hatches for shared-state diagnosis.
 - Source-build updates must keep versioned source folders under a stable `kaur-khor/` parent, ask before pruning old source-build versions, and default Settings / Updates to `latest` while allowing a specific release.
 - Keep browser/demo-only renderer bootstrap code behind a runtime dynamic import so Electron desktop startup does not eagerly load mock bridge data, demo images, or web-only analysis helpers.
-- Static renderer CSP changes must stay aligned with desktop asset protocols; keep `kaur-khor-asset:` in `img-src` when catalog image URLs can render through the shared HTML entry.
+- Static CSP changes must update both root `index.html` and Electron `src/renderer/index.html`; keep `kaur-khor-asset:` in `img-src` when catalog image URLs can render through either HTML entry.
 - Generated desktop fixture catalog image paths must use the shipped `src/renderer/src/assets/dev-catalog/*.webp` filenames; stale `.png` paths trigger asset-protocol 404s in UI matrix runs.
 - SKU and service editor image paste must work from anywhere on the mounted editor page, including when another field is focused; keep non-image paste unhandled.
 - SKU and service editor pages must initially focus the Name field; nested planning controls such as ETA variation inputs must not steal first focus.
