@@ -33,7 +33,7 @@ The shared web entry in `src/renderer/index.html` carries the deployable CSP for
 - `style-src 'self' 'unsafe-inline'` is required for the current Tailwind/custom-property runtime styling emitted by the app.
 - `worker-src 'self' blob:` allows the SQLite WASM worker and worker helper blobs.
 - `connect-src 'self' https://api.github.com https://api.telegram.org` covers the landing release lookup and foreground browser Telegram polling only.
-- `img-src 'self' data: blob:` and `font-src 'self'` cover bundled screenshots, generated item images, the linked favicon logo, backup/object previews, and bundled fonts.
+- `img-src 'self' data: blob: kaur-khor-asset:` and `font-src 'self'` cover bundled screenshots, generated item images, desktop asset-protocol catalog images, the linked favicon logo, backup/object previews, and bundled fonts.
 - `frame-ancestors` is intentionally omitted from the static `<meta>` CSP because browsers ignore it there. The Electron desktop renderer still sets `frame-ancestors 'none'` through response headers in the main process.
 
 When adding browser-networked features, update this policy and the tests/build verification together. Do not widen it with wildcard script, connect, or frame sources.
