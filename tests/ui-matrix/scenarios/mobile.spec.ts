@@ -16,11 +16,12 @@ import {
 import { createSkuThroughUi } from '../helpers/forms';
 
 function phoneCaptureMenuLink(page: import('@playwright/test').Page, name: string) {
-  return page.getByRole('button', { name });
+  return page.getByRole('button', { name }).or(page.getByRole('link', { name })).first();
 }
 
-function phoneCaptureDoneButton(page: import('@playwright/test').Page) {
-  return page.getByRole('banner').getByRole('button', { name: 'Done' });
+async function expectSharedPhoneCaptureHeader(page: import('@playwright/test').Page) {
+  await expect(page.getByRole('banner').getByRole('link', { name: 'Back' })).toBeVisible();
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Capture actions' })).toBeVisible();
 }
 
 async function seedFullCaptureDraft(page: import('@playwright/test').Page, laneId: string) {
@@ -122,9 +123,7 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
     await assertEmbeddedUiStable(page, 'phone portrait operator shell');
     await captureUi(page, testInfo, 'mobile-phone-portrait-shell');
 
-    await page.getByRole('button', { name: 'Workspace safety' }).click();
-    await expect(page.locator('[data-slot="phone-utility-safety-sheet"]')).toBeVisible();
-    await page.getByRole('link', { name: 'Open settings' }).click();
+    await phoneNav.getByRole('link', { name: 'Settings' }).click();
     await expect(page.locator('[data-slot="phone-more-page"]')).toBeVisible();
     await expect(page.locator('[data-slot="phone-workspace-safety"]')).toBeVisible();
     const phoneBackup = await exportEmbeddedBackup(page);
@@ -183,7 +182,7 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
     await captureUi(page, testInfo, 'mobile-phone-portrait-capture-menu');
     await phoneCaptureMenuLink(page, 'Products Update').click();
     await expect(page.getByRole('heading', { name: 'Products Update' })).toBeVisible();
-    await expect(phoneCaptureDoneButton(page)).toBeVisible();
+    await expectSharedPhoneCaptureHeader(page);
     await expect(page.getByRole('heading', { name: 'Command home' })).toHaveCount(0);
     await expect(page.locator('[data-slot="phone-capture-surface"]')).toHaveCount(0);
     await captureUi(page, testInfo, 'mobile-phone-portrait-stock-count');
@@ -191,19 +190,19 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
     await phoneCaptureMenuLink(page, 'Supplier Order').click();
     await chooseNewCaptureTicketIfPrompted(page);
     await expect(page.getByRole('heading', { name: 'Supplier Order' })).toBeVisible();
-    await expect(phoneCaptureDoneButton(page)).toBeVisible();
+    await expectSharedPhoneCaptureHeader(page);
     await captureUi(page, testInfo, 'mobile-phone-portrait-supplier-order');
     await returnToPhoneCaptureMenu(page);
     await phoneCaptureMenuLink(page, 'Immediate Sale').click();
     await chooseNewCaptureTicketIfPrompted(page);
     await expect(page.getByRole('heading', { name: 'Immediate Sale' })).toBeVisible();
-    await expect(phoneCaptureDoneButton(page)).toBeVisible();
+    await expectSharedPhoneCaptureHeader(page);
     await captureUi(page, testInfo, 'mobile-phone-portrait-immediate-sale');
     await returnToPhoneCaptureMenu(page);
     await phoneCaptureMenuLink(page, 'Customer Order').click();
     await chooseNewCaptureTicketIfPrompted(page);
     await expect(page.getByRole('heading', { name: 'Customer Order' })).toBeVisible();
-    await expect(phoneCaptureDoneButton(page)).toBeVisible();
+    await expectSharedPhoneCaptureHeader(page);
     await captureUi(page, testInfo, 'mobile-phone-portrait-customer-order');
     await returnToPhoneCaptureMenu(page);
 
