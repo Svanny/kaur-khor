@@ -5,7 +5,7 @@ import {
   type ChartCustomResolution,
   type ChartResolutionOption,
 } from '@/components/system/chart-resolution';
-import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
+import { cardSurfaceClassName } from '@/components/ui/card';
 import {
   defaultChartLayoutPreferences,
   type ChartLayoutPreferenceMergeOptions,
@@ -137,10 +137,7 @@ export function TradingChartLedger({
   const ledgerWindowStyle: CSSProperties | undefined =
     chartWindowChartHeight != null
       ? {
-          height: typeof chartWindowChartHeight === 'number'
-            ? chartWindowChartHeight + 192
-            : `calc(${chartWindowChartHeight} + ${TRADING_CHART_LEDGER_WINDOW_EXTRA_HEIGHT})`,
-          maxHeight: typeof chartWindowChartHeight === 'number'
+          minHeight: typeof chartWindowChartHeight === 'number'
             ? chartWindowChartHeight + 192
             : `calc(${chartWindowChartHeight} + ${TRADING_CHART_LEDGER_WINDOW_EXTRA_HEIGHT})`,
         }
@@ -222,8 +219,8 @@ export function TradingChartLedger({
       className={cn(
         'relative isolate flex min-w-0 flex-col',
         expanded
-          ? `${cardFrameClassName} ${cardSurfaceClassName} h-full min-h-0 w-full rounded-[2rem] px-6 py-5`
-          : `${cardFrameClassName} ${cardSurfaceClassName} min-h-0 w-full overflow-hidden rounded-[2rem] px-6 py-5`,
+          ? `editorial-panel ${cardSurfaceClassName} h-full min-h-0 w-full rounded-[2rem] px-6 py-5 text-sm text-card-foreground`
+          : `editorial-panel ${cardSurfaceClassName} min-h-0 w-full rounded-[2rem] px-6 py-5 text-sm text-card-foreground`,
         className,
       )}
       style={ledgerWindowStyle}

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import {
   RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   RECORD_UPDATE_HUB_PATH,
@@ -608,7 +609,7 @@ describe('StockUpdateRoute', () => {
       await Promise.resolve();
     });
     expect(deleteSenaObservation).toHaveBeenCalledWith({ observationId: 'obs-sku-same-day' });
-    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
   });
 
   it('aggregates multiple observations on one day and updates details when another day is selected', () => {

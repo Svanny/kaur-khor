@@ -475,10 +475,10 @@ function posDialogQuantityValue(quantity: number) {
 
 export function parsePosQuantityDraft(value: string, minimum = 0) {
   const parsed = parseEditableNumberWithCommas(value);
-  if (!Number.isFinite(parsed)) {
+  if (!Number.isFinite(parsed) || parsed < minimum) {
     return null;
   }
-  return Math.max(minimum, Math.trunc(parsed));
+  return Math.trunc(parsed);
 }
 
 function parsePosQuantityInput(value: string, minimum = 0) {
@@ -12329,22 +12329,27 @@ export function StockUpdateSessionRoute() {
           usdToKhrExchangeRate,
         )
       : activePosStockCountRow.row.productPrice;
-    if (
-      nextUnits == null ||
-      (nextCost == null && posStockCostDraft.trim() !== '') ||
-      (activePosStockCountRow.sku.soldAsProduct && nextPrice == null && posStockPriceDraft.trim() !== '')
-    ) {
-      setPosStockUnitsDraft(String(activePosStockCountRow.row.unitsInStock));
-      setPosStockCostDraft(
-        activePosStockCountRow.row.costPerUnit == null
-          ? ''
-          : String(displayMoneyFromUsd(activePosStockCountRow.row.costPerUnit, currency, usdToKhrExchangeRate)),
-      );
-      setPosStockPriceDraft(
-        activePosStockCountRow.row.productPrice == null
-          ? ''
-          : String(displayMoneyFromUsd(activePosStockCountRow.row.productPrice, currency, usdToKhrExchangeRate)),
-      );
+    const invalidUnitsDraft = nextUnits == null;
+    const invalidCostDraft = nextCost == null && posStockCostDraft.trim() !== '';
+    const invalidPriceDraft = activePosStockCountRow.sku.soldAsProduct && nextPrice == null && posStockPriceDraft.trim() !== '';
+    if (invalidUnitsDraft || invalidCostDraft || invalidPriceDraft) {
+      if (invalidUnitsDraft) {
+        setPosStockUnitsDraft(String(activePosStockCountRow.row.unitsInStock));
+      }
+      if (invalidCostDraft) {
+        setPosStockCostDraft(
+          activePosStockCountRow.row.costPerUnit == null
+            ? ''
+            : String(displayMoneyFromUsd(activePosStockCountRow.row.costPerUnit, currency, usdToKhrExchangeRate)),
+        );
+      }
+      if (invalidPriceDraft) {
+        setPosStockPriceDraft(
+          activePosStockCountRow.row.productPrice == null
+            ? ''
+            : String(displayMoneyFromUsd(activePosStockCountRow.row.productPrice, currency, usdToKhrExchangeRate)),
+        );
+      }
       showInvalidPosNumberPrompt();
       return;
     }

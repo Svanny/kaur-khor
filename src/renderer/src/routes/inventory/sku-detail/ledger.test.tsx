@@ -188,10 +188,9 @@ describe('SkuDetailLedger', () => {
     expect(screen.getByTestId('fill-available-height').textContent).toBe('true');
     expect(screen.getByTestId('chart-render-height').textContent).toBe('84svh');
     expect(screen.getByTestId('chart-render-height').closest('section')).toHaveStyle({
-      height: 'calc(84svh + 16rem)',
-      maxHeight: 'calc(84svh + 16rem)',
+      minHeight: 'calc(84svh + 16rem)',
     });
-    expect(screen.getByTestId('chart-render-height').closest('section')).toHaveClass('overflow-hidden');
+    expect(screen.getByTestId('chart-render-height').closest('section')).not.toHaveClass('overflow-hidden');
   });
 
   it('remembers chart settings for same sku across remounts', async () => {

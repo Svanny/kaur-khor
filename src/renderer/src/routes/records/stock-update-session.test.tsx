@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { createRecordUpdateEditSession } from '@/lib/records/observation-edit-session';
 import {
   RECORD_UPDATE_CUSTOMER_PENDING_PATH,
@@ -532,6 +533,7 @@ function goNext(times = 1) {
     }
     const nextButton = screen.queryByRole('button', { name: 'Next' });
     if (!nextButton) {
+      // Some flows intentionally ask for more advances than their active lane exposes.
       return;
     }
     fireEvent.click(nextButton);
@@ -1982,6 +1984,7 @@ describe('StockUpdateSessionRoute', () => {
   it('does not coerce invalid POS quantity drafts to zero for commit validation', () => {
     expect(parsePosQuantityDraft('3')).toBe(3);
     expect(parsePosQuantityDraft('3.9')).toBe(3);
+    expect(parsePosQuantityDraft('-1')).toBeNull();
     expect(parsePosQuantityDraft('')).toBeNull();
     expect(parsePosQuantityDraft('9'.repeat(400))).toBeNull();
   });
@@ -4360,7 +4363,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(ingestSenaObservation.mock.calls[0]![0].stockSnapshot).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ skuId: 'sku-2' })]),
     );
-    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 
@@ -4471,7 +4474,7 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
-    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
     expect(runWorkspacePreparation).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();

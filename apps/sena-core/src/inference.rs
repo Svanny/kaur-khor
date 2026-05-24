@@ -2120,10 +2120,12 @@ struct RegimeEvidence {
 }
 
 fn regime_evidence(interval: &PreprocessedInterval) -> RegimeEvidence {
-    let exact_sales_pressure = interval
-        .exact_service_sales_by_service
-        .values()
-        .chain(interval.exact_retail_sales_by_sku.values())
+    let centered_service_prices = sorted_f64_values(&interval.centered_service_prices);
+    let centered_retail_prices = sorted_f64_values(&interval.centered_retail_prices);
+    let observed_delta_by_sku = sorted_f64_values(&interval.observed_delta_by_sku);
+    let exact_sales_pressure = sorted_f64_values(&interval.exact_service_sales_by_service)
+        .into_iter()
+        .chain(sorted_f64_values(&interval.exact_retail_sales_by_sku))
         .sum::<f64>()
         / interval.delta_days.max(1.0);
     let ranking_pressure =
@@ -2131,30 +2133,26 @@ fn regime_evidence(interval: &PreprocessedInterval) -> RegimeEvidence {
     let stockout_pressure =
         (interval.service_stockouts.len() + interval.retail_stockouts.len()) as f64;
     let price_pressure = mean(
-        &interval
-            .centered_service_prices
-            .values()
-            .chain(interval.centered_retail_prices.values())
+        &centered_service_prices
+            .iter()
+            .chain(centered_retail_prices.iter())
             .map(|value| value.abs())
             .collect::<Vec<_>>(),
     );
     let price_discount = mean(
-        &interval
-            .centered_service_prices
-            .values()
-            .chain(interval.centered_retail_prices.values())
+        &centered_service_prices
+            .iter()
+            .chain(centered_retail_prices.iter())
             .map(|value| (-value).max(0.0))
             .collect::<Vec<_>>(),
     );
-    let correction_pressure = interval
-        .adjustment_by_sku
-        .values()
+    let correction_pressure = sorted_f64_values(&interval.adjustment_by_sku)
+        .into_iter()
         .map(|value| value.abs())
         .sum::<f64>()
         + mean(
-            &interval
-                .observed_delta_by_sku
-                .values()
+            &observed_delta_by_sku
+                .iter()
                 .map(|value| value.abs())
                 .collect::<Vec<_>>(),
         ) / 8.0;
@@ -2167,6 +2165,12 @@ fn regime_evidence(interval: &PreprocessedInterval) -> RegimeEvidence {
         discount_pressure: (interval.discount_pressure + price_discount).clamp(0.0, 1.0),
         correction_pressure,
     }
+}
+
+fn sorted_f64_values(map: &HashMap<String, f64>) -> Vec<f64> {
+    let mut entries = map.iter().collect::<Vec<_>>();
+    entries.sort_by(|(left_key, _), (right_key, _)| left_key.cmp(right_key));
+    entries.into_iter().map(|(_, value)| *value).collect()
 }
 
 fn change_point_probability(evidence: RegimeEvidence) -> f64 {

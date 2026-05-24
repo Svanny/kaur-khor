@@ -79,18 +79,22 @@ export function ConfirmActionDialog({
       }
       const actionItems = Array.from(actions.querySelectorAll<HTMLElement>('[data-slot="confirm-action-dialog-action-item"]'));
       const gap = Number.parseFloat(window.getComputedStyle(actions).columnGap || '0') || 0;
-      setActionsNeedRowFill(
-        shouldFillWrappedConfirmActionRow({
-          containerWidth: actions.clientWidth,
-          gap,
-          itemWidths: actionItems.map((item) => item.scrollWidth),
-        }),
-      );
+      const shouldFill = shouldFillWrappedConfirmActionRow({
+        containerWidth: actions.clientWidth,
+        gap,
+        itemWidths: actionItems.map((item) => item.scrollWidth),
+      });
+      setActionsNeedRowFill((current) => current === shouldFill ? current : shouldFill);
     };
 
     let measureFrame: number | null = null;
-    const scheduleNaturalWidthMeasure = () => {
-      setActionsNeedRowFill(false);
+    let lastObservedWidth = 0;
+    const scheduleNaturalWidthMeasure = (entries?: ResizeObserverEntry[]) => {
+      const observedWidth = entries?.[0]?.contentRect.width ?? actionsRef.current?.clientWidth ?? 0;
+      if (observedWidth > 0 && Math.abs(observedWidth - lastObservedWidth) < 0.5) {
+        return;
+      }
+      lastObservedWidth = observedWidth;
       if (measureFrame !== null) {
         window.cancelAnimationFrame(measureFrame);
       }
@@ -105,15 +109,16 @@ export function ConfirmActionDialog({
     if (resizeObserver && actionsRef.current) {
       resizeObserver.observe(actionsRef.current);
     }
-    window.addEventListener('resize', scheduleNaturalWidthMeasure);
+    const handleWindowResize = () => scheduleNaturalWidthMeasure();
+    window.addEventListener('resize', handleWindowResize);
     return () => {
       if (measureFrame !== null) {
         window.cancelAnimationFrame(measureFrame);
       }
       resizeObserver?.disconnect();
-      window.removeEventListener('resize', scheduleNaturalWidthMeasure);
+      window.removeEventListener('resize', handleWindowResize);
     };
-  }, [hasDestructiveAction, open, destructiveActionLabel, cancelLabel, confirmLabel]);
+  }, [hasDestructiveAction, open, destructiveActionLabel, cancelLabel, confirmLabel, hideCancel, isSubmitting]);
 
   if (!open) {
     return null;
