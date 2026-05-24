@@ -1,4 +1,5 @@
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import type {
   SenaCatalog,
   SenaDiagnostics,
@@ -209,7 +210,7 @@ export async function bootstrapSkuDetail({
       })
     ) {
       uiState = 'running';
-      await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await inventory.triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
       projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations, workspaceSummary);
       const reloaded = await reloadSenaSkuData({ inventory, skuId, snapshot: projectedSnapshot });
       workspaceSummary = reloaded.workspaceSummary;

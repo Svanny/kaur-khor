@@ -261,7 +261,7 @@ describe('SENA routes', () => {
       loadSenaRunStatus: vi.fn(async () => ({
         runId: 'run-1',
         ownerSub: 'desktop-owner',
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: 'sena-analysis-v4',
         status: 'succeeded',
         observationCount: 0,
         createdAt: '2026-04-02T00:00:00Z',

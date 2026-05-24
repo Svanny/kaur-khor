@@ -327,6 +327,52 @@ describe('AutomationsRoute', () => {
     expect(screen.queryByText('Connection')).not.toBeInTheDocument();
   });
 
+  it('hides every settings hero action before telegram setup succeeds', () => {
+    automationHook.mockReturnValue(makeAutomationState(false));
+
+    renderForcedSettings();
+
+    expect(screen.getByText('Configuration')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Connect bot' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Disconnect bot' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pause intake' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Test message' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open Intake' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open bot' })).not.toBeInTheDocument();
+  });
+
+  it('hides every settings hero action when saved telegram setup is in error', () => {
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      connection: {
+        ...makeAutomationState(true).connection!,
+        status: 'error',
+        lastErrorAt: '2026-04-21T00:00:00.000Z',
+        lastErrorMessage: 'fetch failed',
+      },
+    }));
+
+    renderForcedSettings();
+
+    expect(screen.getByText('Configuration')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Disconnect bot' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pause intake' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Test message' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open Intake' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open bot' })).not.toBeInTheDocument();
+  });
+
+  it('shows settings hero actions after telegram setup is connected', () => {
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    renderForcedSettings();
+
+    expect(screen.getByRole('button', { name: 'Disconnect bot' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause intake' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Test message' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Intake' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open bot' })).toBeInTheDocument();
+  });
+
   it('redirects back to overview when the automations page is hidden in preferences', async () => {
     preferencesHook.mockReturnValue({
       currency: 'USD',
@@ -809,14 +855,12 @@ describe('AutomationsRoute', () => {
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
   });
 
-  it('keeps the Settings automation intake link available before bot setup', () => {
+  it('hides the Settings automation intake link before bot setup', () => {
     automationHook.mockReturnValue(makeAutomationState(false));
 
     renderForcedSettings();
 
-    const openIntakeLink = screen.getByRole('link', { name: 'Open Intake' });
-    expect(openIntakeLink).toHaveAttribute('href', '/work/intake');
-    expect(openIntakeLink.querySelector('svg')).not.toBeNull();
+    expect(screen.queryByRole('link', { name: 'Open Intake' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
   });
 

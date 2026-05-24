@@ -567,6 +567,32 @@ describe('catalog item action sheets', () => {
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('data-slot', 'button');
   });
 
+  test('hides service bottleneck links when no linked SKU is available', () => {
+    render(
+      <MemoryRouter>
+        <ServiceDetailActions
+          actions={{
+            bottleneckSku: null,
+            editServiceHref: '/catalog/services/service-1/edit',
+            latestObservedAt: '2026-04-02T00:00:00Z',
+            noBottleneckHint: 'No bottleneck',
+            primarySkuHref: '/catalog',
+            servicePrice: {
+              currentPrice: 18,
+              serviceId: 'service-1',
+              serviceName: 'Service 1',
+            },
+          }}
+          onComplete={vi.fn(async () => {})}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Open bottleneck SKU' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Edit service' })).toBeInTheDocument();
+  });
+
   function LocationProbe() {
     const location = useLocation();
     return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;

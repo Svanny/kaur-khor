@@ -43,7 +43,13 @@ import { buildKaurKhorNavigationState, useNavigationHistory } from '@/state/navi
 import { usePreferences } from '@/state/preferences';
 import { buildServiceCatalogEditObservation } from './catalog-edit-observation';
 import { CatalogImageField } from './catalog-image-field';
-import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
+import {
+  EditorField,
+  editorInputClassName,
+  editorPanelClassName,
+  editorTextareaClassName,
+  revealFirstEditorValidationError,
+} from './editor-form-primitives';
 import { DetailHeroWireframe } from '../inventory/loading-wireframes';
 import { SkuPageHero } from './sku-page-hero';
 import { SectionTitle } from './sku-detail/section-heading';
@@ -315,6 +321,9 @@ export function ServiceFormRoute() {
   const [customAttributePresets, setCustomAttributePresets] = useState(() => readCustomProductAttributePresets());
   const deferredSkuSearch = useDeferredValue(skuSearch);
   const previousMoneyFormatRef = useRef({ currency, usdToKhrExchangeRate });
+  const nameFieldRef = useRef<HTMLInputElement | null>(null);
+  const attributeFieldRef = useRef<HTMLDivElement | null>(null);
+  const priceFieldRef = useRef<HTMLInputElement | null>(null);
   const editing = Boolean(serviceId);
   const formId = 'service-editor-form';
   const existingService = useMemo(
@@ -453,6 +462,11 @@ export function ServiceFormRoute() {
     setSaveAttempted(true);
     if (hasServiceValidationErrors) {
       setSaveErrorFlashKey((current) => current + 1);
+      revealFirstEditorValidationError([
+        { key: 'name', error: serviceValidationErrors.name, ref: nameFieldRef },
+        { key: 'attributes', error: serviceValidationErrors.attributes, ref: attributeFieldRef },
+        { key: 'price', error: serviceValidationErrors.price, ref: priceFieldRef },
+      ]);
       return false;
     }
     if (linkedSkuSelectionChanged) {
@@ -527,6 +541,11 @@ export function ServiceFormRoute() {
     setSaveAttempted(true);
     if (hasServiceValidationErrors) {
       setSaveErrorFlashKey((current) => current + 1);
+      revealFirstEditorValidationError([
+        { key: 'name', error: serviceValidationErrors.name, ref: nameFieldRef },
+        { key: 'attributes', error: serviceValidationErrors.attributes, ref: attributeFieldRef },
+        { key: 'price', error: serviceValidationErrors.price, ref: priceFieldRef },
+      ]);
       return false;
     }
     const forkName = linkedSkuForkServiceName.trim();
@@ -733,6 +752,7 @@ export function ServiceFormRoute() {
             <input
               autoFocus
               className={editorInputClassName}
+              ref={nameFieldRef}
               required
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
@@ -762,18 +782,20 @@ export function ServiceFormRoute() {
           />
         </WorkspacePanel>
 
-        <WorkspacePanel
-          className={editorPanelClassName}
-          descriptor={translateUiLiteral(language, 'Create active variants from selected attributes when saving this service.')}
-          title={<SectionTitle helpHref="/settings/help#catalog-product-attributes" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate service variants without copying logs, observations, or captures.')} />}
-        >
-          <ProductAttributesField
-            draft={attributeDraft}
-            language={language}
-            presets={attributePresets}
-            onChange={setAttributeDraft}
-          />
-        </WorkspacePanel>
+        <div ref={attributeFieldRef}>
+          <WorkspacePanel
+            className={editorPanelClassName}
+            descriptor={translateUiLiteral(language, 'Create active variants from selected attributes when saving this service.')}
+            title={<SectionTitle helpHref="/settings/help#catalog-product-attributes" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate service variants without copying logs, observations, or captures.')} />}
+          >
+            <ProductAttributesField
+              draft={attributeDraft}
+              language={language}
+              presets={attributePresets}
+              onChange={setAttributeDraft}
+            />
+          </WorkspacePanel>
+        </div>
 
         <WorkspacePanel
           className={editorPanelClassName}
@@ -869,6 +891,7 @@ export function ServiceFormRoute() {
               className={editorInputClassName}
               currency={currency}
               min="0"
+              ref={priceFieldRef}
               required
               value={servicePriceDraft}
               onChange={(event) => {

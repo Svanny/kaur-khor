@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { AppLanguage } from '@shared/inventory';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
   compatibilityRangeForClass,
@@ -666,7 +667,7 @@ export function SkuMutationActions({
         close: () => setMode(null),
         prepareWorkspace: () =>
           runWorkspacePreparation(async () => {
-            await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+            await triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
             await onComplete();
           }),
       });
@@ -1204,7 +1205,7 @@ export function ServiceMutationActions({
         close: () => setMode(null),
         prepareWorkspace: () =>
           runWorkspacePreparation(async () => {
-            await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+            await triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
             await onComplete();
           }),
       });
@@ -1272,7 +1273,7 @@ export function ServiceMutationActions({
     <>
       {showActionButtons ? (
         <div className={cn(layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2', layout === 'row' ? headerActionSurfaceClassName : undefined)}>
-          {showPrimarySkuButton ? (
+          {showPrimarySkuButton && actions.bottleneckSku ? (
             <Button
               asChild
               className={headerButtonClassName}
