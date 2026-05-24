@@ -322,6 +322,7 @@ const CHART_TIME_AXIS_FALLBACK_HEIGHT = 32;
 const CHART_MAX_TIME_AXIS_HEIGHT_RATIO = 0.35;
 const CHART_INDICATOR_PANE_RATIO = 0.25;
 const CHART_MIN_MAIN_PANE_RATIO = 0.5;
+const CHART_PREFERRED_INDICATOR_PANE_MIN_DEFAULT_RATIO = 0.6;
 const SERIES_DATA_CACHE = new WeakMap<TradingChartPoint[], Map<string, unknown>>();
 export const LAYOUT_SORTABLE_TRANSITION = {
   duration: 240,
@@ -559,6 +560,32 @@ export function deriveTradingChartMinRenderHeight(indicatorPaneCount: number) {
   return CHART_MIN_RENDER_HEIGHT + Math.max(0, indicatorPaneCount) * CHART_ADDITIONAL_PANE_MIN_RENDER_HEIGHT;
 }
 
+function resolveCssLengthPx(value: CSSProperties['height']) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? Math.max(0, value) : null;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  const match = /^([0-9]*\.?[0-9]+)(px|svh|vh|dvh|lvh)$/.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+  const amount = Number.parseFloat(match[1] ?? '');
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+  const unit = match[2];
+  if (unit === 'px') {
+    return Math.max(0, amount);
+  }
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return Math.max(0, (window.innerHeight * amount) / 100);
+}
+
 function stableTimeScaleHeight(chart: IChartApi, totalHeight: number) {
   const measuredHeight = Math.max(0, chart.timeScale().height?.() ?? 0);
   const maximumTimeScaleHeight = Math.max(CHART_TIME_AXIS_FALLBACK_HEIGHT, totalHeight * CHART_MAX_TIME_AXIS_HEIGHT_RATIO);
@@ -566,6 +593,23 @@ function stableTimeScaleHeight(chart: IChartApi, totalHeight: number) {
     return CHART_TIME_AXIS_FALLBACK_HEIGHT;
   }
   return measuredHeight;
+}
+
+function preferredPaneTargetsRespectIndicatorFloor(targets: number[], defaultTargets: number[]) {
+  if (targets.length !== defaultTargets.length) {
+    return false;
+  }
+  return targets.every((target, index) => {
+    if (index === 0) {
+      return Number.isFinite(target) && target > 0;
+    }
+    const defaultTarget = defaultTargets[index] ?? 0;
+    if (defaultTarget <= 0) {
+      return Number.isFinite(target) && target > 0;
+    }
+    return Number.isFinite(target) &&
+      target >= Math.max(1, Math.round(defaultTarget * CHART_PREFERRED_INDICATOR_PANE_MIN_DEFAULT_RATIO));
+  });
 }
 
 function paneHeightTargets(
@@ -579,6 +623,8 @@ function paneHeightTargets(
   if (plottableHeight <= 0) {
     return [] as number[];
   }
+  const allocation = paneHeightAllocation(plottableHeight, Math.max(0, paneIds.length - 1));
+  const defaultTargets = [allocation.main, ...allocation.indicators];
   const normalizedPreferredPaneHeights = paneIds.map((paneId) => preferredPaneHeights?.[paneId] ?? 0);
   const canUsePreferredPaneHeights =
     normalizedPreferredPaneHeights.length === paneIds.length &&
@@ -593,11 +639,12 @@ function paneHeightTargets(
       );
       const consumed = scaled.slice(0, -1).reduce((sum, height) => sum + height, 0);
       scaled[scaled.length - 1] = Math.max(1, plottableHeight - consumed);
-      return scaled;
+      if (preferredPaneTargetsRespectIndicatorFloor(scaled, defaultTargets)) {
+        return scaled;
+      }
     }
   }
-  const allocation = paneHeightAllocation(plottableHeight, Math.max(0, paneIds.length - 1));
-  return [allocation.main, ...allocation.indicators];
+  return defaultTargets;
 }
 
 function applyPaneHeights(
@@ -3213,7 +3260,7 @@ export function SkuTradingChart({
     ? fillAvailableHeight
       ? { minHeight: minimumRenderHeight }
       : { height: minimumRenderHeight, minHeight: minimumRenderHeight }
-    : { height: chartRenderHeight, minHeight: minimumRenderHeight };
+    : { height: chartRenderHeight };
   const regimeSetting = editableIndicatorSettings.regime;
   const regimeIndicatorEnabled = isEnabled(editableIndicatorSettings, chartModel.availability, 'regime');
   const showRegimeIcons = regimeIndicatorEnabled && regimeUsesIcons(regimeSetting.plotStyle);
@@ -3303,14 +3350,22 @@ export function SkuTradingChart({
     setIsPaneRelayoutPending(next);
   }
 
-  function finishPaneHeightSync(lockDuringSync: boolean, generation: number, retryCount = 0) {
-    paneHeightUpdateFrameRef.current = null;
+  function currentChartTotalHeight() {
     const currentPaneCount = Math.max(0, paneLayout.length - 1);
     const currentMinimumRenderHeight = baseMinRenderHeight + Math.max(0, currentPaneCount) * additionalPaneMinRenderHeight;
-    const measuredHeight = chartContainerRef.current?.clientHeight || currentMinimumRenderHeight;
-    const totalHeight = chartRenderHeight == null && !fillAvailableHeight
+    const explicitRenderHeight = resolveCssLengthPx(chartRenderHeight);
+    const measuredHeight = chartContainerRef.current?.clientHeight || explicitRenderHeight || currentMinimumRenderHeight;
+    if (chartRenderHeight != null) {
+      return Math.max(1, measuredHeight);
+    }
+    return chartRenderHeight == null && !fillAvailableHeight
       ? currentMinimumRenderHeight
       : Math.max(currentMinimumRenderHeight, measuredHeight);
+  }
+
+  function finishPaneHeightSync(lockDuringSync: boolean, generation: number, retryCount = 0) {
+    paneHeightUpdateFrameRef.current = null;
+    const totalHeight = currentChartTotalHeight();
     const paneIds = paneLayout.map((pane) => pane.id);
     applyPaneHeights(
       chartRef.current,
@@ -3794,6 +3849,11 @@ export function SkuTradingChart({
       setPaneLegendPositionsIfChanged(anchors);
       if (source === 'manual') {
         emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, anchors), source);
+      } else if (
+        paneHeightUpdateFrameRef.current == null &&
+        !paneHeightsMatchTargets(chart, currentChartTotalHeight(), paneLayout.map((pane) => pane.id), initialPaneHeights)
+      ) {
+        schedulePaneHeightSync({ lockDuringSync: false });
       }
       syncPlotAreaWidth();
     };
@@ -5890,7 +5950,7 @@ export function SkuTradingChart({
         ) : null}
       </div>
 
-      <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+      <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3" data-testid="trading-chart-controls">
         <div className="flex flex-wrap items-center gap-2" aria-label={translateUiLiteral(language, 'Chart duration')}>
           {CHART_TIMEFRAME_OPTIONS.map((option) => (
             <button

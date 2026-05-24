@@ -92,6 +92,14 @@ describe('NumberStepperInput', () => {
     expect(values.at(-1)).toBe('4010');
   });
 
+  test('uses text input so drafts are not browser-normalized while typing', () => {
+    renderStepper({ value: '1e309' });
+
+    const input = screen.getByLabelText('Units in stock');
+    expect(input).toHaveAttribute('type', 'text');
+    expect(input).toHaveValue('1e309');
+  });
+
   test('falls back to a finite step when the step prop is dirty', () => {
     const { values } = renderStepper({ step: 'Infinity', value: '2' });
 

@@ -3,6 +3,7 @@ import type { SenaSkuDetailViewModel } from './view-model';
 import type { TradingChartModel } from './trading-chart-model';
 import {
   compatiblePlotStyles,
+  ANALYSIS_TRADING_CHART_INDICATOR_ORDER,
   defaultAnalysisTradingChartIndicators,
   defaultServiceTradingChartIndicators,
   defaultTradingChartIndicators,
@@ -12,6 +13,8 @@ import {
   moveTradingChartIndicator,
   nextTradingChartPaneId,
   normalizeTradingChartIndicatorSettings,
+  SERVICE_TRADING_CHART_INDICATOR_ORDER,
+  SKU_TRADING_CHART_INDICATOR_ORDER,
   TRADING_CHART_MAIN_PANE_ID,
 } from './trading-chart-model';
 
@@ -375,7 +378,9 @@ describe('deriveTradingChartModel', () => {
     expect(defaults.reorderPoint.lineWidth).toBe(3);
     expect(defaults.safetyStock.lineWidth).toBe(3);
     expect(defaults.reorderPoint.plotStyle).toBe('price-line');
+    expect(defaults.regime.enabled).toBe(false);
     expect(defaults.regime.plotStyle).toBe('icons');
+    expect(SKU_TRADING_CHART_INDICATOR_ORDER).toContain('regime');
     expect(compatiblePlotStyles('inventory')).toEqual(['line', 'area', 'step-line', 'histogram', 'bars', 'candles']);
     expect(compatiblePlotStyles('uncertainty')).toEqual(['lines', 'band']);
     expect(compatiblePlotStyles('regime')).toEqual(['icons', 'background-highlight', 'background-highlight-icons']);
@@ -409,7 +414,7 @@ describe('deriveTradingChartModel', () => {
       leadTimeRange: false,
       regime: true,
     })).toEqual([
-      { id: 'main', indicatorIds: ['inventory', 'uncertainty', 'reorderPoint', 'safetyStock', 'regime'] },
+      { id: 'main', indicatorIds: ['inventory', 'uncertainty', 'reorderPoint', 'safetyStock'] },
       { id: 'pane-1', indicatorIds: ['demand'] },
       { id: 'pane-2', indicatorIds: ['receipts'] },
     ]);
@@ -454,10 +459,12 @@ describe('deriveTradingChartModel', () => {
     });
 
     expect(layout).toEqual([
-      { id: 'main', indicatorIds: ['demandMinusAvailableCapacity', 'regime'] },
+      { id: 'main', indicatorIds: ['demandMinusAvailableCapacity'] },
       { id: 'pane-1', indicatorIds: ['price'] },
       { id: 'pane-2', indicatorIds: ['demand', 'availableCapacity'] },
     ]);
+    expect(defaults.regime.enabled).toBe(false);
+    expect(SERVICE_TRADING_CHART_INDICATOR_ORDER).toContain('regime');
   });
 
   test('analysis chart defaults isolate inventory and uncertainty in their own pane', () => {
@@ -486,12 +493,14 @@ describe('deriveTradingChartModel', () => {
     });
 
     expect(layout).toEqual([
-      { id: 'main', indicatorIds: ['inventory', 'uncertainty', 'regime'] },
+      { id: 'main', indicatorIds: ['inventory', 'uncertainty'] },
       { id: 'pane-1', indicatorIds: ['price'] },
       { id: 'pane-2', indicatorIds: ['serviceDemand', 'retailDemand', 'receipts'] },
       { id: 'pane-3', indicatorIds: ['ordersInTransit', 'ordersReceived', 'newOrderFlags', 'newReceiptFlags', 'ordersLate', 'ordersReadyToReceive'] },
       { id: 'pane-4', indicatorIds: ['leadTime', 'leadTimeRange'] },
     ]);
+    expect(defaults.regime.enabled).toBe(false);
+    expect(ANALYSIS_TRADING_CHART_INDICATOR_ORDER).toContain('regime');
   });
 
   test('moves indicators into target pane, including regime', () => {

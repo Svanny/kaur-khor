@@ -25,6 +25,7 @@ import {
   dateInputValue,
   customerTicketLineDraftQuantity,
   parseOptionalNonNegativeFiniteNumberDraft,
+  parsePosQuantityDraft,
   parseServicePriceDraft,
   parseStockMoneyDraft,
   parseStockUnitsDraft,
@@ -59,6 +60,7 @@ const SUPPLIER_PENDING_DRAFT_STORAGE_KEY = 'kaur-khor:record-update:draft:suppli
 const SUPPLIER_RECEIPT_DRAFT_STORAGE_KEY = 'kaur-khor:record-update:draft:supplier-receipt:v1';
 const CUSTOM_DRAFT_STORAGE_KEY = 'kaur-khor:record-update:draft:custom:v1';
 const STOCK_ROW_ORDER_STORAGE_KEY = buildStockRowOrderStorageKey('stock-count');
+const OVERFLOW_NUMBER_DRAFT = '9'.repeat(400);
 
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = () => false;
@@ -528,7 +530,11 @@ function goNext(times = 1) {
     if (formViewButton && formViewButton.getAttribute('aria-pressed') !== 'true') {
       fireEvent.click(formViewButton);
     }
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const nextButton = screen.queryByRole('button', { name: 'Next' });
+    if (!nextButton) {
+      return;
+    }
+    fireEvent.click(nextButton);
   }
 }
 
@@ -734,12 +740,12 @@ describe('StockUpdateSessionRoute', () => {
     expect(placeholder('custom')).toBe('Example: update was entered from a handwritten shift note.');
   });
 
-  it('shows the 8-step stock-count wizard, preserves state, and keeps future steps locked', () => {
+  it('shows the stock-count wizard, preserves state, and keeps future steps locked', () => {
     setStoredSessionViewMode('form');
     renderRoute();
 
     expect(screen.getAllByRole('button', { name: /Observed at/i })[0]).toHaveAttribute('aria-current', 'step');
-    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '13');
+    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '14');
     expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Rank recent selling order/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/% unlocked/i)).not.toBeInTheDocument();
@@ -754,8 +760,8 @@ describe('StockUpdateSessionRoute', () => {
     goNext();
     chooseOptionalStepNo(3);
 
-    expect(screen.getByRole('button', { name: /Capture details/i })).toHaveAttribute('aria-current', 'step');
-    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '88');
+    expect(screen.getAllByRole('button', { name: /Review update/i })[0]).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '100');
 
     fireEvent.click(screen.getAllByRole('button', { name: /Report notes/i })[0]);
     expect(screen.getByRole('textbox')).toHaveValue('Busy Friday shift');
@@ -947,6 +953,8 @@ describe('StockUpdateSessionRoute', () => {
 
     expect(screen.getByText('Changed items')).toBeInTheDocument();
     expect(screen.queryByText('Receipt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Overall sales pattern')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Context/i })).not.toBeInTheDocument();
     expect(screen.getByText('Razor refill')).toBeInTheDocument();
     expect(screen.getByText('Towel')).toBeInTheDocument();
     expect(screen.getByText('Haircut')).toBeInTheDocument();
@@ -998,6 +1006,7 @@ describe('StockUpdateSessionRoute', () => {
         ],
       }),
     );
+    expect(ingestSenaObservation.mock.calls[0]?.[0]).not.toHaveProperty('regimeHint');
   });
 
   it('keeps all stock-count workbench SKUs available when editing a scoped saved update', () => {
@@ -1531,6 +1540,95 @@ describe('StockUpdateSessionRoute', () => {
     await screen.findByRole('dialog', { name: 'Razor refill' });
   });
 
+  it('rejects an overflowing Products Update stock number without highlighting the card', () => {
+    setStoredSessionViewMode('pos');
+    renderRoute();
+
+    const tile = getPosWorkbenchTile('Razor refill');
+    fireEvent.click(tile);
+
+    const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
+    const backgroundOverlay = document.querySelector('[data-slot="pos-dialog-background-overlay"]');
+    expect(backgroundOverlay).toHaveClass('backdrop-blur-sm');
+    fireEvent.change(within(dialog).getByLabelText('Units in stock'), {
+      target: { value: OVERFLOW_NUMBER_DRAFT },
+    });
+    expect(screen.queryByRole('dialog', { name: 'Number not saved' })).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Units in stock')).toHaveValue(OVERFLOW_NUMBER_DRAFT);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+
+    const warning = screen.getByRole('dialog', { name: 'Number not saved' });
+    const dimmedDialog = screen.getByRole('dialog', { name: 'Razor refill' });
+    expect(within(warning).getByText('The entered number is too large or invalid and was not saved. Enter a smaller number to update this item.')).toBeInTheDocument();
+    expect(dimmedDialog).not.toContainElement(warning);
+    expect(dimmedDialog).not.toHaveClass('backdrop-blur-sm');
+    expect(document.querySelector('[data-slot="pos-dialog-background-overlay"]')).toBe(backgroundOverlay);
+    expect(backgroundOverlay).toHaveClass('backdrop-blur-sm');
+    expect(tile.querySelector('.bg-foreground')).toBeNull();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'Number not saved' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Razor refill' })).toBeInTheDocument();
+    fireEvent.click(within(warning).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.queryByRole('dialog', { name: 'Number not saved' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Razor refill' })).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText('Units in stock'), {
+      target: { value: '12' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+
+    expect(screen.queryByRole('button', { name: 'Edit Razor refill changed item' })).not.toBeInTheDocument();
+  });
+
+  it('keeps valid Products Update flags when rejecting an overflowing stock number', () => {
+    setStoredSessionViewMode('pos');
+    renderRoute();
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+
+    const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
+    fireEvent.change(within(dialog).getByLabelText('Units in stock'), {
+      target: { value: OVERFLOW_NUMBER_DRAFT },
+    });
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Flags' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Stockout' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Number not saved' })).getByRole('button', { name: 'Keep editing' }));
+    fireEvent.change(within(dialog).getByLabelText('Units in stock'), {
+      target: { value: '12' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+
+    const changedItem = screen.getByRole('button', { name: 'Edit Razor refill changed item' });
+    expect(within(changedItem).getByText('Stockout')).toBeInTheDocument();
+    expect(within(changedItem).queryByText(/12 →/)).not.toBeInTheDocument();
+    expect(getPosWorkbenchTile('Razor refill').querySelector('.bg-foreground')).not.toBeNull();
+  });
+
+  it('keeps valid Products Update service flags when rejecting an overflowing service price', () => {
+    setStoredSessionViewMode('pos');
+    renderRoute();
+
+    fireEvent.click(getPosWorkbenchTile('Haircut'));
+
+    const dialog = screen.getByRole('dialog', { name: 'Haircut' });
+    fireEvent.change(within(dialog).getByLabelText('Service price'), {
+      target: { value: OVERFLOW_NUMBER_DRAFT },
+    });
+    fireEvent.click(within(dialog).getByRole('combobox', { name: 'Flags' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Stockout' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Number not saved' })).getByRole('button', { name: 'Keep editing' }));
+    fireEvent.change(within(dialog).getByLabelText('Service price'), {
+      target: { value: '12' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+
+    const changedItem = screen.getByRole('button', { name: 'Edit Haircut changed item' });
+    expect(within(changedItem).getByText('Stockout')).toBeInTheDocument();
+    expect(within(changedItem).queryByText('Service price')).not.toBeInTheDocument();
+    expect(getPosWorkbenchTile('Haircut').querySelector('.bg-foreground')).not.toBeNull();
+  });
+
   it('keeps Products Update changed items visible when workbench filtering excludes the tile', () => {
     renderRoute();
 
@@ -1877,13 +1975,22 @@ describe('StockUpdateSessionRoute', () => {
     expect(parseStockUnitsDraft('', 12)).toBe(12);
     expect(parseStockUnitsDraft('1,000', 12)).toBe(1000);
     expect(parseStockUnitsDraft('Infinity', 12)).toBeNull();
+    expect(parseStockUnitsDraft('9'.repeat(400), 12)).toBeNull();
     expect(parseStockUnitsDraft('not a number', 12)).toBeNull();
+  });
+
+  it('does not coerce invalid POS quantity drafts to zero for commit validation', () => {
+    expect(parsePosQuantityDraft('3')).toBe(3);
+    expect(parsePosQuantityDraft('3.9')).toBe(3);
+    expect(parsePosQuantityDraft('')).toBeNull();
+    expect(parsePosQuantityDraft('9'.repeat(400))).toBeNull();
   });
 
   it('does not turn invalid stock money drafts into NaN row values', () => {
     expect(parseStockMoneyDraft('', 4, 'USD', 4000)).toBe(4);
     expect(parseStockMoneyDraft('1,000.50', 4, 'USD', 4000)).toBe(1000.5);
     expect(parseStockMoneyDraft('Infinity', 4, 'USD', 4000)).toBeNull();
+    expect(parseStockMoneyDraft('9'.repeat(400), 4, 'USD', 4000)).toBeNull();
     expect(parseStockMoneyDraft('not a number', 4, 'USD', 4000)).toBeNull();
   });
 
@@ -1891,6 +1998,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(parseServicePriceDraft('1,000.50', 'USD', 4000)).toBe(1000.5);
     expect(parseServicePriceDraft('', 'USD', 4000)).toBeNull();
     expect(parseServicePriceDraft('Infinity', 'USD', 4000)).toBeNull();
+    expect(parseServicePriceDraft('9'.repeat(400), 'USD', 4000)).toBeNull();
     expect(parseServicePriceDraft('not a number', 'USD', 4000)).toBeNull();
   });
 
@@ -2140,12 +2248,11 @@ describe('StockUpdateSessionRoute', () => {
     }] as unknown as typeof observations;
     renderRoute(observationsWithCustomers, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
-    const metadataCards = screen.getAllByRole('button', { name: /^(Timing|Customer|Notes|Context|Delivery|Discount)/i });
-    expect(metadataCards.slice(-4).map((card) => card.textContent)).toEqual([
+    const metadataCards = screen.getAllByRole('button', { name: /^(Timing|Customer|Notes|Delivery|Discount)/i });
+    expect(metadataCards.slice(-3).map((card) => card.textContent)).toEqual([
       expect.stringMatching(/^Delivery/),
       expect.stringMatching(/^Discount/),
       expect.stringMatching(/^Notes/),
-      expect.stringMatching(/^Context/),
     ]);
 
     const timingCard = screen.getByRole('button', { name: /^Timing/i });
@@ -2190,8 +2297,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(notesCard).toHaveClass('bg-primary');
     expect(notesCard.querySelector('[data-slot="capture-metadata-card-title"]')).toHaveClass('text-background');
     expect(notesCard.querySelector('[data-slot="capture-metadata-card-summary"]')).toHaveClass('text-background/80');
-    const contextCard = screen.getByRole('button', { name: /^Context/i });
-    expect(contextCard).toHaveClass('bg-primary');
+    expect(screen.queryByRole('button', { name: /^Context/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Discount/i })).toHaveClass('bg-primary');
 
     fireEvent.click(notesCard);
@@ -2242,11 +2348,13 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Razor refill changed item' })).toBeInTheDocument());
     unmount();
 
-    expect(JSON.parse(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
+    const savedDraft = JSON.parse(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY) ?? '{}');
+    expect(savedDraft).toEqual(
       expect.objectContaining({
         posTouchedLineKeys: expect.arrayContaining(['stock:sku-1']),
       }),
     );
+    expect(savedDraft).not.toHaveProperty('regimeHint');
   });
 
   it('derives touched POS metadata cards when editing an existing update', async () => {
@@ -2256,7 +2364,6 @@ describe('StockUpdateSessionRoute', () => {
         input: {
           ...observations[0]!.input,
           notes: 'Existing note',
-          regimeHint: 'promo',
         },
       },
       observations,
@@ -2266,7 +2373,7 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /^Timing/i })).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /^Timing/i })).not.toHaveClass('bg-primary');
     expect(screen.getByRole('button', { name: /^Notes/i })).not.toHaveClass('bg-primary');
-    expect(screen.getByRole('button', { name: /^Context/i })).not.toHaveClass('bg-primary');
+    expect(screen.queryByRole('button', { name: /^Context/i })).not.toBeInTheDocument();
   });
 
   it('defaults customer delivery fee payer to customer without opening the helper tooltip', async () => {
@@ -2414,6 +2521,47 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(receiptRow);
     expect(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByLabelText('Quantity for Razor refill')).toHaveValue('1');
+  });
+
+  it('rejects an overflowing POS quantity before adding a receipt line', () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+
+    const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
+    fireEvent.change(within(dialog).getByLabelText('Quantity for Razor refill'), {
+      target: { value: OVERFLOW_NUMBER_DRAFT },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add line' }));
+
+    const warning = screen.getByRole('dialog', { name: 'Number not saved' });
+    expect(within(warning).getByText('The entered number is too large or invalid and was not saved. Enter a smaller number to update this item.')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Razor refill' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Razor refill receipt line' })).not.toBeInTheDocument();
+    fireEvent.click(within(warning).getByRole('button', { name: 'Keep editing' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(getPosWorkbenchTile('Razor refill').querySelector('.bg-foreground')).toBeNull();
+  });
+
+  it('rejects an overflowing POS quantity without removing an existing receipt line', () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
+    const receiptRow = screen.getByRole('button', { name: 'Edit Razor refill receipt line' });
+
+    fireEvent.click(receiptRow);
+    const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
+    fireEvent.change(within(dialog).getByLabelText('Quantity for Razor refill'), {
+      target: { value: OVERFLOW_NUMBER_DRAFT },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Update line' }));
+
+    const warning = screen.getByRole('dialog', { name: 'Number not saved' });
+    expect(warning).toBeInTheDocument();
+    fireEvent.click(within(warning).getByRole('button', { name: 'Keep editing' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(within(screen.getByRole('button', { name: 'Edit Razor refill receipt line' })).getByText('1')).toBeInTheDocument();
   });
 
   it('shows linked SKUs above the quantity field in service POS popups', () => {
@@ -4212,7 +4360,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(ingestSenaObservation.mock.calls[0]![0].stockSnapshot).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ skuId: 'sku-2' })]),
     );
-    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 
@@ -4222,15 +4370,17 @@ describe('StockUpdateSessionRoute', () => {
       input: {
         ...observations[0]!.input,
         notes: 'Saved note',
+        regimeHint: 'promo' as const,
         stockSnapshot: [],
         retailSalesSnapshot: [{ skuId: 'sku-1', unitsSold: 4 }],
         serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 2 }],
-        regimeHint: 'promo' as const,
       },
     };
 
     setStoredSessionViewMode('form');
     renderEditRoute(editableObservation, observations, RECORD_UPDATE_CUSTOMER_COMPLETED_PATH);
+    expect(screen.queryByText('Overall sales pattern')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Context/i })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Current interval sales for Razor refill'), { target: { value: '9' } });
 
@@ -4241,9 +4391,8 @@ describe('StockUpdateSessionRoute', () => {
     goNext(2);
     fireEvent.click(screen.getByRole('button', { name: /Report notes/i }));
     expect(screen.getByDisplayValue('Saved note')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Capture details/i }));
 
-    goNext();
+    fireEvent.click(screen.getByRole('button', { name: /Review update/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(updateSenaObservation).toHaveBeenCalledTimes(1));
@@ -4251,13 +4400,13 @@ describe('StockUpdateSessionRoute', () => {
       observationId: 'obs-1',
       input: expect.objectContaining({
         notes: 'Saved note',
-        regimeHint: 'promo',
         retailSalesSnapshot: [{ skuId: 'sku-1', unitsSold: 9 }],
         serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 5 }],
         retailRankings: ['sku-1'],
         serviceRankings: ['service-1'],
       }),
     });
+    expect(updateSenaObservation.mock.calls[0]![0].input).not.toHaveProperty('regimeHint');
     expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([
       expect.objectContaining({
         skuId: 'sku-1',
@@ -4322,7 +4471,7 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
-    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
     expect(runWorkspacePreparation).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
@@ -4573,7 +4722,7 @@ describe('StockUpdateSessionRoute', () => {
       JSON.stringify({
         version: 1,
         savedAt: '2026-04-04T00:00:00.000Z',
-        currentStepId: 'context',
+        currentStepId: 'stock',
         unlockedStepCount: 4,
         observedAt: '2026-04-04T00:00',
         notes: 'Existing draft',
@@ -4581,7 +4730,6 @@ describe('StockUpdateSessionRoute', () => {
         rows: [],
         skuSignalDrafts: {},
         serviceSignalDrafts: {},
-        regimeHint: '',
         serviceRankings: [],
         retailRankings: [],
       }),

@@ -159,7 +159,7 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
               placeholder={placeholder}
               readOnly={readOnly}
               step={step}
-              type="number"
+              type="text"
               value={value}
               {...props}
             />
@@ -222,7 +222,7 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
             placeholder={placeholder}
             readOnly={readOnly}
             step={step}
-            type="number"
+            type="text"
             value={value}
             {...props}
           />

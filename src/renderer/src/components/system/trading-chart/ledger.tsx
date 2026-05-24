@@ -31,6 +31,9 @@ import {
   type TradingChartModel,
 } from './model';
 
+const TRADING_CHART_LEDGER_RENDER_HEIGHT = '84svh';
+const TRADING_CHART_LEDGER_WINDOW_EXTRA_HEIGHT = '16rem';
+
 function defaultTradingChartIndicatorsForSubtype(subtype: ChartSettingsSubtype) {
   if (subtype === 'analysis') {
     return defaultAnalysisTradingChartIndicators();
@@ -123,6 +126,25 @@ export function TradingChartLedger({
   tooltip: string;
   className?: string;
 }) {
+  const resolvedChartRenderHeight =
+    fillAvailableHeight && !expanded && chartRenderHeight == null
+      ? TRADING_CHART_LEDGER_RENDER_HEIGHT
+      : chartRenderHeight;
+  const chartWindowChartHeight =
+    fillAvailableHeight && !expanded
+      ? resolvedChartRenderHeight ?? TRADING_CHART_LEDGER_RENDER_HEIGHT
+      : null;
+  const ledgerWindowStyle: CSSProperties | undefined =
+    chartWindowChartHeight != null
+      ? {
+          height: typeof chartWindowChartHeight === 'number'
+            ? chartWindowChartHeight + 192
+            : `calc(${chartWindowChartHeight} + ${TRADING_CHART_LEDGER_WINDOW_EXTRA_HEIGHT})`,
+          maxHeight: typeof chartWindowChartHeight === 'number'
+            ? chartWindowChartHeight + 192
+            : `calc(${chartWindowChartHeight} + ${TRADING_CHART_LEDGER_WINDOW_EXTRA_HEIGHT})`,
+        }
+      : undefined;
   const initialPersistedSettings = useMemo(
     () => resolveTradingChartSettings(subtype, subjectId),
     [subjectId, subtype],
@@ -201,9 +223,10 @@ export function TradingChartLedger({
         'relative isolate flex min-w-0 flex-col',
         expanded
           ? `${cardFrameClassName} ${cardSurfaceClassName} h-full min-h-0 w-full rounded-[2rem] px-6 py-5`
-          : `${cardFrameClassName} ${cardSurfaceClassName} h-full min-h-0 w-full rounded-[2rem] px-6 py-5`,
+          : `${cardFrameClassName} ${cardSurfaceClassName} min-h-0 w-full overflow-hidden rounded-[2rem] px-6 py-5`,
         className,
       )}
+      style={ledgerWindowStyle}
     >
       <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -218,7 +241,7 @@ export function TradingChartLedger({
         <SkuTradingChart
           chartModel={chartModel}
           chartResolution={chartResolution}
-          chartRenderHeight={chartRenderHeight}
+          chartRenderHeight={resolvedChartRenderHeight}
           chartZoomResetToken={chartZoomResetToken}
           additionalPaneMinRenderHeight={additionalPaneMinRenderHeight}
           baseMinRenderHeight={baseMinRenderHeight}

@@ -266,6 +266,7 @@ function multiPointChartModel(pointCount: number): TradingChartModel {
 }
 
 function renderChart({
+  chartRenderHeight,
   chartModelOverride,
   customTimeframeRange = null,
   expanded = false,
@@ -287,6 +288,7 @@ function renderChart({
   selectedIntervalIndex = 0,
   timeframe = 'Recent',
 }: {
+  chartRenderHeight?: string | number;
   chartModelOverride?: TradingChartModel;
   customTimeframeRange?: { startAt: string; endAt: string } | null;
   expanded?: boolean;
@@ -320,6 +322,7 @@ function renderChart({
   const renderResult = render(
     <SkuTradingChart
       chartModel={chartModelOverride ?? chartModel}
+      chartRenderHeight={chartRenderHeight}
       chartZoomResetToken={0}
       customTimeframeRange={customTimeframeRange}
       defaultIndicatorSettings={defaultTradingChartIndicators()}
@@ -1234,6 +1237,170 @@ describe('SkuTradingChart settings', () => {
     await waitFor(() => expect(chartMockState.paneHeights).toEqual([374, 124, 124, 126]));
   });
 
+  it('allocates viewport-fill pane heights from the measured chart height', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const clientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.getAttribute('data-testid') === 'sku-trading-chart' ? 900 : 0;
+      },
+    });
+
+    try {
+      const initialSettings = defaultTradingChartIndicators();
+      initialSettings.demand.enabled = true;
+      initialSettings.receipts.enabled = true;
+      initialSettings.ordersInTransit.enabled = true;
+      const multiPaneModel: TradingChartModel = {
+        ...chartModel,
+        points: [{
+          ...chartModel.points[0]!,
+          serviceDemandMean: 3,
+          receiptsMean: 2,
+          ordersInTransitMean: 4,
+        }],
+        availability: {
+          ...chartModel.availability,
+          demand: true,
+          receipts: true,
+          ordersInTransit: true,
+        },
+      };
+
+      renderChart({
+        chartModelOverride: multiPaneModel,
+        initialSettings,
+      });
+
+      await waitFor(() => expect(chartMockState.paneHeights).toEqual([434, 144, 144, 146]));
+      expect(screen.getByTestId('sku-trading-chart')).toHaveStyle({
+        minHeight: `${deriveTradingChartMinRenderHeight(3)}px`,
+      });
+    } finally {
+      if (clientHeightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'clientHeight', clientHeightDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+      }
+    }
+  });
+
+  it('allocates pane heights from explicit viewport render height before layout measurement exists', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const innerHeightDescriptor = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    const clientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.getAttribute('data-testid') === 'sku-trading-chart' ? 0 : 0;
+      },
+    });
+
+    try {
+      const initialSettings = defaultTradingChartIndicators();
+      initialSettings.demand.enabled = true;
+      initialSettings.receipts.enabled = true;
+      initialSettings.ordersInTransit.enabled = true;
+      const multiPaneModel: TradingChartModel = {
+        ...chartModel,
+        points: [{
+          ...chartModel.points[0]!,
+          serviceDemandMean: 3,
+          receiptsMean: 2,
+          ordersInTransitMean: 4,
+        }],
+        availability: {
+          ...chartModel.availability,
+          demand: true,
+          receipts: true,
+          ordersInTransit: true,
+        },
+      };
+
+      renderChart({
+        chartRenderHeight: '84svh',
+        chartModelOverride: multiPaneModel,
+        initialSettings,
+      });
+
+      await waitFor(() => expect(chartMockState.paneHeights).toEqual([404, 134, 134, 136]));
+    } finally {
+      if (innerHeightDescriptor) {
+        Object.defineProperty(window, 'innerHeight', innerHeightDescriptor);
+      }
+      if (clientHeightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'clientHeight', clientHeightDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+      }
+    }
+  });
+
+  it('keeps explicit viewport render height even when pane-count minimum would be taller', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const innerHeightDescriptor = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    const clientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(window, 'innerHeight', {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.getAttribute('data-testid') === 'sku-trading-chart' ? 0 : 0;
+      },
+    });
+
+    try {
+      const initialSettings = defaultTradingChartIndicators();
+      initialSettings.demand = { ...initialSettings.demand, enabled: true, paneId: 'pane-1' };
+      initialSettings.receipts = { ...initialSettings.receipts, enabled: true, paneId: 'pane-2' };
+      initialSettings.ordersInTransit = { ...initialSettings.ordersInTransit, enabled: true, paneId: 'pane-3' };
+      initialSettings.price = { ...initialSettings.price, enabled: true, paneId: 'pane-4' };
+      const multiPaneModel: TradingChartModel = {
+        ...chartModel,
+        points: [{
+          ...chartModel.points[0]!,
+          price: 40,
+          receiptsMean: 2,
+          ordersInTransitMean: 4,
+          serviceDemandMean: 3,
+        }],
+        availability: {
+          ...chartModel.availability,
+          demand: true,
+          receipts: true,
+          ordersInTransit: true,
+          price: true,
+        },
+      };
+
+      renderChart({
+        chartRenderHeight: '84svh',
+        chartModelOverride: multiPaneModel,
+        initialSettings,
+      });
+
+      await waitFor(() => expect(chartMockState.paneHeights).toEqual([404, 101, 101, 101, 101]));
+      expect(screen.getByTestId('sku-trading-chart')).toHaveStyle({ height: '84svh' });
+      expect(screen.getByTestId('sku-trading-chart').style.minHeight).toBe('');
+    } finally {
+      if (innerHeightDescriptor) {
+        Object.defineProperty(window, 'innerHeight', innerHeightDescriptor);
+      }
+      if (clientHeightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'clientHeight', clientHeightDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+      }
+    }
+  });
+
   it('keeps content-height charts on the pane-count height when first layout measurement is oversized', async () => {
     vi.stubGlobal('navigator', { userAgent: 'unit-test' });
     const clientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
@@ -1311,6 +1478,108 @@ describe('SkuTradingChart settings', () => {
     });
 
     await waitFor(() => expect(chartMockState.paneHeights).toEqual([324, 122, 182]));
+  });
+
+  it('falls back to default pane proportions when stale saved heights starve an indicator pane', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const innerHeightDescriptor = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    const clientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.getAttribute('data-testid') === 'sku-trading-chart' ? 0 : 0;
+      },
+    });
+
+    try {
+      const initialSettings = defaultTradingChartIndicators();
+      initialSettings.demand.enabled = true;
+      const demandChartModel: TradingChartModel = {
+        ...chartModel,
+        points: [{
+          ...chartModel.points[0]!,
+          serviceDemandMean: 3,
+        }],
+        availability: {
+          ...chartModel.availability,
+          demand: true,
+        },
+      };
+
+      renderChart({
+        chartRenderHeight: '84svh',
+        chartModelOverride: demandChartModel,
+        initialPaneHeights: { main: 760, 'pane-1': 40 },
+        initialSettings,
+      });
+
+      await waitFor(() => expect(chartMockState.paneHeights).toEqual([606, 202]));
+    } finally {
+      if (innerHeightDescriptor) {
+        Object.defineProperty(window, 'innerHeight', innerHeightDescriptor);
+      }
+      if (clientHeightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'clientHeight', clientHeightDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+      }
+    }
+  });
+
+  it('reapplies pane proportions after a passive chart relayout reverts them', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    const innerHeightDescriptor = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    const clientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.getAttribute('data-testid') === 'sku-trading-chart' ? 0 : 0;
+      },
+    });
+
+    try {
+      const initialSettings = defaultTradingChartIndicators();
+      initialSettings.demand.enabled = true;
+      const demandChartModel: TradingChartModel = {
+        ...chartModel,
+        points: [{
+          ...chartModel.points[0]!,
+          serviceDemandMean: 3,
+        }],
+        availability: {
+          ...chartModel.availability,
+          demand: true,
+        },
+      };
+
+      renderChart({
+        chartRenderHeight: '84svh',
+        chartModelOverride: demandChartModel,
+        initialSettings,
+      });
+
+      await waitFor(() => expect(chartMockState.paneHeights).toEqual([606, 202]));
+
+      act(() => {
+        chartMockState.paneHeights = [760, 40];
+        for (const handler of chartMockState.visibleRangeHandlers) {
+          handler({ from: 0, to: 1 });
+        }
+      });
+
+      await waitFor(() => expect(chartMockState.paneHeights).toEqual([606, 202]));
+    } finally {
+      if (innerHeightDescriptor) {
+        Object.defineProperty(window, 'innerHeight', innerHeightDescriptor);
+      }
+      if (clientHeightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'clientHeight', clientHeightDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+      }
+    }
   });
 
   it('persists pane heights only after a manual pane resize interaction', async () => {

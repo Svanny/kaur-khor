@@ -504,7 +504,7 @@ export const DEFAULT_TRADING_CHART_INDICATORS: TradingChartIndicatorSettings = {
     scale: 'primary',
   },
   regime: {
-    enabled: true,
+    enabled: false,
     color: '#0f766e',
     paneId: TRADING_CHART_MAIN_PANE_ID,
     layerOrder: 4,
@@ -1016,7 +1016,7 @@ export function defaultServiceTradingChartIndicators() {
   defaults.price.layerOrder = 0;
   defaults.price.scale = 'price';
 
-  defaults.regime.enabled = true;
+  defaults.regime.enabled = false;
   defaults.regime.paneId = TRADING_CHART_MAIN_PANE_ID;
   defaults.regime.layerOrder = 1;
 
@@ -1044,7 +1044,7 @@ export function defaultAnalysisTradingChartIndicators() {
   defaults.price.enabled = true;
   defaults.price.paneId = 'pane-1';
   defaults.price.layerOrder = 0;
-  defaults.regime.enabled = true;
+  defaults.regime.enabled = false;
   defaults.regime.paneId = TRADING_CHART_MAIN_PANE_ID;
   defaults.regime.layerOrder = 2;
 
