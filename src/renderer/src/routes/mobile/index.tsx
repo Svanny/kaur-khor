@@ -1,5 +1,6 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import type { SenaObservationInput, SenaObservationRecord, SenaTicketEvent, SenaTicketEventType, SenaTicketLine, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
 import {
   ActionAddBadgeIcon,
@@ -672,7 +673,7 @@ function PhoneStorageFeedback({
 }) {
   const { language } = usePreferences();
   const expectedReadyMessage = mode === 'demo'
-    ? 'This demo uses a separate sample workspace.'
+    ? 'This demo uses a separate blank workspace.'
     : 'Your workspace is saved in this browser on this device.';
   const hasActionableReadyMessage = storage.status === 'ready' && storage.message !== expectedReadyMessage;
   const title = hasActionableReadyMessage
@@ -2166,6 +2167,34 @@ function phoneSupplierTaskDetail(task: OverviewTask, language: ReturnType<typeof
   return parts.filter(Boolean).join(' · ');
 }
 
+function phoneSupplierTaskActionPillLabel(task: OverviewTask, language: ReturnType<typeof usePreferences>['language']) {
+  if (isOverviewSupplierTicketTask(task) && task.ticket.lifecycle === 'canceled') {
+    return translateUiLiteral(language, 'Canceled');
+  }
+  if (task.kind === 'stale_update_reminder') {
+    return translateUiLiteral(language, 'Update');
+  }
+  const fallbackActionLabel = task.actionLabel;
+  if (!('state' in task)) {
+    return fallbackActionLabel;
+  }
+  const state = task.state;
+  switch (state) {
+    case 'to_order':
+      return translateUiLiteral(language, 'To order');
+    case 'awaiting_receipt':
+      return translateUiLiteral(language, 'Waiting');
+    case 'follow_up_today':
+      return translateUiLiteral(language, 'Follow up');
+    case 'ready_to_receive':
+      return translateUiLiteral(language, 'Receive');
+    case 'received_today':
+      return translateUiLiteral(language, 'Received');
+    default:
+      return fallbackActionLabel;
+  }
+}
+
 function phoneCustomerTaskMeta(task: OverviewCustomerTask) {
   return [
     task.sourceLabel,
@@ -2965,7 +2994,7 @@ function PhoneQueueRoute() {
             return (
             <PhoneTaskCard
               key={supplierTask.id}
-              actionLabel={translateUiLiteral(language, 'Record now')}
+              actionLabel={phoneSupplierTaskActionPillLabel(supplierTask, language)}
               detail={phoneSupplierTaskDetail(supplierTask, language)}
               href={phoneSupplierTaskHref(supplierTask)}
               label={
@@ -4860,7 +4889,7 @@ function PhoneSafetyRoute({
                 {translateUiLiteral(
                   language,
                   mode === 'demo'
-                    ? 'This removes the current demo changes and restores sample data. Export first if you want to keep this demo state. This action cannot be undone.'
+                    ? 'This removes the current demo changes and returns to a blank demo workspace. Export first if you want to keep this demo state. This action cannot be undone.'
                     : 'This removes local browser workspace data from this device. Export a backup first if you need this data. This action cannot be undone.',
                 )}
               </p>
@@ -5031,7 +5060,7 @@ function PhoneSafetyRoute({
           <PhoneSurface className="grid gap-2">
             <p className="text-sm leading-6 text-muted-foreground">
               {translateUiLiteral(language, mode === 'demo'
-                ? 'Demo data is stored in this browser profile and can be reset back to sample data.'
+                ? 'Demo data is stored in this browser profile and can be reset back to a blank workspace.'
                 : 'Browser workspace data stays in this browser profile. Export backups before clearing site data or changing profiles.')}
             </p>
           </PhoneSurface>
@@ -5387,7 +5416,7 @@ function PhoneInsightsRoute() {
         await inventory.retrySenaRun({ runId: inventory.latestRun.runId });
       } else {
         await inventory.triggerSenaRun({
-          algorithmVersion: inventory.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
+          algorithmVersion: inventory.latestRun?.algorithmVersion ?? DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion,
         });
       }
     } catch (error) {
@@ -6534,7 +6563,7 @@ function PhoneChrome({
                 {translateUiLiteral(
                   language,
                   mode === 'demo'
-                    ? 'This removes the current demo changes and restores sample data. Export first if you want to keep this demo state. This action cannot be undone.'
+                    ? 'This removes the current demo changes and returns to a blank demo workspace. Export first if you want to keep this demo state. This action cannot be undone.'
                     : 'This removes local browser workspace data from this device. Export a backup first if you need this data. This action cannot be undone.',
                 )}
               </p>

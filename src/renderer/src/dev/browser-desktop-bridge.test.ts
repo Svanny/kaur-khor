@@ -3,6 +3,7 @@ import {
   createMockAutomationWorkspace,
   createEmptyBrowserMockState,
   createMockState,
+  browserStateForSenaPersistence,
   installBrowserDesktopBridge,
   normalizeBrowserDesktopPreferences,
   resetBrowserDesktopBridgeMock,
@@ -17,7 +18,7 @@ describe('installBrowserDesktopBridge', () => {
     resetBrowserDesktopBridgeMock();
   });
 
-  it('installs a seeded desktop bridge when preload is missing', async () => {
+  it('installs a blank desktop bridge when preload is missing', async () => {
     installBrowserDesktopBridge();
 
     expect(window.kaurKhorDesktop).toBeDefined();
@@ -29,10 +30,16 @@ describe('installBrowserDesktopBridge', () => {
       window.kaurKhorDesktop.sena.getWorkspaceSummary(),
     ]);
 
-    expect(context.platform).toBe('browser');
+    expect(context.platform).toBe('web');
     expect(preferences.language).toBe('en');
-    expect(catalog?.skus.length).toBeGreaterThan(0);
-    expect(summary?.skuSummaries.length).toBeGreaterThan(0);
+    expect(catalog).toBeNull();
+    expect(summary).toBeNull();
+    await expect(window.kaurKhorDesktop.sena.getStartupWorkspace()).resolves.toMatchObject({
+      catalog: null,
+      workspaceSummary: null,
+      latestRun: null,
+      observationFingerprint: expect.objectContaining({ count: 0 }),
+    });
   });
 
   it('announces mock preference changes to embedded browser chrome listeners', async () => {
@@ -68,6 +75,25 @@ describe('installBrowserDesktopBridge', () => {
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
     });
+  });
+
+  it('clears seeded mock state through the browser system bridge', async () => {
+    setBrowserDesktopBridgeMockState(createMockState());
+    installBrowserDesktopBridge();
+
+    await window.kaurKhorDesktop.system.clearCurrentData();
+
+    const catalog = await window.kaurKhorDesktop.sena.getCatalog();
+    const workspace = await window.kaurKhorDesktop.sena.getStartupWorkspace();
+    const automation = await window.kaurKhorDesktop.automation!.getWorkspace();
+
+    expect(catalog).toBeNull();
+    expect(workspace.catalog).toBeNull();
+    expect(workspace.workspaceSummary).toBeNull();
+    expect(workspace.latestRun).toBeNull();
+    expect(workspace.observationFingerprint.count).toBe(0);
+    expect(automation.intakes).toHaveLength(0);
+    expect(automation.exposures).toHaveLength(0);
   });
 
   it('normalizes restored browser preferences before renderer hydration can read them', () => {
@@ -204,11 +230,43 @@ describe('installBrowserDesktopBridge', () => {
     expect(state.orderBatches.some((batch) => batch.status === 'awaiting_receipt')).toBe(true);
   });
 
-  it('keeps automation and intake visible in empty browser workspaces', () => {
+  it('keeps empty browser workspaces free of seeded records', () => {
     const state = createEmptyBrowserMockState();
 
+    expect(state.catalog.skus).toHaveLength(0);
+    expect(state.catalog.services).toHaveLength(0);
+    expect(state.observations).toHaveLength(0);
+    expect(state.orderBatches).toHaveLength(0);
+    expect(Object.keys(state.skuDetails)).toHaveLength(0);
+    expect(Object.keys(state.serviceDetails)).toHaveLength(0);
+    expect(state.automation.intakes).toHaveLength(0);
+    expect(state.automation.conversations).toHaveLength(0);
+    expect(state.automation.exposures).toHaveLength(0);
+    expect(Object.keys(state.automationMessages)).toHaveLength(0);
     expect(state.preferences.showAutomationsPage).toBe(true);
     expect(state.preferences.customShowAutomationsPage).toBe(true);
+    expect(browserStateForSenaPersistence(state)).toMatchObject({
+      catalog: null,
+      workspaceSummary: null,
+      latestRun: null,
+      diagnostics: null,
+    });
+  });
+
+  it('exposes catalog but no SENA run artifacts when products exist before the first update', async () => {
+    const state = createEmptyBrowserMockState();
+    state.catalog = createMockState().catalog;
+    setBrowserDesktopBridgeMockState(state);
+    installBrowserDesktopBridge();
+
+    const workspace = await window.kaurKhorDesktop.sena.getStartupWorkspace();
+
+    expect(workspace.catalog?.skus.length).toBeGreaterThan(0);
+    expect(workspace.workspaceSummary).toBeNull();
+    expect(workspace.latestRun).toBeNull();
+    expect(workspace.observationFingerprint.count).toBe(0);
+    expect(browserStateForSenaPersistence(state).catalog?.skus.length).toBeGreaterThan(0);
+    expect(browserStateForSenaPersistence(state).workspaceSummary).toBeNull();
   });
 
   it('builds automation workspace fixtures with exposed sellables', () => {
@@ -311,6 +369,7 @@ describe('installBrowserDesktopBridge', () => {
   });
 
   it('supports current order-batch reads and edits in the browser bridge', async () => {
+    setBrowserDesktopBridgeMockState(createMockState());
     installBrowserDesktopBridge();
 
     const batches = await window.kaurKhorDesktop.sena.listOrderBatches();
@@ -346,6 +405,7 @@ describe('installBrowserDesktopBridge', () => {
   });
 
   it('normalizes browser SENA read payloads before filtering or paging', async () => {
+    setBrowserDesktopBridgeMockState(createMockState());
     installBrowserDesktopBridge();
 
     await expect(window.kaurKhorDesktop.sena.listObservationPage({ limit: Number.NaN } as never))
@@ -360,6 +420,7 @@ describe('installBrowserDesktopBridge', () => {
   });
 
   it('recomputes browser SENA run summary and detail from current observations', async () => {
+    setBrowserDesktopBridgeMockState(createMockState());
     installBrowserDesktopBridge();
 
     const before = await window.kaurKhorDesktop.sena.getWorkspaceSummary();
@@ -390,7 +451,6 @@ describe('installBrowserDesktopBridge', () => {
         highDays: 6,
         variabilityClass: 'tight',
       }],
-      regimeHint: 'stockout_constrained',
       notes: null,
     });
     const run = await window.kaurKhorDesktop.sena.triggerRun();

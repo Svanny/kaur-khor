@@ -247,16 +247,19 @@ function persistSenaState(state: BrowserSenaPersistState) {
       $json: jsonStringify(state.preferences),
       $updatedAt: updatedAt,
     });
-    upsertJsonTable(storage, `
-      INSERT INTO catalog(singleton_id, catalog_json, updated_at)
-      VALUES ('current', json($json), $updatedAt)
-      ON CONFLICT(singleton_id) DO UPDATE SET
-        catalog_json = excluded.catalog_json,
-        updated_at = excluded.updated_at
-    `, {
-      $json: jsonStringify(state.catalog),
-      $updatedAt: updatedAt,
-    });
+    storage.exec('DELETE FROM catalog;');
+    if (state.catalog) {
+      upsertJsonTable(storage, `
+        INSERT INTO catalog(singleton_id, catalog_json, updated_at)
+        VALUES ('current', json($json), $updatedAt)
+        ON CONFLICT(singleton_id) DO UPDATE SET
+          catalog_json = excluded.catalog_json,
+          updated_at = excluded.updated_at
+      `, {
+        $json: jsonStringify(state.catalog),
+        $updatedAt: updatedAt,
+      });
+    }
     storage.exec('DELETE FROM observations;');
     for (const observation of state.observations) {
       upsertJsonTable(storage, `
@@ -284,40 +287,49 @@ function persistSenaState(state: BrowserSenaPersistState) {
         $updatedAt: batch.updatedAt,
       });
     }
-    upsertJsonTable(storage, `
-      INSERT INTO analysis_runs(run_id, status, created_at, completed_at, run_json)
-      VALUES ($runId, $status, $createdAt, $completedAt, json($json))
-      ON CONFLICT(run_id) DO UPDATE SET
-        status = excluded.status,
-        completed_at = excluded.completed_at,
-        run_json = excluded.run_json
-    `, {
-      $runId: state.latestRun.runId,
-      $status: state.latestRun.status,
-      $createdAt: state.latestRun.createdAt,
-      $completedAt: state.latestRun.completedAt,
-      $json: jsonStringify(state.latestRun),
-    });
-    upsertJsonTable(storage, `
-      INSERT INTO workspace_summary_cache(singleton_id, summary_json, updated_at)
-      VALUES ('current', json($json), $updatedAt)
-      ON CONFLICT(singleton_id) DO UPDATE SET
-        summary_json = excluded.summary_json,
-        updated_at = excluded.updated_at
-    `, {
-      $json: jsonStringify(state.workspaceSummary),
-      $updatedAt: updatedAt,
-    });
-    upsertJsonTable(storage, `
-      INSERT INTO diagnostics_cache(singleton_id, diagnostics_json, updated_at)
-      VALUES ('latest', json($json), $updatedAt)
-      ON CONFLICT(singleton_id) DO UPDATE SET
-        diagnostics_json = excluded.diagnostics_json,
-        updated_at = excluded.updated_at
-    `, {
-      $json: jsonStringify(state.diagnostics),
-      $updatedAt: updatedAt,
-    });
+    storage.exec('DELETE FROM analysis_runs;');
+    if (state.latestRun) {
+      upsertJsonTable(storage, `
+        INSERT INTO analysis_runs(run_id, status, created_at, completed_at, run_json)
+        VALUES ($runId, $status, $createdAt, $completedAt, json($json))
+        ON CONFLICT(run_id) DO UPDATE SET
+          status = excluded.status,
+          completed_at = excluded.completed_at,
+          run_json = excluded.run_json
+      `, {
+        $runId: state.latestRun.runId,
+        $status: state.latestRun.status,
+        $createdAt: state.latestRun.createdAt,
+        $completedAt: state.latestRun.completedAt,
+        $json: jsonStringify(state.latestRun),
+      });
+    }
+    storage.exec('DELETE FROM workspace_summary_cache;');
+    if (state.workspaceSummary) {
+      upsertJsonTable(storage, `
+        INSERT INTO workspace_summary_cache(singleton_id, summary_json, updated_at)
+        VALUES ('current', json($json), $updatedAt)
+        ON CONFLICT(singleton_id) DO UPDATE SET
+          summary_json = excluded.summary_json,
+          updated_at = excluded.updated_at
+      `, {
+        $json: jsonStringify(state.workspaceSummary),
+        $updatedAt: updatedAt,
+      });
+    }
+    storage.exec('DELETE FROM diagnostics_cache;');
+    if (state.diagnostics) {
+      upsertJsonTable(storage, `
+        INSERT INTO diagnostics_cache(singleton_id, diagnostics_json, updated_at)
+        VALUES ('latest', json($json), $updatedAt)
+        ON CONFLICT(singleton_id) DO UPDATE SET
+          diagnostics_json = excluded.diagnostics_json,
+          updated_at = excluded.updated_at
+      `, {
+        $json: jsonStringify(state.diagnostics),
+        $updatedAt: updatedAt,
+      });
+    }
     storage.exec('DELETE FROM sku_detail_cache;');
     for (const [skuId, detail] of Object.entries(state.skuDetails)) {
       upsertJsonTable(storage, `

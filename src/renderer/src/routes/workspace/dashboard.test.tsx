@@ -901,6 +901,49 @@ describe('DashboardRoute', () => {
     });
   });
 
+  test('shows the desktop blank-slate product setup state before any catalog exists', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: null,
+      observations: [],
+      workspaceSummary: null,
+      loadSenaSkuDetail: vi.fn(),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(),
+      runWorkspacePreparation: vi.fn(async (task) => task()),
+      triggerSenaRun: vi.fn(),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/work/queue');
+
+    expect(await screen.findByText('Work needs products first')).toBeInTheDocument();
+    expect(screen.getByText('Create the first SKU or service so Kaur Khor can build an action list from real products work.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create first SKU' })).toHaveAttribute('href', '/catalog/skus/new');
+    expect(screen.getByRole('link', { name: 'Create first service' })).toHaveAttribute('href', '/catalog/services/new');
+    expect(screen.queryByRole('heading', { level: 2, name: 'Task queue' })).not.toBeInTheDocument();
+  });
+
+  test('shows the desktop first-update state after products exist but before observations', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: [],
+      workspaceSummary: null,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(),
+      runWorkspacePreparation: vi.fn(async (task) => task()),
+      triggerSenaRun: vi.fn(),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/work/queue');
+
+    expect(await screen.findByText('Work needs your first update')).toBeInTheDocument();
+    expect(screen.getByText('Capture a live observation so Kaur Khor can build the order, receipt, and follow-up queue.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Start update' })).toHaveAttribute('href', '/work/capture');
+    expect(screen.queryByRole('heading', { level: 2, name: 'Task queue' })).not.toBeInTheDocument();
+  });
+
   test('shows a loading board instead of a partial queue while cold support data loads', async () => {
     const supportData = deferred<null>();
     const loadWorkSupportData = vi.fn(() => supportData.promise);
@@ -1244,7 +1287,7 @@ describe('DashboardRoute', () => {
       ],
       serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 1000 }],
     });
-    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
 
     act(() => {
       triggerRun.resolve({ runId: 'run-2' });
@@ -1362,7 +1405,7 @@ describe('DashboardRoute', () => {
         },
       ],
     });
-    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
 
     act(() => {
       triggerRun.resolve({ runId: 'run-2' });
@@ -2129,7 +2172,7 @@ describe('DashboardRoute', () => {
     await waitFor(() => {
       expect(currentInventory.ingestSenaObservation).toHaveBeenCalled();
     });
-    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
     expect(document.querySelector('[data-slot="loading-more-intervals"]')).not.toBeNull();
     expect(screen.getByText('Saving...')).toBeInTheDocument();
     expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();

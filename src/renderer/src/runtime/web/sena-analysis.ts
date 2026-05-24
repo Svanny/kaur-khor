@@ -430,12 +430,41 @@ function reorderQuantity(
   };
 }
 
-function regimeForObservation(observation: SenaObservationRecord, stockoutRisk: number) {
-  if (observation.input.regimeHint) {
-    return observation.input.regimeHint;
+function discountPressureForObservation(observation: SenaObservationRecord) {
+  const discount = observation.input.discount;
+  if (!discount) {
+    return 0;
   }
-  if (stockoutRisk >= 0.8) {
+  const percent = finite(discount.percent) / 100;
+  const amount = finite(discount.amountUsd);
+  const subtotal = finite(discount.subtotalUsd);
+  return clamp(Math.max(percent, subtotal > 0 ? amount / subtotal : 0));
+}
+
+function regimeForObservation(observation: SenaObservationRecord, stockoutRisk: number) {
+  const exactSales = [
+    ...(observation.input.serviceSalesSnapshot ?? []).map((entry) => finite(entry.unitsSold)),
+    ...(observation.input.retailSalesSnapshot ?? []).map((entry) => finite(entry.unitsSold)),
+  ].reduce((sum, value) => sum + value, 0);
+  const stockoutSignals = observation.input.serviceStockouts.length + observation.input.retailStockouts.length;
+  const adjustmentMagnitude = (observation.input.adjustmentSignals ?? [])
+    .reduce((sum, entry) => sum + Math.abs(finite(entry.quantityDelta)), 0);
+  const discountPressure = discountPressureForObservation(observation);
+
+  if (stockoutSignals > 0 || stockoutRisk >= 0.8) {
     return 'stockout_constrained';
+  }
+  if (discountPressure >= 0.05) {
+    return 'promo';
+  }
+  if (adjustmentMagnitude >= 1.5) {
+    return 'correction';
+  }
+  if (exactSales >= 6) {
+    return 'spike';
+  }
+  if (exactSales <= 0.1 && stockoutRisk < 0.25) {
+    return 'lull';
   }
   return 'normal';
 }

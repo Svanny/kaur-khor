@@ -14,14 +14,14 @@ import type { AutomationMessageRecord, AutomationWorkspace } from '@shared/autom
 export type BrowserSenaPersistState = {
   appContext: DesktopAppContext;
   preferences: DesktopPreferences;
-  catalog: SenaCatalog;
-  diagnostics: SenaDiagnostics;
-  latestRun: SenaAnalysisRunRecord;
+  catalog: SenaCatalog | null;
+  diagnostics: SenaDiagnostics | null;
+  latestRun: SenaAnalysisRunRecord | null;
   observations: SenaObservationRecord[];
   orderBatches: SenaOrderBatchRecord[];
   serviceDetails: Record<string, SenaServiceDetail>;
   skuDetails: Record<string, SenaSkuDetail>;
-  workspaceSummary: SenaWorkspaceSummary;
+  workspaceSummary: SenaWorkspaceSummary | null;
   automation: AutomationWorkspace;
   automationMessages: Record<string, AutomationMessageRecord[]>;
 };

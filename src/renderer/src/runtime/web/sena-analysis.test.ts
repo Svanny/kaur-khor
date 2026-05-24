@@ -19,7 +19,7 @@ describe('browser SENA analysis', () => {
       catalog: state.catalog,
       observations: state.observations,
       payload: {
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: 'sena-analysis-v4',
         parameters: state.preferences.senaEngineParameters,
       },
     };
@@ -34,6 +34,59 @@ describe('browser SENA analysis', () => {
     expect(Object.keys(first.skuDetails)).toEqual(state.catalog.skus.map((sku) => sku.skuId));
     expect(Object.keys(first.serviceDetails)).toEqual(state.catalog.services.map((service) => service.serviceId));
     expect(first.diagnostics.regimeHistory).toHaveLength(state.observations.length);
+  });
+
+  it('ignores legacy regime hints when deriving browser fallback regimes', () => {
+    const state = createMockState();
+    const observations = [
+      {
+        ...state.observations[0]!,
+        input: {
+          ...state.observations[0]!.input,
+          observedAt: '2026-05-02T00:00:00.000Z',
+          stockSnapshot: state.catalog.skus.map((sku) => ({
+            skuId: sku.skuId,
+            unitsInStock: 25,
+            costPerUnit: sku.costPerUnit,
+            productPrice: sku.productPrice,
+          })),
+          retailSalesSnapshot: [],
+          serviceSalesSnapshot: [],
+          serviceRankings: [],
+          retailRankings: [],
+          serviceStockouts: [],
+          retailStockouts: [],
+          orderSignals: [],
+          servicePrices: [],
+          retailPrices: [],
+          leadTimeHints: [],
+          adjustmentSignals: [],
+          commercialEvents: [],
+          ticketEvents: [],
+          recipeUsageHints: [],
+          discount: null,
+          deliveryFee: null,
+          regimeHint: 'promo' as const,
+          notes: 'Legacy hint should not drive browser fallback analysis.',
+        },
+      },
+    ];
+
+    const output = runBrowserSenaAnalysis({
+      ownerSub: 'browser-owner',
+      runId: 'browser-ignore-legacy-regime-hint',
+      createdAt: '2026-05-02T00:00:00.000Z',
+      catalog: state.catalog,
+      observations,
+      payload: {
+        algorithmVersion: 'sena-analysis-v4',
+        parameters: state.preferences.senaEngineParameters,
+      },
+    });
+
+    expect(output.workspaceSummary.topRegime).toBe('lull');
+    expect(output.diagnostics.regimeHistory[0]?.dominantRegime).toBe('lull');
+    expect(output.diagnostics.regimeHistory[0]?.regimeProbabilities.promo).toBe(0.05);
   });
 
   it('uses the Rust SENA default for missing service-linked SKU usage probability', () => {
@@ -60,7 +113,7 @@ describe('browser SENA analysis', () => {
       catalog: state.catalog,
       observations: state.observations,
       payload: {
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: 'sena-analysis-v4',
         parameters: state.preferences.senaEngineParameters,
       },
     });
@@ -237,7 +290,7 @@ describe('browser SENA analysis', () => {
       catalog: state.catalog,
       observations,
       payload: {
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: 'sena-analysis-v4',
         parameters: state.preferences.senaEngineParameters,
       },
     })));

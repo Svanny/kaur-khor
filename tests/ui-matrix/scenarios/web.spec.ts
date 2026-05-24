@@ -16,7 +16,7 @@ import {
 } from '../helpers/web';
 
 test.describe('UI matrix: browser and demo surfaces', () => {
-  test('demo browser mode exposes generated state, banner controls, and major routes', async ({ page }, testInfo) => {
+  test('demo browser mode opens a blank isolated workspace with banner controls and major routes', async ({ page }, testInfo) => {
     testInfo.annotations.push({
       type: 'ui-matrix',
       description: UI_MATRIX_CASES.find((entry) => entry.id === 'web-demo-and-browser-parity')?.expectedUi ?? '',
@@ -55,16 +55,26 @@ test.describe('UI matrix: browser and demo surfaces', () => {
     prepared.issues.clear();
     await expectEmbeddedBannerControls(page, 'demo');
     await completeEmbeddedOnboardingIfPresent(page);
-    await expect(page.locator('main a[href="#/insights/inventory"]')).toHaveCount(1);
-    await expect(page.locator('main a[href="#/insights"]')).toHaveCount(0);
+    const demoCounts = await browserWorkspaceCounts(page);
+    expect(demoCounts).toMatchObject({
+      observationCount: 0,
+      serviceCount: 0,
+      skuCount: 0,
+    });
     await assertEmbeddedUiStable(page, 'demo browser home');
     await captureUi(page, testInfo, 'web-demo-home');
 
     await page.evaluate(() => {
       window.location.hash = '#/catalog';
     });
-    await page.waitForFunction(() => window.location.hash === '#/catalog');
-    await expect(page.getByRole('link', { name: /ក្រមាភ្នំពេញ|Phnom Penh|Krama/i }).first()).toBeVisible();
+    await page.waitForFunction(() => window.location.hash.startsWith('#/catalog'));
+    await expect(page.getByText('Set up products')).toBeVisible();
+    await expect(page.getByText('No products loaded yet')).toBeVisible();
+    await expect(await browserWorkspaceCounts(page)).toMatchObject({
+      observationCount: 0,
+      serviceCount: 0,
+      skuCount: 0,
+    });
     await scrollMainSurface(page);
     await assertEmbeddedUiStable(page, 'demo browser catalog');
     await captureUi(page, testInfo, 'web-demo-catalog');
@@ -73,23 +83,23 @@ test.describe('UI matrix: browser and demo surfaces', () => {
       window.location.hash = '#/work/queue';
     });
     await page.waitForFunction(() => window.location.hash === '#/work/queue');
+    await expect(page.getByText('Work needs products first')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Create first SKU' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Task queue' })).toHaveCount(0);
     await assertEmbeddedUiStable(page, 'demo browser work queue');
     await captureUi(page, testInfo, 'web-demo-work-queue');
 
-    const populatedRoutes: Array<{ capture: string; route: string; text: RegExp | string }> = [
-      { route: '#/insights/inventory', text: /Inventory|Inventory analysis/i, capture: 'web-demo-inventory' },
-      { route: '#/insights/money', text: /Money/i, capture: 'web-demo-money' },
-      { route: '#/insights/explain', text: /Explain/i, capture: 'web-demo-explain' },
-      { route: '#/settings/history?view=all', text: /History|Saved updates/i, capture: 'web-demo-history' },
+    const blankRoutes: Array<{ capture: string; route: string; text: RegExp | string }> = [
+      { route: '#/settings/local-data', text: /Local data|browser profile|backup/i, capture: 'web-demo-local-data' },
     ];
-    for (const route of populatedRoutes) {
+    for (const route of blankRoutes) {
       await page.evaluate((hash) => {
         window.location.hash = hash;
       }, route.route);
-      await page.waitForFunction((hash) => window.location.hash === hash, route.route);
+      await page.waitForFunction((hash) => window.location.hash.startsWith(hash), route.route);
       await expect(page.getByText(route.text).first()).toBeVisible();
       await scrollMainSurface(page);
-      await assertEmbeddedUiStable(page, `demo browser populated route ${route.route}`);
+      await assertEmbeddedUiStable(page, `demo browser blank route ${route.route}`);
       await captureUi(page, testInfo, route.capture);
     }
 
@@ -125,6 +135,10 @@ test.describe('UI matrix: browser and demo surfaces', () => {
       }, route);
       await page.waitForFunction((hash) => window.location.hash === hash, route);
       await expectEmbeddedBannerControls(page, 'app');
+      if (route === '#/work/queue') {
+        await expect(page.getByText('Work needs products first')).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Create first SKU' })).toBeVisible();
+      }
       await scrollMainSurface(page);
       await assertEmbeddedUiStable(page, `browser app fresh route ${route}`);
     }
