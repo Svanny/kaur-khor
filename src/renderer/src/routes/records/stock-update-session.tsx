@@ -14089,6 +14089,7 @@ export function StockUpdateSessionRoute() {
                   <NumberStepperInput
                     aria-label={translateUiLiteral(language, 'Units in stock')}
                     className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                    formatValue={false}
                     id="pos-stock-units"
                     min="0"
                     step="1"
@@ -14106,6 +14107,7 @@ export function StockUpdateSessionRoute() {
                     aria-label={translateUiLiteral(language, 'Supplier cost per unit')}
                     className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
                     currency={currency}
+                    formatValue={false}
                     id="pos-stock-cost"
                     min="0"
                     variant="side-buttons"
@@ -14132,6 +14134,7 @@ export function StockUpdateSessionRoute() {
                         routeCaptureTarget?.action === 'sku-price' && routeCaptureTileKey === activePosTile.key && captureTargetFlashClassName,
                       )}
                       currency={currency}
+                      formatValue={false}
                       id="pos-stock-price"
                       min="0"
                       variant="side-buttons"
@@ -14259,6 +14262,7 @@ export function StockUpdateSessionRoute() {
                       routeCaptureTarget?.action === 'service-price' && routeCaptureTileKey === activePosTile.key && captureTargetFlashClassName,
                     )}
                     currency={currency}
+                    formatValue={false}
                     id="pos-service-price"
                     min="0"
                     variant="side-buttons"

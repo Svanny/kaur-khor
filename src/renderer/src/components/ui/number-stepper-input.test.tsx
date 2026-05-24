@@ -92,8 +92,8 @@ describe('NumberStepperInput', () => {
     expect(values.at(-1)).toBe('4010');
   });
 
-  test('uses text input so drafts are not browser-normalized while typing', () => {
-    renderStepper({ value: '1e309' });
+  test('can preserve raw text drafts so invalid numbers are not normalized while typing', () => {
+    renderStepper({ formatValue: false, value: '1e309' });
 
     const input = screen.getByLabelText('Units in stock');
     expect(input).toHaveAttribute('type', 'text');
