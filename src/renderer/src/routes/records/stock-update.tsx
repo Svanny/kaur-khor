@@ -9,6 +9,7 @@ import {
 import { NavigationGridIcon, NavigationListIcon, NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import type { IconComponent } from '@icons';
 import type { AppLanguage } from '@shared/inventory';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
@@ -771,7 +772,7 @@ export function StockUpdateRoute() {
     ).length;
     await deleteSenaObservation({ observationId: deleteTarget.observationId });
     if (remainingObservationCount > 0) {
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
     }
     setDeleteTarget(null);
     setDeleteTokenValue('');

@@ -608,7 +608,7 @@ describe('StockUpdateRoute', () => {
       await Promise.resolve();
     });
     expect(deleteSenaObservation).toHaveBeenCalledWith({ observationId: 'obs-sku-same-day' });
-    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
   });
 
   it('aggregates multiple observations on one day and updates details when another day is selected', () => {

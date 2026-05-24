@@ -637,7 +637,6 @@ def generate_reports(
                 "retailSalesSnapshot": retail_sales_snapshot,
                 "topServiceRanking": top_service_ranking,
                 "topRetailRanking": top_retail_ranking,
-                "regimeHint": final_regime,
                 "recipeUsageHints": [profile for profiles in service_profiles.values() for profile in profiles],
                 "notes": notes,
             }
@@ -846,7 +845,6 @@ def build_sena_observations(
                     if item.get("productPrice") is not None
                 ],
                 "leadTimeHints": lead_time_hints,
-                "regimeHint": report.get("regimeHint"),
                 "adjustmentSignals": [
                     {
                         "skuId": item["skuId"],

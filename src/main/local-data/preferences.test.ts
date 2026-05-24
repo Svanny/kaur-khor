@@ -11,7 +11,7 @@ async function loadPreferencesModule() {
 }
 
 const defaultSenaEngineParameters = {
-  algorithmVersion: 'sena-analysis-v3',
+  algorithmVersion: 'sena-analysis-v4',
   particleCount: 256,
   targetServiceLevel: 0.95,
   recommendationQuantile: 0.7,

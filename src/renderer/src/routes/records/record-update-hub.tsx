@@ -154,7 +154,6 @@ function hasMeaningfulTicketDraftValue(draft: Record<string, unknown>) {
     hasObjectEntries(draft.serviceSalesDrafts) ||
     hasObjectEntries(draft.skuSignalDrafts) ||
     hasObjectEntries(draft.serviceSignalDrafts) ||
-    hasNonEmptyString(draft.regimeHint) ||
     hasArrayEntries(draft.serviceRankings) ||
     hasArrayEntries(draft.retailRankings) ||
     hasObjectEntries(draft.refundStockReturnDrafts) ||

@@ -117,7 +117,6 @@ export function projectStockReportsFromSena(observations: SenaObservationRecord[
       servicePriceAdjustments,
       topServiceRanking: observation.input.serviceRankings ?? [],
       topRetailRanking: observation.input.retailRankings ?? [],
-      regimeHint: observation.input.regimeHint ?? null,
       notes: observation.input.notes,
     };
   });

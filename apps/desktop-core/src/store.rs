@@ -13,6 +13,7 @@ use kaur_khor_sena_core::{
     SenaService, SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
     SenaSkuDetail, SenaSplitOrderChildPayload, SenaStockSnapshot, SenaUpdateOrderBatchPayload,
     SenaUpdateOrderChildPayload, SenaWorkspaceSummary, SqliteSenaRepository,
+    DEFAULT_SENA_ALGORITHM_VERSION,
 };
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::Serialize;
@@ -1337,8 +1338,16 @@ fn seed_workspace(repo: &SqliteSenaRepository, owner_sub: &str) -> Result<()> {
         block_on(repo.insert_observation(owner_sub, &observation))?;
     }
 
-    let run = block_on(trigger_analysis_run(repo, owner_sub, "sena-analysis-v3"))?;
-    let _ = block_on(execute_analysis_run(repo, &run.run_id, "sena-analysis-v3"))?;
+    let run = block_on(trigger_analysis_run(
+        repo,
+        owner_sub,
+        DEFAULT_SENA_ALGORITHM_VERSION,
+    ))?;
+    let _ = block_on(execute_analysis_run(
+        repo,
+        &run.run_id,
+        DEFAULT_SENA_ALGORITHM_VERSION,
+    ))?;
     write_dev_seed_version()?;
     Ok(())
 }

@@ -994,7 +994,6 @@ impl SenaObservationInput {
             || !self.service_prices.is_empty()
             || !self.retail_prices.is_empty()
             || !self.lead_time_hints.is_empty()
-            || self.regime_hint.is_some()
             || !self.adjustment_signals.is_empty()
             || !self.commercial_events.is_empty()
             || !self.ticket_events.is_empty()

@@ -58,6 +58,7 @@ export interface SenaObservationInput {
   servicePrices: SenaServicePriceObservation[];
   retailPrices: SenaRetailPriceObservation[];
   leadTimeHints: SenaLeadTimeHint[];
+  /** @deprecated Regimes are inferred by SENA from observation evidence. */
   regimeHint?: SenaObservationRegimeHint | null;
   adjustmentSignals?: SenaAdjustmentSignal[];
   commercialEvents?: SenaCommercialEvent[];

@@ -26,12 +26,15 @@ const REGIMES: [&str; 6] = [
     "promo",
     "correction",
 ];
+pub const DEFAULT_SENA_ALGORITHM_VERSION: &str = "sena-analysis-v4";
 const REORDER_RECOMMENDATION_QUANTILE: f64 = 0.70;
 const REORDER_INTERVAL_LOW_QUANTILE: f64 = 0.10;
 const REORDER_INTERVAL_HIGH_QUANTILE: f64 = 0.90;
 const REORDER_NEED_PROBABILITY_GATE: f64 = 0.50;
 const REORDER_REVIEW_DELAY_DAYS: f64 = 0.0;
 const DEFAULT_TARGET_SERVICE_LEVEL: f64 = 0.95;
+const CHANGE_POINT_PRIOR: f64 = 0.01;
+const REGIME_SMOOTHING_WINDOW: usize = 24;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -93,7 +96,7 @@ impl SenaEngineParameters {
 
 impl Default for SenaEngineParameters {
     fn default() -> Self {
-        Self::for_algorithm("sena-analysis-v3")
+        Self::for_algorithm(DEFAULT_SENA_ALGORITHM_VERSION)
     }
 }
 
@@ -127,6 +130,8 @@ pub struct PreprocessedInterval {
     observed_delta_by_sku: HashMap<String, f64>,
     exact_service_sales_by_service: HashMap<String, f64>,
     exact_retail_sales_by_sku: HashMap<String, f64>,
+    adjustment_by_sku: HashMap<String, f64>,
+    discount_pressure: f64,
     service_rank_order: Vec<String>,
     retail_rank_order: Vec<String>,
     service_stockouts: Vec<String>,
@@ -271,6 +276,7 @@ pub struct RunAnalysisOutput {
 
 pub fn particle_count_for_algorithm(algorithm_version: &str) -> usize {
     match algorithm_version {
+        "sena-analysis-v4" => 256,
         "sena-analysis-v3" => 256,
         "sena-analysis-v2" => 192,
         _ => 128,
@@ -1038,6 +1044,10 @@ fn finalize_analysis(
 ) -> Result<SenaAnalysisResult> {
     if parameters.smoothing_enabled {
         smooth_inventory_traces(&mut state.sku_inventory_traces);
+        smooth_regime_history(&mut state.regime_history);
+        if let Some(latest) = state.regime_history.last() {
+            state.latest_regime_probabilities = latest.regime_probabilities.clone();
+        }
     }
     let latest_observed_at = observations
         .last()
@@ -1390,40 +1400,9 @@ fn step_particle(
     let sku_count = catalog.skus.len();
     let service_count = catalog.services.len();
 
-    let ranking_pressure = (interval.service_rank_order.len() + interval.retail_rank_order.len())
-        as f64
-        + interval.exact_service_sales_by_service.len() as f64
-        + interval.exact_retail_sales_by_sku.len() as f64;
-    let stockout_pressure =
-        (interval.service_stockouts.len() + interval.retail_stockouts.len()) as f64;
-    let price_pressure = mean(
-        &interval
-            .centered_service_prices
-            .values()
-            .chain(interval.centered_retail_prices.values())
-            .map(|value| value.abs())
-            .collect::<Vec<_>>(),
-    );
-    let correction_pressure = mean(
-        &interval
-            .observed_delta_by_sku
-            .values()
-            .map(|value| value.abs())
-            .collect::<Vec<_>>(),
-    ) / 6.0;
-    let change_point_probability =
-        (0.02 + ranking_pressure * 0.02 + stockout_pressure * 0.05 + price_pressure * 0.12)
-            .clamp(0.01, 0.55);
-    let change_point = rng.gen::<f64>() < change_point_probability;
-    let regime = sample_regime(
-        &mut rng,
-        interval,
-        ranking_pressure,
-        stockout_pressure,
-        price_pressure,
-        correction_pressure,
-        change_point,
-    );
+    let evidence = regime_evidence(interval);
+    let change_point = rng.gen::<f64>() < change_point_probability(evidence);
+    let regime = sample_regime(&mut rng, evidence, change_point);
     let regime_config = regime_config(regime);
 
     let mut service_counts = vec![0.0; service_count];
@@ -1791,6 +1770,7 @@ fn step_particle(
             }
         }
     }
+    log_weight += regime_evidence_loglikelihood(regime, evidence, &stockout_hit, &adjustments);
 
     IntervalParticleResult {
         particle_index,
@@ -1915,6 +1895,28 @@ fn normalize_intervals(
             .iter()
             .map(|entry| (entry.sku_id.clone(), entry.units_sold.max(0.0)))
             .collect::<HashMap<_, _>>();
+        let adjustment_by_sku = pair[1]
+            .input
+            .adjustment_signals
+            .iter()
+            .map(|entry| (entry.sku_id.clone(), entry.quantity_delta))
+            .collect::<HashMap<_, _>>();
+        let discount_pressure = pair[1]
+            .input
+            .discount
+            .as_ref()
+            .map(|discount| {
+                discount
+                    .percent
+                    .map(|percent| percent / 100.0)
+                    .or(discount
+                        .amount_usd
+                        .zip(discount.subtotal_usd)
+                        .map(|(amount, subtotal)| amount / subtotal.max(1.0)))
+                    .unwrap_or(0.0)
+                    .clamp(0.0, 1.0)
+            })
+            .unwrap_or(0.0);
         let service_rank_order = if exact_service_sales_by_service.is_empty() {
             pair[1].input.service_rankings.to_vec()
         } else {
@@ -1968,6 +1970,8 @@ fn normalize_intervals(
             observed_delta_by_sku,
             exact_service_sales_by_service,
             exact_retail_sales_by_sku,
+            adjustment_by_sku,
+            discount_pressure,
             service_rank_order,
             retail_rank_order,
             service_stockouts: pair[1].input.service_stockouts.to_vec(),
@@ -2105,42 +2109,147 @@ struct RegimeConfig {
     adjustment_std: f64,
 }
 
-fn sample_regime(
-    rng: &mut StdRng,
-    interval: &PreprocessedInterval,
+#[derive(Debug, Clone, Copy)]
+struct RegimeEvidence {
+    exact_sales_pressure: f64,
     ranking_pressure: f64,
     stockout_pressure: f64,
     price_pressure: f64,
+    discount_pressure: f64,
     correction_pressure: f64,
-    change_point: bool,
-) -> &'static str {
-    let service_discount = mean(
+}
+
+fn regime_evidence(interval: &PreprocessedInterval) -> RegimeEvidence {
+    let exact_sales_pressure = interval
+        .exact_service_sales_by_service
+        .values()
+        .chain(interval.exact_retail_sales_by_sku.values())
+        .sum::<f64>()
+        / interval.delta_days.max(1.0);
+    let ranking_pressure =
+        (interval.service_rank_order.len() + interval.retail_rank_order.len()) as f64;
+    let stockout_pressure =
+        (interval.service_stockouts.len() + interval.retail_stockouts.len()) as f64;
+    let price_pressure = mean(
         &interval
             .centered_service_prices
             .values()
-            .map(|value| (-value).max(0.0))
+            .chain(interval.centered_retail_prices.values())
+            .map(|value| value.abs())
             .collect::<Vec<_>>(),
     );
-    let retail_discount = mean(
+    let price_discount = mean(
         &interval
-            .centered_retail_prices
+            .centered_service_prices
             .values()
+            .chain(interval.centered_retail_prices.values())
             .map(|value| (-value).max(0.0))
             .collect::<Vec<_>>(),
     );
+    let correction_pressure = interval
+        .adjustment_by_sku
+        .values()
+        .map(|value| value.abs())
+        .sum::<f64>()
+        + mean(
+            &interval
+                .observed_delta_by_sku
+                .values()
+                .map(|value| value.abs())
+                .collect::<Vec<_>>(),
+        ) / 8.0;
+
+    RegimeEvidence {
+        exact_sales_pressure,
+        ranking_pressure,
+        stockout_pressure,
+        price_pressure,
+        discount_pressure: (interval.discount_pressure + price_discount).clamp(0.0, 1.0),
+        correction_pressure,
+    }
+}
+
+fn change_point_probability(evidence: RegimeEvidence) -> f64 {
+    (CHANGE_POINT_PRIOR
+        + evidence.price_pressure * 0.015
+        + evidence.discount_pressure * 0.03
+        + evidence.correction_pressure.min(6.0) * 0.004)
+        .clamp(CHANGE_POINT_PRIOR, 0.12)
+}
+
+fn sample_regime(rng: &mut StdRng, evidence: RegimeEvidence, change_point: bool) -> &'static str {
+    let exact_pressure = evidence.exact_sales_pressure.min(12.0) / 12.0;
+    let ranking_pressure = evidence.ranking_pressure.min(6.0) / 6.0;
+    let stockout_pressure = evidence.stockout_pressure.min(4.0) / 4.0;
+    let correction_pressure = evidence.correction_pressure.min(8.0) / 8.0;
     let mut logits = vec![
-        0.2,
-        0.15 + ranking_pressure * 0.15 + price_pressure * 0.08,
-        0.12 + if ranking_pressure == 0.0 { 0.35 } else { 0.0 },
-        0.08 + stockout_pressure * 0.70,
-        0.10 + (service_discount + retail_discount) * 0.8,
-        0.05 + correction_pressure * 0.9,
+        0.75,
+        -0.20 + exact_pressure * 0.85 + ranking_pressure * 0.15,
+        -0.15
+            + if evidence.exact_sales_pressure <= 0.1 {
+                0.45
+            } else {
+                0.0
+            },
+        -0.35 + stockout_pressure * 1.25,
+        -0.40 + evidence.discount_pressure * 1.35 + exact_pressure * 0.30,
+        -0.45 + correction_pressure * 1.40,
     ];
     if change_point {
-        logits[4] += 0.25;
-        logits[5] += 0.25;
+        logits[1] += 0.10;
+        logits[4] += 0.20;
+        logits[5] += 0.20;
     }
     sample_categorical_softmax(rng, &logits)
+}
+
+fn regime_evidence_loglikelihood(
+    regime: &str,
+    evidence: RegimeEvidence,
+    stockout_hit: &[bool],
+    adjustments: &[f64],
+) -> f64 {
+    let any_stockout = stockout_hit.iter().any(|value| *value);
+    let adjustment_pressure = adjustments.iter().map(|value| value.abs()).sum::<f64>();
+    let mut log_weight = 0.0;
+
+    if evidence.stockout_pressure > 0.0 {
+        log_weight += if regime == "stockout_constrained" && any_stockout {
+            2.0
+        } else if regime == "stockout_constrained" {
+            0.5
+        } else {
+            -1.4
+        };
+    } else if regime == "stockout_constrained" && !any_stockout {
+        log_weight -= 0.8;
+    }
+
+    if evidence.discount_pressure >= 0.05 {
+        log_weight += if regime == "promo" { 1.8 } else { -0.6 };
+    } else if regime == "promo" {
+        log_weight -= 0.4;
+    }
+
+    if evidence.correction_pressure >= 1.5 || adjustment_pressure >= 1.5 {
+        log_weight += if regime == "correction" { 1.8 } else { -0.6 };
+    } else if regime == "correction" {
+        log_weight -= 0.4;
+    }
+
+    if evidence.exact_sales_pressure >= 6.0 {
+        log_weight += if regime == "spike" || regime == "promo" {
+            0.8
+        } else if regime == "lull" {
+            -1.0
+        } else {
+            -0.2
+        };
+    } else if evidence.exact_sales_pressure <= 0.1 && !any_stockout {
+        log_weight += if regime == "lull" { 0.9 } else { -0.15 };
+    }
+
+    log_weight
 }
 
 fn sample_categorical_softmax(rng: &mut StdRng, logits: &[f64]) -> &'static str {
@@ -2470,6 +2579,53 @@ fn smooth_inventory_traces(traces: &mut [Vec<SenaTrajectoryPoint>]) {
     }
 }
 
+fn smooth_regime_history(history: &mut [SenaRegimePosteriorPoint]) {
+    if history.len() < 3 {
+        return;
+    }
+    let start = history.len().saturating_sub(REGIME_SMOOTHING_WINDOW);
+    let original = history.to_vec();
+    for index in start.max(1)..history.len() - 1 {
+        let mut smoothed = BTreeMap::new();
+        for regime in REGIMES {
+            let previous = original[index - 1]
+                .regime_probabilities
+                .get(regime)
+                .copied()
+                .unwrap_or(0.0);
+            let current = original[index]
+                .regime_probabilities
+                .get(regime)
+                .copied()
+                .unwrap_or(0.0);
+            let next = original[index + 1]
+                .regime_probabilities
+                .get(regime)
+                .copied()
+                .unwrap_or(0.0);
+            smoothed.insert(
+                regime.to_string(),
+                previous * 0.2 + current * 0.6 + next * 0.2,
+            );
+        }
+        let total = smoothed.values().sum::<f64>().max(1e-8);
+        for value in smoothed.values_mut() {
+            *value /= total;
+        }
+        let dominant_regime = smoothed
+            .iter()
+            .max_by(|left, right| {
+                left.1
+                    .partial_cmp(right.1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(regime, _)| regime.clone())
+            .unwrap_or_else(|| "normal".to_string());
+        history[index].dominant_regime = dominant_regime;
+        history[index].regime_probabilities = smoothed;
+    }
+}
+
 fn mean(values: &[f64]) -> f64 {
     if values.is_empty() {
         0.0
@@ -2506,8 +2662,10 @@ mod tests {
         SenaEngineParameters,
     };
     use crate::types::{
-        SenaCatalog, SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord,
-        SenaOrderSignal, SenaService, SenaServiceSkuMaskEntry, SenaSku, SenaStockSnapshot,
+        SenaAdjustmentSignal, SenaAnalysisResult, SenaCatalog, SenaDiscountMetadata,
+        SenaDiscountMode, SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord,
+        SenaObservationRegimeHint, SenaOrderSignal, SenaService, SenaServiceSalesSnapshot,
+        SenaServiceSkuMaskEntry, SenaSku, SenaStockSnapshot,
     };
 
     fn sample_catalog() -> SenaCatalog {
@@ -2629,6 +2787,16 @@ mod tests {
         ]
     }
 
+    fn latest_regime_probability(result: &SenaAnalysisResult, regime: &str) -> f64 {
+        result
+            .diagnostics
+            .regime_history
+            .last()
+            .and_then(|entry| entry.regime_probabilities.get(regime))
+            .copied()
+            .unwrap_or(0.0)
+    }
+
     #[test]
     fn stockout_path_detects_within_interval_depletion() {
         let hit = compute_stockout_hit(3.0, &[(1.5, 2.0)], 10.0, 0.0, 1.0, 2.0);
@@ -2710,7 +2878,7 @@ mod tests {
             observation("2026-04-01T00:00:00Z", 12.0, false, false, 12.0),
             observation("2026-04-03T00:00:00Z", 2.0, true, true, 8.0),
         ];
-        let (result, _) = run_analysis("owner", &catalog, &observations, "sena-analysis-v3")
+        let (result, _) = run_analysis("owner", &catalog, &observations, "sena-analysis-v4")
             .expect("analysis should succeed");
         let interval = &result.sku_details[0].demand_posterior[0];
         assert!(interval.lost_demand_mean >= 0.0);
@@ -2743,7 +2911,7 @@ mod tests {
         ];
 
         let catalog_error =
-            run_analysis("owner", &invalid_catalog, &observations, "sena-analysis-v3")
+            run_analysis("owner", &invalid_catalog, &observations, "sena-analysis-v4")
                 .expect_err("invalid catalog should fail before preprocessing");
         assert!(catalog_error
             .to_string()
@@ -2753,7 +2921,7 @@ mod tests {
         let mut invalid_observations = observations;
         invalid_observations[1].input.service_prices[0].price = f64::INFINITY;
         let observation_error =
-            run_analysis("owner", &catalog, &invalid_observations, "sena-analysis-v3")
+            run_analysis("owner", &catalog, &invalid_observations, "sena-analysis-v4")
                 .expect_err("invalid observation should fail before preprocessing");
         assert!(observation_error
             .to_string()
@@ -2772,13 +2940,141 @@ mod tests {
             observation("2026-04-03T00:00:00Z", 4.0, true, false, 12.0),
         ];
         let (without_result, _) =
-            run_analysis("owner", &catalog, &without_flag, "sena-analysis-v3")
+            run_analysis("owner", &catalog, &without_flag, "sena-analysis-v4")
                 .expect("analysis should succeed");
-        let (with_result, _) = run_analysis("owner", &catalog, &with_flag, "sena-analysis-v3")
+        let (with_result, _) = run_analysis("owner", &catalog, &with_flag, "sena-analysis-v4")
             .expect("analysis should succeed");
         assert!(
             with_result.workspace_summary.sku_summaries[0].stockout_risk
                 >= without_result.workspace_summary.sku_summaries[0].stockout_risk
+        );
+    }
+
+    #[test]
+    fn legacy_regime_hint_does_not_make_observation_structured() {
+        let mut input = observation("2026-04-01T00:00:00Z", 10.0, false, false, 12.0).input;
+        input.stock_snapshot.clear();
+        input.service_rankings.clear();
+        input.retail_rankings.clear();
+        input.order_signals.clear();
+        input.service_prices.clear();
+        input.retail_prices.clear();
+        input.lead_time_hints.clear();
+        input.regime_hint = Some(SenaObservationRegimeHint::Promo);
+
+        let error = input
+            .validate()
+            .expect_err("legacy regime hint alone should not validate");
+        assert!(error
+            .to_string()
+            .contains("observation must include at least one structured signal"));
+    }
+
+    #[test]
+    fn legacy_regime_hint_does_not_change_inferred_regime() {
+        let catalog = sample_catalog();
+        let without_hint = many_observations();
+        let mut with_hint = without_hint.clone();
+        with_hint[5].input.regime_hint = Some(SenaObservationRegimeHint::Promo);
+
+        let (without_result, _) =
+            run_analysis("owner", &catalog, &without_hint, "sena-analysis-v4")
+                .expect("analysis should succeed");
+        let (with_result, _) = run_analysis("owner", &catalog, &with_hint, "sena-analysis-v4")
+            .expect("analysis should succeed");
+
+        assert_eq!(
+            without_result.diagnostics.regime_history,
+            with_result.diagnostics.regime_history
+        );
+    }
+
+    #[test]
+    fn promo_evidence_raises_promo_regime_posterior_without_hint() {
+        let catalog = sample_catalog();
+        let mut observations = vec![
+            observation("2026-04-01T00:00:00Z", 24.0, false, false, 12.0),
+            observation("2026-04-02T00:00:00Z", 12.0, false, false, 9.0),
+        ];
+        observations[1].input.service_sales_snapshot = vec![SenaServiceSalesSnapshot {
+            service_id: "svc-1".to_string(),
+            units_sold: 12.0,
+        }];
+        observations[1].input.discount = Some(SenaDiscountMetadata {
+            mode: SenaDiscountMode::Percent,
+            amount_usd: None,
+            percent: Some(25.0),
+            subtotal_usd: Some(120.0),
+            display_discount_usd: Some(30.0),
+            discounted_subtotal_usd: Some(90.0),
+        });
+
+        let (result, _) = run_analysis("owner", &catalog, &observations, "sena-analysis-v4")
+            .expect("analysis should succeed");
+
+        assert!(
+            latest_regime_probability(&result, "promo")
+                > latest_regime_probability(&result, "normal")
+        );
+    }
+
+    #[test]
+    fn stockout_evidence_raises_stockout_constrained_posterior_without_hint() {
+        let catalog = sample_catalog();
+        let observations = vec![
+            observation("2026-04-01T00:00:00Z", 3.0, false, false, 12.0),
+            observation("2026-04-02T00:00:00Z", 0.0, true, false, 12.0),
+        ];
+
+        let (result, _) = run_analysis("owner", &catalog, &observations, "sena-analysis-v4")
+            .expect("analysis should succeed");
+
+        assert!(
+            latest_regime_probability(&result, "stockout_constrained")
+                > latest_regime_probability(&result, "normal")
+        );
+    }
+
+    #[test]
+    fn adjustment_evidence_raises_correction_posterior_without_hint() {
+        let catalog = sample_catalog();
+        let mut observations = vec![
+            observation("2026-04-01T00:00:00Z", 20.0, false, false, 12.0),
+            observation("2026-04-02T00:00:00Z", 9.0, false, false, 12.0),
+        ];
+        observations[1].input.adjustment_signals = vec![SenaAdjustmentSignal {
+            sku_id: "sku-1".to_string(),
+            quantity_delta: -8.0,
+            reason: "cycle_count".to_string(),
+        }];
+
+        let (result, _) = run_analysis("owner", &catalog, &observations, "sena-analysis-v4")
+            .expect("analysis should succeed");
+
+        assert!(
+            latest_regime_probability(&result, "correction")
+                > latest_regime_probability(&result, "normal")
+        );
+    }
+
+    #[test]
+    fn quiet_interval_raises_lull_posterior_without_hint() {
+        let catalog = sample_catalog();
+        let mut observations = vec![
+            observation("2026-04-01T00:00:00Z", 20.0, false, false, 12.0),
+            observation("2026-04-02T00:00:00Z", 20.0, false, false, 12.0),
+        ];
+        observations[1].input.service_sales_snapshot = vec![SenaServiceSalesSnapshot {
+            service_id: "svc-1".to_string(),
+            units_sold: 0.0,
+        }];
+
+        let (result, _) = run_analysis("owner", &catalog, &observations, "sena-analysis-v4")
+            .expect("analysis should succeed");
+
+        assert!(
+            latest_regime_probability(&result, "lull")
+                > latest_regime_probability(&result, "spike")
         );
     }
 
@@ -2819,7 +3115,7 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             Some(4),
@@ -2835,7 +3131,7 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             Some(&checkpoint),
             Some(4),
@@ -2862,7 +3158,7 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             Some(4),
@@ -2872,7 +3168,7 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             Some(4),
@@ -2903,7 +3199,7 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             Some(4),
@@ -2915,7 +3211,7 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             Some(4),

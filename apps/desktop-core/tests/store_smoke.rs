@@ -127,9 +127,9 @@ fn desktop_core_runs_sena_analysis_and_reads_summary() {
         &observation("2026-04-08T00:00:00Z", 15.0, 11.0),
     )
     .expect("second observation should save");
-    let run = store::trigger_run(store::default_owner(), "sena-analysis-v3")
+    let run = store::trigger_run(store::default_owner(), "sena-analysis-v4")
         .expect("run should complete");
-    assert_eq!(run.algorithm_version, "sena-analysis-v3");
+    assert_eq!(run.algorithm_version, "sena-analysis-v4");
 
     let summary = store::get_workspace_summary(store::default_owner())
         .expect("summary load should succeed")
@@ -157,7 +157,7 @@ fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
         &observation("2026-04-10T00:00:00Z", 9.0, 7.0),
     )
     .expect("second observation should save");
-    let run = store::trigger_run(store::default_owner(), "sena-analysis-v3")
+    let run = store::trigger_run(store::default_owner(), "sena-analysis-v4")
         .expect("run should complete");
 
     let sku_detail = store::get_sku_detail(store::default_owner(), "sku-001", None, 20)
@@ -182,7 +182,7 @@ fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
         .expect("run should exist");
     assert_eq!(
         run_status.primary_artifact_key.as_deref(),
-        Some("sena-analysis/desktop-owner/sena-analysis-v3/posterior-draws")
+        Some("sena-analysis/desktop-owner/sena-analysis-v4/posterior-draws")
     );
 }
 
@@ -211,7 +211,7 @@ fn desktop_core_records_service_detail_benchmark_events() {
         &observation("2026-04-10T00:00:00Z", 9.0, 7.0),
     )
     .expect("second observation should save");
-    store::trigger_run(store::default_owner(), "sena-analysis-v3").expect("run should complete");
+    store::trigger_run(store::default_owner(), "sena-analysis-v4").expect("run should complete");
 
     let detail = store::get_service_detail(store::default_owner(), "service-001", None, 20)
         .expect("service detail should load")
@@ -324,13 +324,13 @@ fn desktop_core_append_only_rerun_keeps_checkpoint_state_available() {
             .expect("observation should save");
     }
 
-    store::trigger_run(store::default_owner(), "sena-analysis-v3")
+    store::trigger_run(store::default_owner(), "sena-analysis-v4")
         .expect("first run should complete");
 
     let repo = SqliteSenaRepository::open(&store_path).expect("repo should open");
     let checkpoints = block_on(repo.list_analysis_checkpoints(
         store::default_owner(),
-        "sena-analysis-v3",
+        "sena-analysis-v4",
         &fingerprint_catalog(&catalog).expect("catalog fingerprint should compute"),
     ))
     .expect("checkpoints should load");
@@ -343,7 +343,7 @@ fn desktop_core_append_only_rerun_keeps_checkpoint_state_available() {
         &observation("2026-04-10T00:00:00Z", 10.0, 8.0),
     )
     .expect("appended observation should save");
-    let second_run = store::trigger_run(store::default_owner(), "sena-analysis-v3")
+    let second_run = store::trigger_run(store::default_owner(), "sena-analysis-v4")
         .expect("second run should complete");
     assert_eq!(second_run.observation_count, 10);
 
