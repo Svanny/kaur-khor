@@ -12334,6 +12334,17 @@ export function StockUpdateSessionRoute() {
       (nextCost == null && posStockCostDraft.trim() !== '') ||
       (activePosStockCountRow.sku.soldAsProduct && nextPrice == null && posStockPriceDraft.trim() !== '')
     ) {
+      setPosStockUnitsDraft(String(activePosStockCountRow.row.unitsInStock));
+      setPosStockCostDraft(
+        activePosStockCountRow.row.costPerUnit == null
+          ? ''
+          : String(displayMoneyFromUsd(activePosStockCountRow.row.costPerUnit, currency, usdToKhrExchangeRate)),
+      );
+      setPosStockPriceDraft(
+        activePosStockCountRow.row.productPrice == null
+          ? ''
+          : String(displayMoneyFromUsd(activePosStockCountRow.row.productPrice, currency, usdToKhrExchangeRate)),
+      );
       showInvalidPosNumberPrompt();
       return;
     }
@@ -12379,6 +12390,11 @@ export function StockUpdateSessionRoute() {
       ? activePosServiceUpdate.service.price
       : parseServicePriceDraft(posServicePriceDraft, currency, usdToKhrExchangeRate);
     if (nextPrice == null) {
+      setPosServicePriceDraft(
+        activePosServiceUpdate.draft.priceEnabled
+          ? activePosServiceUpdate.draft.price
+          : String(displayMoneyFromUsd(activePosServiceUpdate.service.price, currency, usdToKhrExchangeRate)),
+      );
       showInvalidPosNumberPrompt();
       return;
     }
@@ -12415,6 +12431,7 @@ export function StockUpdateSessionRoute() {
     }
     const nextQuantity = parsePosQuantityDraft(posTileDialogQuantity);
     if (nextQuantity == null) {
+      setPosTileDialogQuantity(posDialogQuantityValue(activePosTileLine.quantity));
       showInvalidPosNumberPrompt();
       return;
     }
@@ -14028,7 +14045,7 @@ export function StockUpdateSessionRoute() {
           )
         : null}
       <DialogPrimitive.Root
-        modal={!invalidPosNumberPromptOpen}
+        modal={false}
         open={sessionViewMode === 'pos' && activePosTile != null && (stockCountPosMode ? activePosStockCountRow != null || activePosServiceUpdate != null : activePosTileLine != null)}
         onOpenChange={(open) => {
           if (!open) {

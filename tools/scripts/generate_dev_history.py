@@ -21,7 +21,8 @@ from typing import Any
 DEFAULT_OWNER = "desktop-owner"
 DEFAULT_YEARS = 5
 DEFAULT_INTERVAL_DAYS = 3.5
-DEV_HISTORY_VERSION = "current-sena-history-v3"
+DEFAULT_SENA_ALGORITHM_VERSION = "sena-analysis-v4"
+DEV_HISTORY_VERSION = "current-sena-history-v4"
 
 
 @dataclass
@@ -1477,7 +1478,7 @@ def rebuild_sena_workspace(repo_root: Path, db_path: Path, marker_path: Path, ca
         for observation in observations:
             send_core_command(proc, command_id, "sena.ingestObservation", observation)
             command_id += 1
-        send_core_command(proc, command_id, "sena.triggerRun", {"algorithmVersion": "sena-analysis-v3"})
+        send_core_command(proc, command_id, "sena.triggerRun", {"algorithmVersion": DEFAULT_SENA_ALGORITHM_VERSION})
     finally:
         close_desktop_core(proc)
 
@@ -1622,7 +1623,7 @@ def rebuild_startup_fixture_workspace(
             (
                 run_id,
                 owner,
-                "sena-analysis-v3",
+                DEFAULT_SENA_ALGORITHM_VERSION,
                 "succeeded",
                 len(observations),
                 updated_at,
