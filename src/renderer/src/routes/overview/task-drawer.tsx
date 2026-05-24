@@ -1,6 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { SenaLeadTimeVariabilityClass, SenaObservationInput, SenaRecordUpdateContext, SenaTicketEvent, SenaTicketEventType, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
 import { Link } from 'react-router-dom';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import {
   deriveLeadTimeFromStdDays,
   deriveLeadTimeFromVariabilityClass,
@@ -845,7 +846,10 @@ export function OverviewTaskDrawer({
           onOpenChange(false);
         },
         prepareWorkspace: onPrepareAfterSave ??
-          (() => runWorkspacePreparation(() => triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' }))),
+          (() =>
+            runWorkspacePreparation(() =>
+              triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion }),
+            )),
       });
       return true;
     } catch (nextError) {

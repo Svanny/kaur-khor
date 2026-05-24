@@ -708,16 +708,16 @@ describe('SENA IPC payload validation', () => {
       childOrderId: 'child-1',
     });
     expect(normalizeSenaTriggerRunPayload({
-      algorithmVersion: ' sena-analysis-v3 ',
+      algorithmVersion: ' sena-analysis-v4 ',
       parameters: {
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: 'sena-analysis-v4',
         particleCount: Number.NaN,
         smoothingEnabled: 'yes' as never,
       } as never,
     })).toEqual({
-      algorithmVersion: 'sena-analysis-v3',
+      algorithmVersion: 'sena-analysis-v4',
       parameters: {
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: 'sena-analysis-v4',
         particleCount: 256,
         targetServiceLevel: 0.95,
         recommendationQuantile: 0.7,

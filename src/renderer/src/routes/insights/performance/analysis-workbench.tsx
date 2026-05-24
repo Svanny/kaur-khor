@@ -117,6 +117,7 @@ const pressureTableLayout = createHeaderedTableLayout({
 
 const ANALYSIS_BOARD_CLASS_NAME = 'editorial-panel relative z-[1] flex min-h-0 flex-col overflow-hidden rounded-[2rem] !border-white/70 bg-white text-sm text-card-foreground shadow-[0_16px_40px_rgba(48,31,20,0.06)]';
 const ANALYSIS_PANEL_SURFACE_CLASS_NAME = 'analysis-panel-shell !overflow-visible !rounded-none !border-transparent !shadow-none ![background:transparent]';
+const ANALYSIS_CHART_PANEL_SURFACE_CLASS_NAME = 'analysis-panel-shell !rounded-none !border-transparent !shadow-none ![background:transparent]';
 const ANALYSIS_RAIL_PANEL_BASE_CLASS_NAME = 'flex flex-col bg-secondary/15 lg:rounded-l-none lg:[background:linear-gradient(to_bottom,#fff_0,#fff_8px,hsl(var(--secondary)/0.15)_8px)]';
 const ANALYSIS_SECTIONS: AnalysisSection[] = ['workbench', 'pressure', 'observations', 'fragility', 'settings', 'variables'];
 
@@ -2342,7 +2343,7 @@ function WorkbenchSurface({
         chartZoomResetToken={chartZoomResetToken}
         chartLayoutPreferences={chartLayoutPreferences}
         chartResolution={chartResolution}
-        className={ANALYSIS_PANEL_SURFACE_CLASS_NAME}
+        className={ANALYSIS_CHART_PANEL_SURFACE_CLASS_NAME}
         customChartResolution={customChartResolution}
         customTimeframeRange={customTimeframeRange}
         expanded={expanded}

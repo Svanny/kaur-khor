@@ -120,7 +120,6 @@ const report: StockReport = {
   servicePriceAdjustments: [],
   topServiceRanking: ['service-1'],
   topRetailRanking: ['sku-1'],
-  regimeHint: 'stockout_constrained',
   notes: 'Front shelf was restocked.',
 };
 
@@ -158,9 +157,8 @@ function observationInputFromReport(source: StockReport): SenaObservationRecord[
       .map((item) => ({
         skuId: item.skuId,
         price: item.productPrice!,
-      })),
+    })),
     leadTimeHints: [],
-    regimeHint: source.regimeHint ?? null,
     adjustmentSignals: source.skuObservations
       .filter((item) => item.adjustmentDelta != null && item.adjustmentDelta !== 0)
       .map((item) => ({
@@ -309,7 +307,7 @@ const workspace: SenaWorkspaceSummary = {
 };
 
 const successfulRun: SenaAnalysisRunRecord = {
-  algorithmVersion: 'sena-analysis-v3',
+  algorithmVersion: 'sena-analysis-v4',
   completedAt: '2026-03-29T09:01:00Z',
   createdAt: '2026-03-29T09:00:00Z',
   diagnostics,

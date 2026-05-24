@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 
 type NumberStepperInputProps = Omit<React.ComponentProps<typeof Input>, "type"> & {
   decrementLabel?: string
+  formatValue?: boolean
   incrementLabel?: string
   inputPrefix?: React.ReactNode
   inputSuffixClassName?: string
@@ -67,6 +68,7 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
       className,
       decrementLabel,
       disabled,
+      formatValue = true,
       incrementLabel,
       inputPrefix,
       inputSuffixClassName,
@@ -159,6 +161,7 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
               placeholder={placeholder}
               readOnly={readOnly}
               step={step}
+              formatNumber={formatValue}
               type="number"
               value={value}
               {...props}
@@ -222,6 +225,7 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
             placeholder={placeholder}
             readOnly={readOnly}
             step={step}
+            formatNumber={formatValue}
             type="number"
             value={value}
             {...props}

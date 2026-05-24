@@ -12,6 +12,10 @@ import { deriveMeasuredGridColumnCount } from './service-form-layout';
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
 }));
@@ -743,6 +747,7 @@ describe('ServiceFormRoute', () => {
   });
 
   test('keeps new service price blank and explains missing required fields on create', async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -755,11 +760,14 @@ describe('ServiceFormRoute', () => {
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
     const [priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    const [nameInput] = screen.getAllByRole('textbox');
     expect(priceInput).toHaveValue('');
 
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(nameInput).toHaveFocus();
     const nameError = screen.getByText('Enter a service name before saving.');
     expect(nameError).toBeInTheDocument();
     expect(nameError).toHaveAttribute('data-error-flash-key', '1');
@@ -767,7 +775,9 @@ describe('ServiceFormRoute', () => {
     expect(screen.getByText('Enter a service price before saving.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+    expect(scrollIntoView).toHaveBeenCalled();
     expect(screen.getByText('Enter a service name before saving.')).toHaveAttribute('data-error-flash-key', '2');
+    scrollIntoView.mockRestore();
   });
 
   test('blocks edit save when service price is cleared', async () => {
@@ -791,6 +801,7 @@ describe('ServiceFormRoute', () => {
   });
 
   test('blocks edit save when service price draft is negative', async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: {
@@ -804,10 +815,16 @@ describe('ServiceFormRoute', () => {
 
     renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
     fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
+    scrollIntoView.mockClear();
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(priceInput).toHaveFocus();
+    scrollIntoView.mockRestore();
   });
 
   test('localizes invalid service money validation in Khmer mode', async () => {

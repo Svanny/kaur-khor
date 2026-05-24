@@ -3022,7 +3022,13 @@ impl SqliteSenaRepository {
         &self,
         run_id: &str,
     ) -> Result<Option<SenaAnalysisArtifactRecord>> {
-        let (row, read_model_summary_json, read_model_diagnostics_json, sku_detail_json, service_detail_json) = {
+        let (
+            row,
+            read_model_summary_json,
+            read_model_diagnostics_json,
+            sku_detail_json,
+            service_detail_json,
+        ) = {
             let connection = self
                 .connection
                 .lock()
@@ -3112,7 +3118,9 @@ impl SqliteSenaRepository {
             .as_deref()
             .map(serde_json::from_str::<Value>)
             .transpose()?
-            .or_else(|| read_model_diagnostics_json.and_then(|raw| serde_json::from_str(&raw).ok()));
+            .or_else(|| {
+                read_model_diagnostics_json.and_then(|raw| serde_json::from_str(&raw).ok())
+            });
         let engine_parameters = row
             .7
             .as_deref()
@@ -3462,7 +3470,7 @@ mod tests {
 
         block_on(repo.save_preprocessed_workspace(
             "owner",
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &catalog_fingerprint,
             &observation_fingerprint,
             &preprocessed,
@@ -3471,7 +3479,7 @@ mod tests {
 
         let loaded = block_on(repo.load_preprocessed_workspace(
             "owner",
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &catalog_fingerprint,
             &observation_fingerprint,
         ))
@@ -3675,7 +3683,7 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             Some(4),
@@ -3688,7 +3696,7 @@ mod tests {
 
         let checkpoints = block_on(repo.list_analysis_checkpoints(
             "owner",
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &catalog_fingerprint,
         ))
         .expect("checkpoints should load");
@@ -3726,7 +3734,7 @@ mod tests {
 
         let metadata = build_checkpoint_metadata(
             "owner",
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &catalog_fingerprint,
             &observations,
             checkpoints[0].metadata.completed_interval_count,
@@ -3780,7 +3788,7 @@ mod tests {
                     "#,
                     params![
                         "owner",
-                        "sena-analysis-v3",
+                        "sena-analysis-v4",
                         "catalog",
                         1_i64,
                         0_i64,
@@ -3812,7 +3820,7 @@ mod tests {
                     "#,
                     params![
                         "owner",
-                        "sena-analysis-v3",
+                        "sena-analysis-v4",
                         "catalog",
                         1_i64,
                         1_i64,
@@ -3828,7 +3836,7 @@ mod tests {
         }
 
         let checkpoints =
-            block_on(repo.list_analysis_checkpoints("owner", "sena-analysis-v3", "catalog"))
+            block_on(repo.list_analysis_checkpoints("owner", "sena-analysis-v4", "catalog"))
                 .expect("out-of-root checkpoint path should be skipped");
         assert!(checkpoints.is_empty());
         assert!(
@@ -4624,7 +4632,7 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             None,
@@ -4646,7 +4654,7 @@ mod tests {
         current_service.activity_mean = 7.0;
         first.service_details = vec![stale_service, current_service.clone()];
 
-        let first_run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
+        let first_run = block_on(repo.create_run("owner", "sena-analysis-v4", None))
             .expect("first run should create");
         block_on(repo.persist_completed_run(&first_run.run_id, &first, None, None))
             .expect("first run should persist");
@@ -4664,7 +4672,7 @@ mod tests {
         let mut refreshed_service = current_service;
         refreshed_service.activity_mean = 11.0;
         second.service_details = vec![refreshed_service];
-        let second_run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
+        let second_run = block_on(repo.create_run("owner", "sena-analysis-v4", None))
             .expect("second run should create");
         block_on(repo.persist_completed_run(&second_run.run_id, &second, None, None))
             .expect("second run should persist");
@@ -4723,7 +4731,7 @@ mod tests {
             smoothing_enabled: true,
         };
 
-        let run = block_on(repo.create_run("owner", "sena-analysis-v3", Some(&parameters)))
+        let run = block_on(repo.create_run("owner", "sena-analysis-v4", Some(&parameters)))
             .expect("run should create");
         let loaded = block_on(repo.get_run(&run.run_id))
             .expect("run should load")
@@ -4731,7 +4739,7 @@ mod tests {
 
         assert_eq!(
             loaded.engine_parameters,
-            Some(parameters.normalized_for_algorithm("sena-analysis-v3"))
+            Some(parameters.normalized_for_algorithm("sena-analysis-v4"))
         );
     }
 
@@ -4744,14 +4752,14 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             None,
         )
         .expect("analysis should succeed")
         .result;
-        let run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
+        let run = block_on(repo.create_run("owner", "sena-analysis-v4", None))
             .expect("run should create");
         let payload = serde_json::json!({
             "engineParameters": { "particleCount": 64 },
@@ -4784,14 +4792,14 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             None,
         )
         .expect("analysis should succeed")
         .result;
-        let run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
+        let run = block_on(repo.create_run("owner", "sena-analysis-v4", None))
             .expect("run should create");
         block_on(repo.persist_completed_run(&run.run_id, &result, Some("artifact/run"), None))
             .expect("run should persist");
@@ -4816,7 +4824,7 @@ mod tests {
     fn run_loading_rejects_negative_persisted_counts() {
         let path = temp_store_path("run-negative-count");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
-        let run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
+        let run = block_on(repo.create_run("owner", "sena-analysis-v4", None))
             .expect("run should create");
         {
             let connection = repo
@@ -4846,14 +4854,14 @@ mod tests {
             "owner",
             &catalog,
             &observations,
-            "sena-analysis-v3",
+            "sena-analysis-v4",
             &preprocessed,
             None,
             None,
         )
         .expect("analysis should succeed")
         .result;
-        let run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
+        let run = block_on(repo.create_run("owner", "sena-analysis-v4", None))
             .expect("run should create");
         block_on(repo.persist_completed_run(&run.run_id, &result, None, None))
             .expect("completed run should persist");

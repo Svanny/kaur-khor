@@ -22,6 +22,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Chart flag overlay pills must read time-scale coordinates on the next animation frame after range/layout changes so attached pill widths track zoom.
 - Dense chart flag fallbacks must preserve pill/button geometry; replace icons with color-only rounded pills rather than flat interval rectangles.
 - Expanded trading charts must keep the pane-count minimum render height so extra indicator panes scroll instead of collapsing.
+- Trading chart window fixes must assert the duration/timeframe footer fits inside the ledger; chart-height checks alone miss clipped bottom controls.
 - Kaur Khor auto-zoom thresholds must be grounded in common desktop/window-size tiers; use `1600x900` as normal density and zoom out around `1440`, `1280`, `1120`, and sub-`900` heights instead of treating `1280x800` as normal.
 - Browser app auto-zoom resize bugs must be traced through `EmbeddedAutoZoomViewport`; embedded browser mode must keep the full desktop sidebar as layout, not the mobile trigger/sheet path, and verify settled resize plus rotated phone scrolling.
 - Embedded phone-view annotation fixes must be verified against the web dev server `/kaur-khor/demo#/` route at the annotated viewport; `localhost:5174` can render the desktop app and miss rotated embedded layout bugs.
@@ -49,6 +50,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Embedded phone action surfaces must reuse desktop action/session models and icons, keeping only presentation phone-specific in `routes/mobile` with focused route/session tests.
 - Embedded phone capture cards must hide clipped copy with zero layout footprint, then verify the remaining visible icon/title groups are vertically centered in the rendered phone route.
 - Embedded phone onboarding must skip the desktop interface picker and complete with the default view mode; phone reorder scroll controls must not open save-ordering prompts.
+- Warning prompts opened from inside a Radix dialog must portal above the parent dialog, explicitly keep pointer events enabled, and temporarily relax the parent modal trap while still blocking parent close until the warning is dismissed.
 - `pnpm dev` must preserve the current local workspace; use `pnpm dev:seed` for generated demo data, and mark cleared dev workspaces blank so startup does not repopulate them.
 - Telegram automation loop tests must await `stopAndDrain()` so pending async fetches cannot leak into later tests or release security gates.
 - Repo cleanup must separate reproducible local artifacts from intentional tracked assets before deleting files or broadening ignore rules.

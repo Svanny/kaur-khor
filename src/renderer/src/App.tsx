@@ -94,14 +94,16 @@ export function routeBenchmarkName(pathname: string) {
 
 function CatalogGuardedRoute({
   canRedirectFromLockedPage,
+  hasCatalog,
   hasCatalogTab,
 }: {
   canRedirectFromLockedPage: boolean;
+  hasCatalog: boolean;
   hasCatalogTab: boolean;
 }) {
   const location = useLocation();
   const routeState = readCatalogRouteState(new URLSearchParams(location.search));
-  if (canRedirectFromLockedPage && !hasCatalogTab && routeState.status !== 'archived') {
+  if (canRedirectFromLockedPage && hasCatalog && !hasCatalogTab && routeState.status !== 'archived') {
     return <Navigate replace to="/catalog/skus/new" />;
   }
   return <InventoryRoute />;
@@ -199,7 +201,7 @@ export function AppRoutes() {
         />
       ))}
       <Route
-        element={<CatalogGuardedRoute canRedirectFromLockedPage={canRedirectFromLockedPage} hasCatalogTab={availability.hasCatalogTab} />}
+        element={<CatalogGuardedRoute canRedirectFromLockedPage={canRedirectFromLockedPage} hasCatalog={Boolean(inventory.catalog)} hasCatalogTab={availability.hasCatalogTab} />}
         path="/catalog"
       />
       <Route element={<SkuFormRoute />} path="/catalog/skus/new" />

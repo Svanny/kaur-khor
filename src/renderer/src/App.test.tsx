@@ -127,7 +127,20 @@ describe('AppRoutes', () => {
     );
   }
 
-  it('redirects the locked catalog landing page to create the first SKU', async () => {
+  it('renders the catalog blank state when no catalog exists yet', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: null,
+      isLoading: false,
+      observations: [],
+      workspaceSummary: null,
+    });
+
+    renderRoutes('/catalog');
+
+    expect(await screen.findByText('Products screen')).toBeInTheDocument();
+  });
+
+  it('redirects an initialized but locked catalog landing page to create the first SKU', async () => {
     renderRoutes('/catalog');
 
     expect(await screen.findByText('SKU form screen')).toBeInTheDocument();

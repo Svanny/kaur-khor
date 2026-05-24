@@ -469,7 +469,7 @@ export const DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS: DesktopSeenUnlockedNavItem
 export const DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE: DesktopWorkbenchTileOrderByLane = {};
 
 export const DEFAULT_SENA_ENGINE_PARAMETERS: SenaEngineParameters = {
-  algorithmVersion: 'sena-analysis-v3',
+  algorithmVersion: 'sena-analysis-v4',
   particleCount: 256,
   targetServiceLevel: 0.95,
   recommendationQuantile: 0.7,

@@ -69,7 +69,6 @@ function report(overrides: Partial<StockReport>): StockReport {
     servicePriceAdjustments: [],
     topServiceRanking: [],
     topRetailRanking: [],
-    regimeHint: null,
     notes: null,
     ...overrides,
   };

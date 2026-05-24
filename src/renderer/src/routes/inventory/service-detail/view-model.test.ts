@@ -263,7 +263,6 @@ describe('deriveServiceDetailViewModel', () => {
           servicePriceAdjustments: [{ serviceId: 'service-haircut', price: Number.POSITIVE_INFINITY }],
           topServiceRanking: [],
           topRetailRanking: [],
-          regimeHint: null,
           notes: null,
         },
       ],

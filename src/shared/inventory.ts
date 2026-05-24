@@ -74,6 +74,7 @@ export interface StockReport {
   servicePriceAdjustments: StockReportServicePriceAdjustment[];
   topServiceRanking: string[];
   topRetailRanking: string[];
+  /** @deprecated Regimes are inferred by SENA from observation evidence. */
   regimeHint?: SistRegime | null;
   notes: string | null;
 }

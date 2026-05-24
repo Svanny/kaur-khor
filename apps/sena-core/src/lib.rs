@@ -19,6 +19,7 @@ pub use inference::{
     run_preprocessed_analysis_with_parameters, AnalysisArtifacts, PreprocessedWorkspace,
     RunAnalysisOutput, SenaAnalysisCheckpoint, SenaAnalysisRuntimeState, SenaCheckpointMetadata,
     SenaEngineParameters, SenaInputFingerprint, SenaParticleState, SenaPosteriorSnapshot,
+    DEFAULT_SENA_ALGORITHM_VERSION,
 };
 pub use lead_time::*;
 pub use service::{

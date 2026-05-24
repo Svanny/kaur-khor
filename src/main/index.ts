@@ -525,6 +525,10 @@ function resolveUpdateBackupDirectoryPath(candidatePath: string | null | undefin
   if (skipBackup) {
     return null;
   }
+  const defaultBackupDirectoryPath = desktopBackupDirectoryPath(desktopDataPath);
+  if (trimmedPath && isSameResolvedPath(trimmedPath, defaultBackupDirectoryPath)) {
+    return defaultBackupDirectoryPath;
+  }
   if (trimmedPath && selectedUpdateBackupDirectoryPath && isSameResolvedPath(trimmedPath, selectedUpdateBackupDirectoryPath)) {
     return selectedUpdateBackupDirectoryPath;
   }

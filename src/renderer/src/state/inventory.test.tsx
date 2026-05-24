@@ -164,7 +164,7 @@ const emptyRecordUpdateContext: SenaRecordUpdateContext = {
 const sampleRun: SenaAnalysisRunRecord = {
   runId: 'run-1',
   ownerSub: 'desktop-owner',
-  algorithmVersion: 'sena-analysis-v3',
+  algorithmVersion: 'sena-analysis-v4',
   status: 'succeeded',
   observationCount: 1,
   createdAt: '2026-04-02T00:00:00Z',
@@ -1576,7 +1576,7 @@ describe('InventoryProvider', () => {
       entityType: 'sku',
     });
     await waitFor(() => {
-      expect(window.kaurKhorDesktop.sena.triggerRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+      expect(window.kaurKhorDesktop.sena.triggerRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v4' });
     });
     await waitFor(() => {
       expect(screen.getByTestId('sku-id').textContent).toBe('sku-renamed');

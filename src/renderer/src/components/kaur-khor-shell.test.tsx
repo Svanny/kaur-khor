@@ -48,7 +48,7 @@ describe('KaurKhorShell', () => {
       latestRun: {
         runId: 'run-1',
         ownerSub: 'desktop-owner',
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: 'sena-analysis-v4',
         status: 'succeeded',
         observationCount: 2,
         createdAt: '2026-04-02T00:00:00Z',
@@ -672,7 +672,7 @@ describe('KaurKhorShell', () => {
       latestRun: {
         runId: 'run-1',
         ownerSub: 'desktop-owner',
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: 'sena-analysis-v4',
         status: 'succeeded',
         observationCount: 2,
         createdAt: '2026-04-02T00:00:00Z',

@@ -22,7 +22,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE } from '@shared/responsive-zoom';
-import { getBrowserDesktopBridgeMockState, setBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
+import { browserStateForSenaPersistence, createMockState, getBrowserDesktopBridgeMockState, setBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
 import {
   KAUR_KHOR_BROWSER_APP_DATABASE,
   KAUR_KHOR_BROWSER_DEMO_DATABASE,
@@ -97,14 +97,14 @@ const sourceUrl = 'https://github.com/Svanny/kaur-khor';
 const productCardCopy = {
   actions: ['Start Quick Demo', 'Start in the browser', 'Install the desktop app', 'Build it yourself'],
   titles: ['Demo', 'Browser App', 'Desktop App', 'Source Build'],
-  summaries: ['Try sample data', 'Use it in this browser', 'Install the full app', 'Build from source'],
+  summaries: ['Try blank demo', 'Use it in this browser', 'Install the full app', 'Build from source'],
   includes: [
     'Everything in Demo and:',
     'Everything in Browser App and:',
     'Everything in Desktop App and:',
   ],
   benefits: [
-    'Try sample shelves',
+    'Start with blank shelves',
     'See the main workflow',
     'Reset anytime',
     'Save real work in this browser',
@@ -133,7 +133,7 @@ const embeddedStorage = {
   databaseName: KAUR_KHOR_BROWSER_DEMO_DATABASE,
   handle: null,
   lastBackupAt: null,
-  message: 'This demo uses a separate sample workspace.',
+  message: 'This demo uses a separate blank workspace.',
   persistence: 'unknown',
   sqliteVersion: 'pending',
   status: 'ready',
@@ -400,9 +400,9 @@ function createUnsupportedBrowserStorageHandle(): BrowserStorageUnsupportedHandl
 }
 
 function createOnboardedBrowserStorageHandle(mode: 'app' | 'demo') {
-  const state = fallbackStateForMode(mode);
-  state.preferences.onboardingCompletedAt = '2026-05-05T00:00:00.000Z';
   const databaseName = mode === 'demo' ? KAUR_KHOR_BROWSER_DEMO_DATABASE : KAUR_KHOR_BROWSER_APP_DATABASE;
+  const state = mode === 'demo' ? createSeededDemoState() : fallbackStateForMode(mode);
+  state.preferences.onboardingCompletedAt = '2026-05-05T00:00:00.000Z';
   return createSupportedBrowserStorageHandle([
     {
       collection: 'browser_state',
@@ -411,6 +411,24 @@ function createOnboardedBrowserStorageHandle(mode: 'app' | 'demo') {
       updatedAt: '2026-05-05T00:00:00.000Z',
     },
   ]);
+}
+
+function createSeededDemoState() {
+  const state = createMockState();
+  const databaseName = KAUR_KHOR_BROWSER_DEMO_DATABASE;
+  state.appContext = {
+    ...state.appContext,
+    platform: 'web-demo',
+  };
+  state.localDataInfo = {
+    ...state.localDataInfo,
+    dataDirectoryPath: 'OPFS / Kaur Khor browser workspace',
+    workspaceStorePath: databaseName,
+    preferencesPath: 'SQLite preferences table',
+    backupDirectoryPath: 'downloaded backups',
+    assetDirectoryPath: 'Browser image storage unavailable in this release',
+  };
+  return state;
 }
 
 test('normalizes partially persisted browser state before bridge hydration', () => {
@@ -1598,6 +1616,93 @@ describe('WebRoutes embedded app fallback state', () => {
     }
   });
 
+  test.each([
+    ['app', KAUR_KHOR_BROWSER_APP_DATABASE, 'Reset workspace'],
+    ['demo', KAUR_KHOR_BROWSER_DEMO_DATABASE, 'Reset demo'],
+  ] as const)('resets %s browser storage to a blank state', async (mode, databaseName, buttonLabel) => {
+    const seededState = createMockState();
+    const handle = createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: databaseName,
+        json: seededState,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]);
+    handle.init.databaseName = databaseName;
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const reloadLocation = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        reload: reloadLocation,
+      },
+    });
+
+    try {
+      render(<EmbeddedAppRoute mode={mode} />);
+
+      fireEvent.click(await screen.findByRole('button', { name: buttonLabel }));
+
+      await waitFor(() => expect(handle.clear).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(handle.persistSenaState).toHaveBeenLastCalledWith(expect.objectContaining({
+        catalog: null,
+        diagnostics: null,
+        latestRun: null,
+        workspaceSummary: null,
+        observations: [],
+        orderBatches: [],
+        skuDetails: {},
+        serviceDetails: {},
+      })));
+      await waitFor(() => expect(handle.putDocuments).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          collection: 'browser_state',
+          id: databaseName,
+          json: expect.objectContaining({
+            catalog: null,
+            observations: [],
+            orderBatches: [],
+            skuDetails: {},
+            serviceDetails: {},
+            diagnostics: null,
+            latestRun: null,
+            workspaceSummary: null,
+            automation: expect.objectContaining({
+              conversations: [],
+              exposures: [],
+              intakes: [],
+            }),
+            automationMessages: {},
+          }),
+        }),
+      ]));
+      expect(getBrowserDesktopBridgeMockState().workspaceSummary.skuCount).toBe(0);
+      expect(getBrowserDesktopBridgeMockState().automation.exposures).toHaveLength(0);
+      expect(browserStateForSenaPersistence(getBrowserDesktopBridgeMockState())).toMatchObject({
+        catalog: null,
+        diagnostics: null,
+        latestRun: null,
+        workspaceSummary: null,
+      });
+      expect(reloadLocation).toHaveBeenCalledTimes(1);
+      if (mode === 'app') {
+        expect(confirmSpy).toHaveBeenCalledTimes(1);
+      } else {
+        expect(confirmSpy).not.toHaveBeenCalled();
+      }
+    } finally {
+      confirmSpy.mockRestore();
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
+  });
+
   test('shows browser workspace data-risk copy without Telegram copy when no bot is connected', () => {
     setBrowserDesktopBridgeMockState(fallbackStateForMode('app'));
 
@@ -1679,7 +1784,7 @@ describe('WebRoutes embedded app fallback state', () => {
     );
 
     expect(screen.getByText('ទិន្នន័យសាកល្បង មិនមែនកន្លែងធ្វើការពិតរបស់អ្នកទេ។')).toBeInTheDocument();
-    expect(screen.getByText('កន្លែងធ្វើការគំរូ។ អាចកំណត់ឡើងវិញបានគ្រប់ពេល។')).toBeInTheDocument();
+    expect(screen.getByText('កន្លែងធ្វើការសាកល្បងទទេ។ អាចកំណត់ឡើងវិញបានគ្រប់ពេល។')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'នាំចេញច្បាប់បម្រុង' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'នាំចូលច្បាប់បម្រុង' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'កំណត់សាកល្បងឡើងវិញ' })).toBeInTheDocument();
@@ -1713,6 +1818,7 @@ describe('WebRoutes embedded app fallback state', () => {
       });
       const bannerCard = target.querySelector('[data-slot="web-app-banner-card"]');
       expect(bannerCard).toHaveClass('h-full', 'rounded-xl', 'border-border/70', 'bg-white/90');
+      expect(within(target).queryByText('កន្លែងធ្វើការសាកល្បងទទេ។ អាចកំណត់ឡើងវិញបានគ្រប់ពេល។')).not.toBeInTheDocument();
       expect(within(target).getAllByText('នាំចេញ').length).toBeGreaterThan(0);
       expect(within(target).getAllByText('នាំចូល').length).toBeGreaterThan(0);
       expect(within(target).getAllByText('កំណត់').length).toBeGreaterThan(0);
@@ -1742,10 +1848,39 @@ describe('WebRoutes embedded app fallback state', () => {
     );
 
     expect(screen.getByText('នាំចេញច្បាប់បម្រុងមុនពេលបិទ។')).toBeInTheDocument();
-    expect(screen.getByText(/កន្លែងធ្វើការកខរបស់អ្នកត្រូវបានរក្សាទុក/)).toBeInTheDocument();
+    expect(screen.getByText(/កន្លែងធ្វើការកខនេះត្រូវបានរក្សាទុក/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'កំណត់កន្លែងធ្វើការឡើងវិញ' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'ទាញយកកម្មវិធី' })).not.toBeInTheDocument();
     expect(screen.queryByText('Export a backup before closing.')).not.toBeInTheDocument();
+  });
+
+  test('hides the browser warning description when the banner is in the sidebar', async () => {
+    setBrowserDesktopBridgeMockState(fallbackStateForMode('app'));
+    const target = document.createElement('div');
+    target.dataset.slot = 'embedded-sidebar-banner-slot';
+    document.body.appendChild(target);
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <EmbeddedAppBanner
+            mode="app"
+            storage={embeddedStorage}
+            onExport={vi.fn()}
+            onImport={vi.fn()}
+            onReset={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(within(target).getByText('Export a backup before closing.')).toBeInTheDocument();
+      });
+      expect(within(target).queryByText(BROWSER_WORKSPACE_CLOSE_WARNING)).not.toBeInTheDocument();
+      expect(target.querySelector('[data-slot="web-app-banner-description"]')).toBeNull();
+    } finally {
+      target.remove();
+    }
   });
 
   test('does not apply embedded product auto zoom to the public landing route', () => {
@@ -1965,6 +2100,40 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.queryByRole('heading', { name: 'Workspace safety' })).not.toBeInTheDocument();
   });
 
+  test.each(['demo', 'app'] as const)('keeps first-run landscape onboarding inside one embedded viewport in %s mode', async (mode) => {
+    window.location.hash = '#/onboarding';
+    mockViewport(1296, 768);
+    const state = fallbackStateForMode(mode);
+    state.preferences.onboardingCompletedAt = null;
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: mode === 'demo' ? KAUR_KHOR_BROWSER_DEMO_DATABASE : KAUR_KHOR_BROWSER_APP_DATABASE,
+        json: state,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]));
+
+    const { container } = render(<EmbeddedAppRoute mode={mode} />);
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="embedded-onboarding-layout"]')).not.toBeNull();
+    });
+    const layout = container.querySelector('[data-slot="embedded-onboarding-layout"]');
+    expect(layout).toHaveClass('h-[var(--kaur-khor-embedded-effective-height,100svh)]', 'grid-rows-[auto_minmax(0,1fr)]', 'overflow-hidden');
+    expect(container.querySelector('[data-slot="embedded-onboarding-route"]')).toHaveClass('min-h-0', 'overflow-hidden');
+    expect(container.querySelector('[data-slot="embedded-phone-shell"]')).toBeNull();
+    await waitFor(() => {
+      const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+      expect(viewport).toHaveAttribute('data-phone-landscape', 'false');
+      expect(viewport).toHaveAttribute('data-phone-portrait', 'false');
+      expect(viewport).toHaveClass('h-svh', 'overflow-hidden');
+      expect(viewport).not.toHaveClass('overflow-auto');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe('1555');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe('922');
+    });
+  });
+
   test.each(['demo', 'app'] as const)('keeps first-run portrait phones in the public setup flow in %s mode', async (mode) => {
     window.location.hash = '#/';
     mockViewport(390, 844);
@@ -2096,7 +2265,8 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(supplierQueueItems.length).toBeGreaterThan(0);
       expect(within(supplierQueueItems[0] as HTMLElement).getAllByText(/Supplier/).length).toBeGreaterThan(0);
       expect(within(supplierQueueItems[0] as HTMLElement).getAllByText(/Recommended|SKUs|Since last update/).length).toBeGreaterThan(0);
-      expect(within(supplierQueueItems[0] as HTMLElement).getByText('Record now')).toBeInTheDocument();
+      expect(within(supplierQueueItems[0] as HTMLElement).getByText('To order')).toBeInTheDocument();
+      expect(within(supplierQueueItems[0] as HTMLElement).queryByText('Record now')).not.toBeInTheDocument();
       expect(within(supplierQueueItems[0] as HTMLElement).queryByText('Record Supplier order')).not.toBeInTheDocument();
       fireEvent.click(supplierQueueItems[0]);
       await waitFor(() => expect(window.location.hash).toContain('task='));
@@ -2439,7 +2609,7 @@ describe('WebRoutes embedded app fallback state', () => {
   });
 
   test('omits the phone SKU price capture action for non-sellable SKUs', async () => {
-    const state = fallbackStateForMode('demo');
+    const state = createSeededDemoState();
     state.preferences.onboardingCompletedAt = '2026-05-05T00:00:00.000Z';
     state.catalog.skus = state.catalog.skus.map((sku) => (
       sku.skuId === 'sku-001'
@@ -2488,6 +2658,32 @@ describe('WebRoutes embedded app fallback state', () => {
     window.location.hash = `${hiddenPhoneOperatorHash}catalog/services/service-001`;
     await waitFor(() => expect(screen.getByRole('heading', { name: 'ឈុតរុំអំណោយក្រមា' })).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Updated price' })).toBeInTheDocument();
+  });
+
+  test('hides phone Service bottleneck actions when the service has no linked SKUs', async () => {
+    const state = createSeededDemoState();
+    state.preferences.onboardingCompletedAt = '2026-05-05T00:00:00.000Z';
+    state.catalog.sharingMask = state.catalog.sharingMask.map((entry) => (
+      entry.serviceId === 'service-001' ? { ...entry, enabled: false } : entry
+    ));
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog/services/service-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: KAUR_KHOR_BROWSER_DEMO_DATABASE,
+        json: state,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'ឈុតរុំអំណោយក្រមា' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open bottleneck SKU' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Updated price' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Customer Order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Immediate Sale' })).toBeInTheDocument();
   });
 
   test('ignores stale phone service price capture routes instead of exposing form-only controls', async () => {
@@ -2960,7 +3156,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(window.location.hash).toContain('supplierName=Phnom+Penh+Supply');
   });
 
-  test('spans unpaired phone capture metadata actions across the full row', async () => {
+  test('spans unpaired phone capture notes metadata action across the full row', async () => {
     window.location.hash = `${hiddenPhoneOperatorHash}work/capture/customer-order?ticketMode=new`;
     mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
@@ -2971,7 +3167,7 @@ describe('WebRoutes embedded app fallback state', () => {
     const metadataActions = container.querySelector('[data-slot="phone-capture-metadata-actions"]') as HTMLElement;
     expect(metadataActions).not.toBeNull();
     expect(within(metadataActions).getByRole('button', { name: /^Notes/i })).toHaveClass('col-span-2');
-    expect(within(metadataActions).getByRole('button', { name: /^Context/i })).toHaveClass('col-span-2');
+    expect(within(metadataActions).queryByRole('button', { name: /^Context/i })).not.toBeInTheDocument();
     expect(within(metadataActions).getByRole('button', { name: /^Delivery/i })).not.toHaveClass('col-span-2');
     expect(within(metadataActions).getByRole('button', { name: /^Discount/i })).not.toHaveClass('col-span-2');
   });
@@ -3263,7 +3459,7 @@ describe('WebRoutes embedded app fallback state', () => {
   test('renders Khmer hidden phone shell copy from the browser workspace language', async () => {
     window.location.hash = hiddenPhoneOperatorHash;
     mockViewport(390, 844);
-    const state = fallbackStateForMode('demo');
+    const state = createSeededDemoState();
     state.preferences.language = 'km';
     state.preferences.onboardingCompletedAt = '2026-05-05T00:00:00.000Z';
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle([
@@ -3515,7 +3711,7 @@ describe('WebRoutes embedded app fallback state', () => {
     }
   });
 
-  test('keeps fresh demo and browser fallbacks eligible for onboarding', () => {
+  test('keeps fresh demo and browser fallbacks blank and eligible for onboarding', () => {
     const demoState = fallbackStateForMode('demo');
     const browserState = fallbackStateForMode('app');
 
@@ -3523,8 +3719,30 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(demoState.preferences.showAutomationsPage).toBe(true);
     expect(demoState.preferences.customShowAutomationsPage).toBe(true);
     expect(browserState.preferences.onboardingCompletedAt).toBeNull();
-    expect(demoState.workspaceSummary.skuCount).toBeGreaterThan(0);
+    expect(demoState.workspaceSummary.skuCount).toBe(0);
     expect(browserState.workspaceSummary.skuCount).toBe(0);
+    expect(demoState.catalog.skus).toHaveLength(0);
+    expect(browserState.catalog.skus).toHaveLength(0);
+    expect(demoState.observations).toHaveLength(0);
+    expect(browserState.observations).toHaveLength(0);
+    expect(demoState.orderBatches).toHaveLength(0);
+    expect(browserState.orderBatches).toHaveLength(0);
+    expect(demoState.automation.exposures).toHaveLength(0);
+    expect(browserState.automation.exposures).toHaveLength(0);
+    expect(browserStateForSenaPersistence(demoState)).toMatchObject({
+      catalog: null,
+      workspaceSummary: null,
+      latestRun: null,
+      diagnostics: null,
+    });
+    expect(browserStateForSenaPersistence(browserState)).toMatchObject({
+      catalog: null,
+      workspaceSummary: null,
+      latestRun: null,
+      diagnostics: null,
+    });
+    expect(demoState.localDataInfo.workspaceStorePath).toBe(KAUR_KHOR_BROWSER_DEMO_DATABASE);
+    expect(browserState.localDataInfo.workspaceStorePath).toBe(KAUR_KHOR_BROWSER_APP_DATABASE);
   });
 
   test('enables automation intake when restoring older demo browser state', async () => {

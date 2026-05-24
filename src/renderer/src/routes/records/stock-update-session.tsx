@@ -39,7 +39,6 @@ import {
   ActionZoomInIcon,
   ActionZoomOutIcon,
 } from '@icons/actions';
-import { getRegimeIcon } from '@icons/domain';
 import {
   EntityCallChannelIcon,
   EntityCustomChannelIcon,
@@ -84,7 +83,6 @@ import type {
   SenaOrderBatchRecord,
   SenaOrderChildRecord,
   SenaRecordUpdateContext,
-  SenaObservationRegimeHint,
   SenaServicePriceObservation,
   SenaStockSnapshot,
   SenaTicketEvent,
@@ -97,6 +95,7 @@ import type {
 } from '@shared/sena';
 import type { AppLanguage, InventorySnapshot, RankingEntry, RankingEntryType, SistOverview } from '@shared/inventory';
 import {
+  DEFAULT_SENA_ENGINE_PARAMETERS,
   DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS,
   type DesktopWorkbenchTileOrderLaneId,
 } from '@shared/ipc';
@@ -246,8 +245,8 @@ import {
 } from '../records/observation-payload';
 
 type StockView = 'priority' | 'counted' | 'all';
-type PosMetadataPopupId = 'timing' | 'customer' | 'notes' | 'context' | 'delivery' | 'discount';
-const POS_METADATA_POPUP_IDS: PosMetadataPopupId[] = ['timing', 'customer', 'notes', 'context', 'delivery', 'discount'];
+type PosMetadataPopupId = 'timing' | 'customer' | 'notes' | 'delivery' | 'discount';
+const POS_METADATA_POPUP_IDS: PosMetadataPopupId[] = ['timing', 'customer', 'notes', 'delivery', 'discount'];
 type PosWorkbenchFilterId = 'all' | 'services' | 'skus' | 'recent' | 'touched';
 type StockoutFlagValue = 'blocked' | 'stockout';
 type StockEventDropdownValue = 'none' | StockoutFlagValue;
@@ -272,7 +271,6 @@ type StockUpdateStepId =
   | 'stock-flags'
   | 'service'
   | 'rankings'
-  | 'context'
   | 'review';
 type SkuFlagId = 'ordered' | 'received' | 'blocked';
 type ServiceFlagId = 'price' | 'blocked';
@@ -475,12 +473,16 @@ function posDialogQuantityValue(quantity: number) {
   return String(Math.max(1, Math.trunc(quantity || 0)));
 }
 
-function parsePosQuantityInput(value: string, minimum = 0) {
+export function parsePosQuantityDraft(value: string, minimum = 0) {
   const parsed = parseEditableNumberWithCommas(value);
-  if (!Number.isFinite(parsed)) {
-    return minimum;
+  if (!Number.isFinite(parsed) || parsed < minimum) {
+    return null;
   }
-  return Math.max(minimum, Math.trunc(parsed));
+  return Math.trunc(parsed);
+}
+
+function parsePosQuantityInput(value: string, minimum = 0) {
+  return parsePosQuantityDraft(value, minimum) ?? minimum;
 }
 
 function StockCountPosChangeTable({
@@ -1261,7 +1263,6 @@ interface StockUpdateSessionDraft {
   skuSignalDrafts: Record<string, SkuSignalDraft>;
   stockStepChoices: Record<OptionalStockStepId, OptionalStockStepChoice>;
   serviceSignalDrafts: Record<string, ServiceSignalDraft>;
-  regimeHint: SenaObservationRegimeHint | '';
   serviceRankings: string[];
   retailRankings: string[];
   customerPendingMode: CustomerPendingMode;
@@ -1288,7 +1289,6 @@ interface StockUpdateDraftState {
   initialObservedAt: string;
   notes: string;
   observedAt: string;
-  regimeHint: SenaObservationRegimeHint | '';
   retailSalesChoice: OptionalStockStepChoice;
   retailSalesDrafts: SalesCountDrafts;
   retailRankings: string[];
@@ -1369,12 +1369,12 @@ const EMPTY_SIST_OVERVIEW: SistOverview = {
   metadata: null,
 };
 
-const STOCK_UPDATE_FULL_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'service', 'rankings', 'context', 'review'];
-const STOCK_COUNT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'stock-cost', 'stock-price', 'stock-flags', 'context', 'review'];
-const CUSTOMER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'context', 'review'];
-const CUSTOMER_ORDER_COMPLETED_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'stock-flags', 'context', 'review'];
-const SUPPLIER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'reorder', 'receipt', 'stock-flags', 'context', 'review'];
-const SUPPLIER_RECEIPT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'receipt', 'stock-flags', 'context', 'review'];
+const STOCK_UPDATE_FULL_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'service', 'rankings', 'review'];
+const STOCK_COUNT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'stock-cost', 'stock-price', 'stock-flags', 'review'];
+const CUSTOMER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'review'];
+const CUSTOMER_ORDER_COMPLETED_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'stock-flags', 'review'];
+const SUPPLIER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'reorder', 'receipt', 'stock-flags', 'review'];
+const SUPPLIER_RECEIPT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'receipt', 'stock-flags', 'review'];
 const BASE_RECORD_UPDATE_STEP_ORDER_BY_LANE: Record<BaseRecordUpdateLaneId, StockUpdateStepId[]> = {
   'stock-count': STOCK_COUNT_STEP_ORDER,
   'customer-order-pending': CUSTOMER_ORDER_PENDING_STEP_ORDER,
@@ -1493,10 +1493,6 @@ const STOCK_UPDATE_STEP_COPY = {
   'report-notes': {
     titleKey: 'stockUpdateStepReportNotesTitle',
     descriptionKey: 'stockUpdateStepReportNotesDescription',
-  },
-  context: {
-    titleKey: 'stockUpdateStepContextTitle',
-    descriptionKey: 'stockUpdateStepContextDescription',
   },
   stock: {
     titleKey: 'stockUpdateStepStockTitle',
@@ -1895,14 +1891,13 @@ function buildCustomStepOrder(selectedLaneIds: BaseRecordUpdateLaneId[]) {
   const selectedLaneSet = new Set(selectedLaneIds);
   const selectedSteps = BASE_RECORD_UPDATE_LANE_ORDER.filter((laneId) => selectedLaneSet.has(laneId)).flatMap((laneId) =>
     BASE_RECORD_UPDATE_STEP_ORDER_BY_LANE[laneId].filter(
-      (stepId) => stepId !== 'observed-at' && stepId !== 'report-notes' && stepId !== 'context' && stepId !== 'review',
+      (stepId) => stepId !== 'observed-at' && stepId !== 'report-notes' && stepId !== 'review',
     ),
   );
   return [
     'observed-at',
     'report-notes',
     ...new Set(selectedSteps),
-    'context',
     'review',
   ] satisfies StockUpdateStepId[];
 }
@@ -1933,26 +1928,11 @@ function normalizeStepIdForOrder(currentStepId: StockUpdateStepId, stepOrder: St
   if (stepOrder.includes(currentStepId)) {
     return currentStepId;
   }
-  if (stepOrder.includes('context')) {
-    return 'context';
-  }
   return stepOrder[0] ?? 'stock';
 }
 
 function isStockView(value: unknown): value is StockView {
   return value === 'priority' || value === 'counted' || value === 'all';
-}
-
-function isRegimeHint(value: unknown): value is SenaObservationRegimeHint | '' {
-  return (
-    value === '' ||
-    value === 'normal' ||
-    value === 'spike' ||
-    value === 'lull' ||
-    value === 'stockout_constrained' ||
-    value === 'promo' ||
-    value === 'correction'
-  );
 }
 
 function sanitizeCustomSelectedLaneIds(value: unknown): BaseRecordUpdateLaneId[] {
@@ -1984,7 +1964,6 @@ function deriveTouchedPosMetadataPopupIdsFromDraft(draft: {
   discountAmount: string;
   discountPercent: string;
   notes: string;
-  regimeHint: SenaObservationRegimeHint | '';
   customerIdentity: CustomerIdentityDraft;
 }) {
   return sanitizeTouchedPosMetadataPopupIds([
@@ -2010,7 +1989,6 @@ function deriveTouchedPosMetadataPopupIdsFromDraft(draft: {
     draft.notes.trim()
       ? 'notes'
       : null,
-    draft.regimeHint ? 'context' : null,
   ]);
 }
 
@@ -2604,7 +2582,6 @@ function hydrateStockUpdateDraft({
       allowedServiceIds,
       sanitizeServiceSignalDraft,
     ),
-    regimeHint: isRegimeHint(draft.regimeHint) ? draft.regimeHint : '',
     serviceRankings: sanitizeDraftRanking(draft.serviceRankings, allowedServiceIds),
     retailRankings: sanitizeDraftRanking(draft.retailRankings, retailSkuIds),
     customerPendingMode: isCustomerPendingMode(draft.customerPendingMode) ? draft.customerPendingMode : 'new_pending',
@@ -2627,7 +2604,6 @@ function hasMeaningfulStockUpdateChanges({
   initialObservedAt,
   notes,
   observedAt,
-  regimeHint,
   retailSalesChoice,
   retailSalesDrafts,
   retailRankings,
@@ -2692,7 +2668,6 @@ function hasMeaningfulStockUpdateChanges({
     anySkuFlags(skuSignalDrafts) ||
     hasMeaningfulServiceSignalChanges(catalog, serviceSignalDrafts, currency, usdToKhrExchangeRate) ||
     Object.values(stockStepChoices).some((choice) => choice !== 'unset') ||
-    regimeHint !== '' ||
     serviceRankings.length > 0 ||
     retailRankings.length > 0 ||
     customerIdentity.channel.trim() !== '' ||
@@ -2742,7 +2717,6 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     skuSignalDrafts: state.skuSignalDrafts,
     stockStepChoices: state.stockStepChoices,
     serviceSignalDrafts: state.serviceSignalDrafts,
-    regimeHint: state.regimeHint,
     serviceRankings: state.serviceRankings,
     retailRankings: state.retailRankings,
     customerPendingMode: state.customerPendingMode,
@@ -2782,7 +2756,6 @@ function buildFullObservationPayload({
   editSession,
   notes,
   observedAtIso,
-  regimeHint,
   retailRankings,
   rows,
   serviceRankings,
@@ -2797,7 +2770,6 @@ function buildFullObservationPayload({
   editSession: EditSessionState;
   notes: string;
   observedAtIso: string | null;
-  regimeHint: SenaObservationRegimeHint | '';
   retailRankings: string[];
   rows: StockRow[];
   serviceRankings: string[];
@@ -2855,7 +2827,6 @@ function buildFullObservationPayload({
     .filter(([, draft]) => draft.blockedEnabled)
     .map(([serviceId]) => serviceId);
   payload.adjustmentSignals = [];
-  payload.regimeHint = regimeHint || null;
   return payload;
 }
 
@@ -3286,7 +3257,6 @@ function buildDraftsFromObservationInput({
       input.deliveryFee ? 'delivery' : null,
       input.discount ? 'discount' : null,
       input.notes?.trim() ? 'notes' : null,
-      input.regimeHint ? 'context' : null,
     ]),
     posTouchedLineKeys: [
       ...input.stockSnapshot.map((snapshot) => `stock:${snapshot.skuId}`),
@@ -3349,7 +3319,6 @@ function buildDraftsFromObservationInput({
       'stock-flags': anySkuFlags(skuSignalDrafts) ? 'yes' : 'unset',
     },
     serviceSignalDrafts,
-    regimeHint: input.regimeHint ?? '',
     serviceRankings: input.serviceRankings.filter((serviceId) =>
       catalog.services.some((service) => service.serviceId === serviceId),
     ),
@@ -6674,68 +6643,6 @@ function ServiceSignalsStep({
   );
 }
 
-function RegimeFields({
-  regimeHint,
-  setRegimeHint,
-}: {
-  regimeHint: SenaObservationRegimeHint | '';
-  setRegimeHint: (value: SenaObservationRegimeHint | '') => void;
-}) {
-  const { t } = usePreferences();
-  const regimeOptions: Array<{ value: SenaObservationRegimeHint; label: string; detail: string }> = [
-    { value: 'normal', label: t('stockUpdateRegimeNormal'), detail: t('stockUpdateRegimeNormalDetail') },
-    { value: 'spike', label: t('stockUpdateRegimeSpike'), detail: t('stockUpdateRegimeSpikeDetail') },
-    { value: 'lull', label: t('stockUpdateRegimeLull'), detail: t('stockUpdateRegimeLullDetail') },
-    { value: 'stockout_constrained', label: t('stockUpdateRegimeStockout'), detail: t('stockUpdateRegimeStockoutDetail') },
-    { value: 'promo', label: t('stockUpdateRegimePromo'), detail: t('stockUpdateRegimePromoDetail') },
-    { value: 'correction', label: t('stockUpdateRegimeCorrection'), detail: t('stockUpdateRegimeCorrectionDetail') },
-  ];
-  const selectedRegime = regimeOptions.find((option) => option.value === regimeHint) ?? null;
-  const NoSignalIcon = getRegimeIcon('none');
-  const SelectedIcon = getRegimeIcon(selectedRegime?.value ?? 'none');
-  const regimeDescription = selectedRegime?.detail ?? t('stockUpdateRegimeDescriptionEmpty');
-
-  return (
-    <div className="grid gap-2">
-      <div className="grid gap-1 text-sm font-medium text-foreground">
-        <Select value={regimeHint || 'none'} onValueChange={(value) => setRegimeHint(value === 'none' ? '' : (value as SenaObservationRegimeHint))}>
-          <SelectTrigger
-            aria-label={`${t('stockUpdateOverallRegime')} ${t('stockUpdateOptional')}`}
-            className={cn('w-full', recordUpdateSelectTriggerClassName)}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">
-              <span className="flex items-center gap-2">
-                <NoSignalIcon className="size-4 text-muted-foreground" />
-                <span>{t('stockUpdateNoRegimeSignal')}</span>
-              </span>
-            </SelectItem>
-            {regimeOptions.map((option) => {
-              const Icon = getRegimeIcon(option.value);
-              return (
-                <SelectItem key={option.value} value={option.value}>
-                  <span className="flex items-center gap-2">
-                    <Icon className="size-4 text-muted-foreground" />
-                    <span>{option.label}</span>
-                  </span>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1 text-sm leading-6 text-muted-foreground">
-        <p className="flex items-start gap-2">
-          <SelectedIcon className="mt-1 size-4 shrink-0 text-primary" />
-          <span>{regimeDescription}</span>
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function ReviewStep({
   blockers,
   catalog,
@@ -7008,6 +6915,11 @@ export function StockUpdateSessionRoute() {
   const [activeWorkbenchDragSize, setActiveWorkbenchDragSize] = useState<{ width: number; height: number } | null>(null);
   const [workbenchJigglePhaseMs, setWorkbenchJigglePhaseMs] = useState(0);
   const [posTileDialogQuantity, setPosTileDialogQuantity] = useState('1');
+  const [posStockUnitsDraft, setPosStockUnitsDraft] = useState('');
+  const [posStockCostDraft, setPosStockCostDraft] = useState('');
+  const [posStockPriceDraft, setPosStockPriceDraft] = useState('');
+  const [posServicePriceDraft, setPosServicePriceDraft] = useState('');
+  const [invalidPosNumberPromptOpen, setInvalidPosNumberPromptOpen] = useState(false);
   const [posReceiptConfirmOpen, setPosReceiptConfirmOpen] = useState(false);
   const [posReceiptCopyStatus, setPosReceiptCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [posWorkbenchSearch, setPosWorkbenchSearch] = useState('');
@@ -7045,7 +6957,6 @@ export function StockUpdateSessionRoute() {
     () => createDefaultStockStepChoices(),
   );
   const [serviceSignalDrafts, setServiceSignalDrafts] = useState<Record<string, ServiceSignalDraft>>({});
-  const [regimeHint, setRegimeHint] = useState<SenaObservationRegimeHint | ''>('');
   const [serviceRankings, setServiceRankings] = useState<string[]>([]);
   const [retailRankings, setRetailRankings] = useState<string[]>([]);
   const [debugCellBoundaries, setDebugCellBoundaries] = useState(false);
@@ -7904,7 +7815,6 @@ export function StockUpdateSessionRoute() {
       initialObservedAt: initialObservedAtRef.current,
       notes,
       observedAt,
-      regimeHint,
       retailSalesChoice,
       retailSalesDrafts,
       retailRankings,
@@ -7960,7 +7870,6 @@ export function StockUpdateSessionRoute() {
       currentStepId,
       notes,
       observedAt,
-      regimeHint,
       retailSalesChoice,
       retailSalesDrafts,
       retailRankings,
@@ -8098,7 +8007,6 @@ export function StockUpdateSessionRoute() {
     setDiscountBaselinePercent(hydratedState.discountBaselinePercent);
     setStockStepChoices(hydratedState.stockStepChoices);
     setServiceSignalDrafts(hydratedState.serviceSignalDrafts);
-    setRegimeHint(hydratedState.regimeHint);
     setServiceRankings(hydratedState.serviceRankings);
     setRetailRankings(hydratedState.retailRankings);
     setRefundStockReturnDrafts(hydratedState.refundStockReturnDrafts);
@@ -8280,7 +8188,6 @@ export function StockUpdateSessionRoute() {
         setDiscountBaselinePercent(hydratedDraft.discountPercent);
         setStockStepChoices(hydratedDraft.stockStepChoices);
         setServiceSignalDrafts(hydratedDraft.serviceSignalDrafts);
-        setRegimeHint(hydratedDraft.regimeHint);
         setServiceRankings(hydratedDraft.serviceRankings);
         setRetailRankings(hydratedDraft.retailRankings);
         setRefundStockReturnDrafts(hydratedDraft.refundStockReturnDrafts);
@@ -9596,7 +9503,6 @@ export function StockUpdateSessionRoute() {
             .map(([skuId]) => skuId),
         ]),
       ];
-      payload.regimeHint = regimeHint || null;
       return finalizeTicketPayload(payload);
     }
 
@@ -9667,7 +9573,6 @@ export function StockUpdateSessionRoute() {
           }];
         }),
       ];
-      payload.regimeHint = regimeHint || null;
       return finalizeTicketPayload(payload);
     }
     if (lane.id === 'customer-order-completed') {
@@ -9814,7 +9719,6 @@ export function StockUpdateSessionRoute() {
           ];
         }),
       ];
-      payload.regimeHint = regimeHint || null;
       return finalizeTicketPayload(payload);
     }
     if (lane.id === 'supplier-order-pending') {
@@ -9933,7 +9837,6 @@ export function StockUpdateSessionRoute() {
       payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
         .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
         .map(([skuId]) => skuId);
-      payload.regimeHint = regimeHint || null;
       return finalizeTicketPayload(payload);
     }
     if (lane.id === 'supplier-receipt') {
@@ -10003,7 +9906,6 @@ export function StockUpdateSessionRoute() {
       payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
         .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
         .map(([skuId]) => skuId);
-      payload.regimeHint = regimeHint || null;
       return finalizeTicketPayload(payload);
     }
     if (editSession) {
@@ -10013,7 +9915,6 @@ export function StockUpdateSessionRoute() {
         editSession,
         notes,
         observedAtIso,
-        regimeHint,
         retailRankings,
         rows,
         serviceRankings,
@@ -10071,7 +9972,6 @@ export function StockUpdateSessionRoute() {
       .filter(([, draft]) => draft.blockedEnabled && Boolean(draft.blockedState))
       .map(([serviceId]) => serviceId);
     payload.adjustmentSignals = [];
-    payload.regimeHint = regimeHint || null;
     return finalizeTicketPayload(payload);
   }
 
@@ -10246,12 +10146,6 @@ export function StockUpdateSessionRoute() {
       complete: rankingSignalCount > 0 || (rankingsStepIndex >= 0 && normalizedCurrentStepIndex > rankingsStepIndex),
     },
     {
-      id: 'context' as const,
-      title: t(STOCK_UPDATE_STEP_COPY.context.titleKey),
-      description: regimeHint ? t('stockUpdateStepRegimeSummary', { value: regimeHint.replaceAll('_', ' ') }) : t('stockUpdateStepRegimeOptional'),
-      complete: true,
-    },
-    {
       id: 'review' as const,
       title: t(STOCK_UPDATE_STEP_COPY.review.titleKey),
       description: submitDisabled ? t('stockUpdateStepNotReady') : t('stockUpdateStepReadyToSave'),
@@ -10262,7 +10156,7 @@ export function StockUpdateSessionRoute() {
   const canContinueCurrentStep =
     currentStepId === 'observed-at'
       ? Boolean(observedAtIso)
-      : currentStepId === 'context' || currentStepId === 'report-notes'
+      : currentStepId === 'report-notes'
         ? true
         : currentStepId === 'retail-sales'
           ? isCustomerPendingLane
@@ -10438,7 +10332,6 @@ export function StockUpdateSessionRoute() {
     setDiscountBaselinePercent(resetDiscountPercent);
     setStockStepChoices(createDefaultStockStepChoices());
     setServiceSignalDrafts({});
-    setRegimeHint('');
     setServiceRankings([]);
     setRetailRankings([]);
     setError(null);
@@ -10645,7 +10538,7 @@ export function StockUpdateSessionRoute() {
 
     if (shouldSchedulePostSaveRerun) {
       try {
-        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+        await triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
       } catch (nextError) {
         console.error('[record-update] failed to rerun SENA after save', nextError);
       }
@@ -11086,7 +10979,7 @@ export function StockUpdateSessionRoute() {
     : notesSummary;
   const metadataSections: Array<{
     id: PosMetadataPopupId;
-    stepId: Extract<StockUpdateStepId, 'observed-at' | 'report-notes' | 'context'>;
+    stepId: Extract<StockUpdateStepId, 'observed-at' | 'report-notes'>;
     icon: IconComponent;
     label: string;
     summary: string;
@@ -11114,7 +11007,7 @@ export function StockUpdateSessionRoute() {
     ...(deliveryFeeEnabled
       ? [{
           id: 'delivery' as const,
-          stepId: 'context' as const,
+          stepId: 'report-notes' as const,
           icon: EntityDeliveryIcon,
           label: translateUiLiteral(language, 'Delivery'),
           summary: deliveryFeeAmount.trim() ? `${deliveryDisplayLabel} · ${translateUiLiteral(language, deliveryFeePayerLocked ? 'Merchant' : deliveryFeePayer === 'customer' ? 'Customer' : 'Merchant')}` : t('stockUpdateOptional'),
@@ -11123,7 +11016,7 @@ export function StockUpdateSessionRoute() {
     ...(discountEnabled
       ? [{
           id: 'discount' as const,
-          stepId: 'context' as const,
+          stepId: 'report-notes' as const,
           icon: EntityTagsIcon,
           label: translateUiLiteral(language, 'Discount'),
           summary: discountSummaryLabel,
@@ -11136,18 +11029,10 @@ export function StockUpdateSessionRoute() {
       label: t('stockUpdateSessionNotes'),
       summary: notesSummary,
     },
-    {
-      id: 'context',
-      stepId: 'context',
-      icon: EntityLayersIcon,
-      label: t('stockUpdateSessionMetaContext'),
-      summary: regimeHint ? regimeHint.replaceAll('_', ' ') : t('stockUpdateOptional'),
-    },
   ];
-  const fullWidthPhoneMetadataSectionIds = new Set<PosMetadataPopupId>(['context']);
-  const nonContextMetadataSections = metadataSections.filter((section) => section.id !== 'context');
-  if (nonContextMetadataSections.length % 2 === 1) {
-    const lastSection = nonContextMetadataSections.at(-1);
+  const fullWidthPhoneMetadataSectionIds = new Set<PosMetadataPopupId>();
+  if (metadataSections.length % 2 === 1) {
+    const lastSection = metadataSections.at(-1);
     if (lastSection) {
       fullWidthPhoneMetadataSectionIds.add(lastSection.id);
     }
@@ -12302,6 +12187,7 @@ export function StockUpdateSessionRoute() {
     () => (activePosTileKey == null ? null : posLineControllers.get(activePosTileKey) ?? null),
     [activePosTileKey, posLineControllers],
   );
+  const activePosTileLineQuantityPreview = parsePosQuantityDraft(posTileDialogQuantity);
   const activePosServiceLinkedSkus = useMemo(
     () =>
       activePosTile?.kind === 'service' || activePosTile?.kind === 'service-price'
@@ -12343,6 +12229,54 @@ export function StockUpdateSessionRoute() {
     };
   }, [activePosTile, rows, skuById, skuSignalDrafts, stockBySku, stockCountPosMode, workingCatalog]);
   useEffect(() => {
+    if (!activePosStockCountRow || activePosTile?.kind !== 'stock') {
+      setPosStockUnitsDraft('');
+      setPosStockCostDraft('');
+      setPosStockPriceDraft('');
+      return;
+    }
+
+    setPosStockUnitsDraft(String(activePosStockCountRow.row.unitsInStock));
+    setPosStockCostDraft(
+      activePosStockCountRow.row.costPerUnit == null
+        ? ''
+        : String(displayMoneyFromUsd(activePosStockCountRow.row.costPerUnit, currency, usdToKhrExchangeRate)),
+    );
+    setPosStockPriceDraft(
+      activePosStockCountRow.row.productPrice == null
+        ? ''
+        : String(displayMoneyFromUsd(activePosStockCountRow.row.productPrice, currency, usdToKhrExchangeRate)),
+    );
+  }, [
+    activePosStockCountRow?.row.costPerUnit,
+    activePosStockCountRow?.row.productPrice,
+    activePosStockCountRow?.row.unitsInStock,
+    activePosTile?.kind,
+    activePosTileKey,
+    currency,
+    usdToKhrExchangeRate,
+  ]);
+  useEffect(() => {
+    if (!activePosServiceUpdate || activePosTile?.kind !== 'service-price') {
+      setPosServicePriceDraft('');
+      return;
+    }
+
+    setPosServicePriceDraft(
+      activePosServiceUpdate.draft.priceEnabled
+        ? activePosServiceUpdate.draft.price
+        : String(displayMoneyFromUsd(activePosServiceUpdate.service.price, currency, usdToKhrExchangeRate)),
+    );
+  }, [
+    activePosServiceUpdate?.draft.price,
+    activePosServiceUpdate?.draft.priceEnabled,
+    activePosServiceUpdate?.service.price,
+    activePosTile?.kind,
+    activePosTileKey,
+    currency,
+    usdToKhrExchangeRate,
+  ]);
+  useEffect(() => {
     if (activePosTileKey == null || !activePosTileLine) {
       setPosTileDialogQuantity('1');
       return;
@@ -12372,14 +12306,143 @@ export function StockUpdateSessionRoute() {
     clearPosLineTouched(`service-price:${activePosServiceUpdate.service.serviceId}`);
     updateServiceSignalDraft(activePosServiceUpdate.service.serviceId, () => createEmptyServiceSignalDraft());
   }, [activePosServiceUpdate, clearPosLineTouched, updateServiceSignalDraft]);
+  const showInvalidPosNumberPrompt = useCallback(() => {
+    setInvalidPosNumberPromptOpen(true);
+  }, []);
+  const commitActivePosStockCountDialog = useCallback(() => {
+    if (!activePosStockCountRow || !activePosTile) {
+      return;
+    }
+
+    const nextUnits = parseStockUnitsDraft(posStockUnitsDraft, activePosStockCountRow.baseline.unitsInStock);
+    const nextCost = parseStockMoneyDraft(
+      posStockCostDraft,
+      activePosStockCountRow.baseline.costPerUnit,
+      currency,
+      usdToKhrExchangeRate,
+    );
+    const nextPrice = activePosStockCountRow.sku.soldAsProduct
+      ? parseStockMoneyDraft(
+          posStockPriceDraft,
+          activePosStockCountRow.baseline.productPrice,
+          currency,
+          usdToKhrExchangeRate,
+        )
+      : activePosStockCountRow.row.productPrice;
+    const invalidUnitsDraft = nextUnits == null;
+    const invalidCostDraft = nextCost == null && posStockCostDraft.trim() !== '';
+    const invalidPriceDraft = activePosStockCountRow.sku.soldAsProduct && nextPrice == null && posStockPriceDraft.trim() !== '';
+    if (invalidUnitsDraft || invalidCostDraft || invalidPriceDraft) {
+      if (invalidUnitsDraft) {
+        setPosStockUnitsDraft(String(activePosStockCountRow.row.unitsInStock));
+      }
+      if (invalidCostDraft) {
+        setPosStockCostDraft(
+          activePosStockCountRow.row.costPerUnit == null
+            ? ''
+            : String(displayMoneyFromUsd(activePosStockCountRow.row.costPerUnit, currency, usdToKhrExchangeRate)),
+        );
+      }
+      if (invalidPriceDraft) {
+        setPosStockPriceDraft(
+          activePosStockCountRow.row.productPrice == null
+            ? ''
+            : String(displayMoneyFromUsd(activePosStockCountRow.row.productPrice, currency, usdToKhrExchangeRate)),
+        );
+      }
+      showInvalidPosNumberPrompt();
+      return;
+    }
+
+    const numericChanged =
+      nextUnits !== activePosStockCountRow.baseline.unitsInStock ||
+      nextCost !== activePosStockCountRow.baseline.costPerUnit ||
+      nextPrice !== activePosStockCountRow.baseline.productPrice;
+    if (numericChanged || activePosStockCountRow.flagDraft.blockedEnabled) {
+      markPosLineTouched(activePosTile.key);
+    } else {
+      clearPosLineTouched(activePosTile.key);
+    }
+    activatePosStep('stock');
+    updateRow(activePosStockCountRow.sku.skuId, {
+      unitsInStock: nextUnits,
+      costPerUnit: nextCost,
+      productPrice: nextPrice,
+    });
+    closePosTileDialog();
+  }, [
+    activePosStockCountRow,
+    activePosTile,
+    activatePosStep,
+    clearPosLineTouched,
+    closePosTileDialog,
+    currency,
+    markPosLineTouched,
+    posStockCostDraft,
+    posStockPriceDraft,
+    posStockUnitsDraft,
+    showInvalidPosNumberPrompt,
+    updateRow,
+    usdToKhrExchangeRate,
+  ]);
+  const commitActivePosServiceUpdateDialog = useCallback(() => {
+    if (!activePosServiceUpdate || !activePosTile) {
+      return;
+    }
+
+    const trimmedPrice = posServicePriceDraft.trim();
+    const nextPrice = trimmedPrice === ''
+      ? activePosServiceUpdate.service.price
+      : parseServicePriceDraft(posServicePriceDraft, currency, usdToKhrExchangeRate);
+    if (nextPrice == null) {
+      setPosServicePriceDraft(
+        activePosServiceUpdate.draft.priceEnabled
+          ? activePosServiceUpdate.draft.price
+          : String(displayMoneyFromUsd(activePosServiceUpdate.service.price, currency, usdToKhrExchangeRate)),
+      );
+      showInvalidPosNumberPrompt();
+      return;
+    }
+
+    const priceChanged = nextPrice !== activePosServiceUpdate.service.price;
+    if (priceChanged || activePosServiceUpdate.draft.blockedEnabled) {
+      markPosLineTouched(activePosTile.key);
+    } else {
+      clearPosLineTouched(activePosTile.key);
+    }
+    activatePosStep('stock');
+    updateServiceSignalDraft(activePosServiceUpdate.service.serviceId, (draft) => ({
+      ...draft,
+      priceEnabled: priceChanged,
+      price: priceChanged ? posServicePriceDraft : '',
+    }));
+    closePosTileDialog();
+  }, [
+    activePosServiceUpdate,
+    activePosTile,
+    activatePosStep,
+    clearPosLineTouched,
+    closePosTileDialog,
+    currency,
+    markPosLineTouched,
+    posServicePriceDraft,
+    showInvalidPosNumberPrompt,
+    updateServiceSignalDraft,
+    usdToKhrExchangeRate,
+  ]);
   const commitPosTileDialog = useCallback(() => {
     if (!activePosTileLine) {
       return;
     }
-    const nextQuantity = parsePosQuantityInput(posTileDialogQuantity);
+    const nextQuantity = parsePosQuantityDraft(posTileDialogQuantity);
+    if (nextQuantity == null) {
+      setPosTileDialogQuantity(posDialogQuantityValue(activePosTileLine.quantity));
+      showInvalidPosNumberPrompt();
+      return;
+    }
     activePosTileLine.setQuantity(nextQuantity);
     closePosTileDialog();
-  }, [activePosTileLine, closePosTileDialog, posTileDialogQuantity]);
+  }, [activePosTileLine, closePosTileDialog, posTileDialogQuantity, showInvalidPosNumberPrompt]);
   const netStockDelta = rows.reduce((sum, row) => {
     if (!stockRowChanged(workingCatalog, stockBySku, row)) {
       return sum;
@@ -12594,25 +12657,6 @@ export function StockUpdateSessionRoute() {
       />
     </WorkspacePanel>
   ) : null;
-  const contextPanel = (
-    <WorkspacePanel
-      className={recordUpdateWhiteCardClassName}
-      descriptor={t(STOCK_UPDATE_STEP_COPY.context.descriptionKey)}
-      style={recordUpdateWhiteCardStyle}
-      footer={<p className="text-sm text-muted-foreground">{t('stockUpdateContextFooterEmpty')}</p>}
-      title={
-        <SectionLabel
-          helpHref="/settings/help#record-update-regime-context"
-          tooltip={t('stockUpdateRegimeHelp')}
-          tooltipLabel={t('stockUpdateOverallRegime')}
-        >
-          {t('stockUpdateOverallRegime')} <span className="font-normal text-muted-foreground">{t('stockUpdateOptional')}</span>
-        </SectionLabel>
-      }
-    >
-      <RegimeFields regimeHint={regimeHint} setRegimeHint={setRegimeHint} />
-    </WorkspacePanel>
-  );
   const currentMetadataPanel =
     currentStepId === 'observed-at'
       ? observedAtPanel
@@ -12624,15 +12668,7 @@ export function StockUpdateSessionRoute() {
               {discountMetadataPanel}
             </div>
           )
-        : currentStepId === 'context'
-          ? (
-              <div className="grid gap-6">
-                {deliveryMetadataPanel}
-                {discountMetadataPanel}
-                {contextPanel}
-              </div>
-            )
-          : null;
+        : null;
   const supplierPosLeadTimeMeanPlaceholder = supplierFilteredRows
     .map((row) => leadTimeMeanDefaults.get(row.skuId))
     .find((value) => value != null) ?? null;
@@ -12938,12 +12974,6 @@ export function StockUpdateSessionRoute() {
       />
     </div>
   );
-  const posContextMetadataContent = (
-    <div className="grid gap-2">
-      <RecordUpdateFieldLabel>{translateUiLiteral(language, 'Signal')}</RecordUpdateFieldLabel>
-      <RegimeFields regimeHint={regimeHint} setRegimeHint={setRegimeHint} />
-    </div>
-  );
   const posDeliveryMetadataContent = deliveryFeeEnabled ? (
     <DeliveryFeeFields
       amountId="pos-delivery-fee"
@@ -12978,9 +13008,7 @@ export function StockUpdateSessionRoute() {
         ? posCustomerMetadataContent
         : activePosMetadataPopup === 'notes'
           ? posNotesMetadataContent
-          : activePosMetadataPopup === 'context'
-            ? posContextMetadataContent
-            : activePosMetadataPopup === 'delivery'
+          : activePosMetadataPopup === 'delivery'
               ? posDeliveryMetadataContent
               : activePosMetadataPopup === 'discount'
                 ? posDiscountMetadataContent
@@ -12992,9 +13020,7 @@ export function StockUpdateSessionRoute() {
         ? translateUiLiteral(language, 'Customer metadata')
         : activePosMetadataPopup === 'notes'
           ? t('stockReportNotes')
-          : activePosMetadataPopup === 'context'
-            ? t('stockUpdateOverallRegime')
-            : activePosMetadataPopup === 'delivery'
+          : activePosMetadataPopup === 'delivery'
               ? translateUiLiteral(language, 'Delivery')
               : activePosMetadataPopup === 'discount'
                 ? translateUiLiteral(language, 'Discount')
@@ -13006,9 +13032,7 @@ export function StockUpdateSessionRoute() {
         ? translateUiLiteral(language, 'Channel, customer name, phone, and location live in notes, but are stored as structured ticket fields.')
         : activePosMetadataPopup === 'notes'
           ? t('stockUpdateNotesHelp')
-          : activePosMetadataPopup === 'context'
-            ? t('stockUpdateContextFooterEmpty')
-            : activePosMetadataPopup === 'delivery'
+          : activePosMetadataPopup === 'delivery'
               ? translateUiLiteral(language, 'Set the delivery charge and choose whether the customer or merchant covers it.')
               : activePosMetadataPopup === 'discount'
                 ? translateUiLiteral(language, 'Subtract a flat amount or percentage from the receipt subtotal before delivery is added.')
@@ -13348,6 +13372,18 @@ export function StockUpdateSessionRoute() {
     'fixed left-1/2 top-1/2 z-[100] grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]',
     embeddedPhonePortrait && 'max-h-[calc(var(--kaur-khor-embedded-effective-height,100dvh)-1rem)] w-[calc(100vw-1rem)] rounded-[1.25rem] p-4',
   );
+  const invalidPosNumberPromptDialog = (
+    <ConfirmActionDialog
+      confirmLabel={translateUiLiteral(language, 'Keep editing')}
+      confirmVariant="default"
+      description={translateUiLiteral(language, 'The entered number is too large or invalid and was not saved. Enter a smaller number to update this item.')}
+      hideCancel
+      open={invalidPosNumberPromptOpen}
+      title={translateUiLiteral(language, 'Number not saved')}
+      onCancel={() => setInvalidPosNumberPromptOpen(false)}
+      onConfirm={() => setInvalidPosNumberPromptOpen(false)}
+    />
+  );
 
   return (
     <SaveErrorFlashKeyContext.Provider value={saveErrorFlashKey}>
@@ -13465,6 +13501,7 @@ export function StockUpdateSessionRoute() {
           }}
         />,
       )}
+      {renderEmbeddedPhoneDialog(invalidPosNumberPromptDialog)}
       {embeddedPhonePortrait ? (
         <div className="mb-4 grid gap-3" data-slot="phone-capture-session-header">
           {sessionViewMode === 'pos' ? (
@@ -14013,15 +14050,28 @@ export function StockUpdateSessionRoute() {
           )
         : null}
       <DialogPrimitive.Root
+        modal={false}
         open={sessionViewMode === 'pos' && activePosTile != null && (stockCountPosMode ? activePosStockCountRow != null || activePosServiceUpdate != null : activePosTileLine != null)}
         onOpenChange={(open) => {
           if (!open) {
+            if (invalidPosNumberPromptOpen) {
+              return;
+            }
             closePosTileDialog();
           }
         }}
       >
         <DialogPrimitive.Portal>
-          <DialogPrimitive.Overlay className="fixed inset-0 z-[90] bg-[rgba(29,20,12,0.42)] backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+          <div
+            aria-hidden="true"
+            className="fixed inset-0 z-[90] bg-[rgba(29,20,12,0.42)] backdrop-blur-sm"
+            data-slot="pos-dialog-background-overlay"
+            onMouseDown={() => {
+              if (!invalidPosNumberPromptOpen) {
+                closePosTileDialog();
+              }
+            }}
+          />
           {activePosTile && stockCountPosMode && activePosStockCountRow ? (
             <DialogPrimitive.Content className={posTileDialogContentClassName}>
               <div className="flex items-start justify-between gap-4">
@@ -14044,25 +14094,13 @@ export function StockUpdateSessionRoute() {
                   <NumberStepperInput
                     aria-label={translateUiLiteral(language, 'Units in stock')}
                     className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                    formatValue={false}
                     id="pos-stock-units"
                     min="0"
                     step="1"
                     variant="side-buttons"
-                    value={String(activePosStockCountRow.row.unitsInStock)}
-                    onChange={(event) => {
-                      markPosLineTouched(activePosTile.key);
-                      activatePosStep('stock');
-                      const nextUnits = parseStockUnitsDraft(
-                        event.target.value,
-                        activePosStockCountRow.baseline.unitsInStock,
-                      );
-                      if (nextUnits == null) {
-                        return;
-                      }
-                      updateRow(activePosStockCountRow.sku.skuId, {
-                        unitsInStock: nextUnits,
-                      });
-                    }}
+                    value={posStockUnitsDraft}
+                    onChange={(event) => setPosStockUnitsDraft(String(event.target.value))}
                   />
                   <p className="text-sm text-muted-foreground">
                     {translateUiLiteral(language, 'Baseline: {count}', { count: activePosStockCountRow.baseline.unitsInStock })}
@@ -14074,30 +14112,12 @@ export function StockUpdateSessionRoute() {
                     aria-label={translateUiLiteral(language, 'Supplier cost per unit')}
                     className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
                     currency={currency}
+                    formatValue={false}
                     id="pos-stock-cost"
                     min="0"
                     variant="side-buttons"
-                    value={
-                      activePosStockCountRow.row.costPerUnit == null
-                        ? ''
-                        : displayMoneyFromUsd(activePosStockCountRow.row.costPerUnit, currency, usdToKhrExchangeRate)
-                    }
-                    onChange={(event) => {
-                      markPosLineTouched(activePosTile.key);
-                      activatePosStep('stock');
-                      const nextCost = parseStockMoneyDraft(
-                        event.target.value,
-                        activePosStockCountRow.baseline.costPerUnit,
-                        currency,
-                        usdToKhrExchangeRate,
-                      );
-                      if (nextCost == null && event.target.value.trim() !== '') {
-                        return;
-                      }
-                      updateRow(activePosStockCountRow.sku.skuId, {
-                        costPerUnit: nextCost,
-                      });
-                    }}
+                    value={posStockCostDraft}
+                    onChange={(event) => setPosStockCostDraft(String(event.target.value))}
                   />
                   <p className="text-sm text-muted-foreground">
                     {translateUiLiteral(language, 'Baseline: {amount}', {
@@ -14119,30 +14139,12 @@ export function StockUpdateSessionRoute() {
                         routeCaptureTarget?.action === 'sku-price' && routeCaptureTileKey === activePosTile.key && captureTargetFlashClassName,
                       )}
                       currency={currency}
+                      formatValue={false}
                       id="pos-stock-price"
                       min="0"
                       variant="side-buttons"
-                      value={
-                        activePosStockCountRow.row.productPrice == null
-                          ? ''
-                          : displayMoneyFromUsd(activePosStockCountRow.row.productPrice, currency, usdToKhrExchangeRate)
-                      }
-                      onChange={(event) => {
-                        markPosLineTouched(activePosTile.key);
-                        activatePosStep('stock');
-                        const nextPrice = parseStockMoneyDraft(
-                          event.target.value,
-                          activePosStockCountRow.baseline.productPrice,
-                          currency,
-                          usdToKhrExchangeRate,
-                        );
-                        if (nextPrice == null && event.target.value.trim() !== '') {
-                          return;
-                        }
-                        updateRow(activePosStockCountRow.sku.skuId, {
-                          productPrice: nextPrice,
-                        });
-                      }}
+                      value={posStockPriceDraft}
+                      onChange={(event) => setPosStockPriceDraft(String(event.target.value))}
                     />
                     <p className="text-sm text-muted-foreground">
                       {translateUiLiteral(language, 'Baseline: {amount}', {
@@ -14207,7 +14209,7 @@ export function StockUpdateSessionRoute() {
                   {translateUiLiteral(language, 'Reset changes')}
                 </Button>
                 <div className="flex flex-wrap gap-2">
-                  <Button className="h-12 rounded-xl px-6 text-base" type="button" onClick={closePosTileDialog}>
+                  <Button className="h-12 rounded-xl px-6 text-base" type="button" onClick={commitActivePosStockCountDialog}>
                     <ActionConfirmIcon data-icon="inline-start" />
                     {translateUiLiteral(language, 'Done')}
                   </Button>
@@ -14265,23 +14267,12 @@ export function StockUpdateSessionRoute() {
                       routeCaptureTarget?.action === 'service-price' && routeCaptureTileKey === activePosTile.key && captureTargetFlashClassName,
                     )}
                     currency={currency}
+                    formatValue={false}
                     id="pos-service-price"
                     min="0"
                     variant="side-buttons"
-                    value={
-                      activePosServiceUpdate.draft.priceEnabled
-                        ? activePosServiceUpdate.draft.price
-                        : displayMoneyFromUsd(activePosServiceUpdate.service.price, currency, usdToKhrExchangeRate)
-                    }
-                    onChange={(event) => {
-                      markPosLineTouched(activePosTile.key);
-                      activatePosStep('stock');
-                      updateServiceSignalDraft(activePosServiceUpdate.service.serviceId, (draft) => ({
-                        ...draft,
-                        priceEnabled: true,
-                        price: event.target.value,
-                      }));
-                    }}
+                    value={posServicePriceDraft}
+                    onChange={(event) => setPosServicePriceDraft(String(event.target.value))}
                   />
                   <p className="text-sm text-muted-foreground">
                     {translateUiLiteral(language, 'Baseline: {amount}', {
@@ -14334,7 +14325,7 @@ export function StockUpdateSessionRoute() {
                   <ActionUndoIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Reset changes')}
                 </Button>
-                <Button className="h-12 rounded-xl px-6 text-base" type="button" onClick={closePosTileDialog}>
+                <Button className="h-12 rounded-xl px-6 text-base" type="button" onClick={commitActivePosServiceUpdateDialog}>
                   <ActionConfirmIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Done')}
                 </Button>
@@ -14422,16 +14413,18 @@ export function StockUpdateSessionRoute() {
                     {translateUiLiteral(language, 'Item subtotal')}
                   </p>
                   <p className="mt-2 text-lg font-semibold text-foreground">
-                    {activePosTileLine.unitAmount == null
-                      ? translateUiLiteral(language, '{count} units', {
-                          count: parsePosQuantityInput(posTileDialogQuantity),
-                        })
-                      : formatCurrency(
-                          parsePosQuantityInput(posTileDialogQuantity) * activePosTileLine.unitAmount,
-                          currency,
-                          language,
-                          usdToKhrExchangeRate,
-                        )}
+                    {activePosTileLineQuantityPreview == null
+                      ? translateUiLiteral(language, 'n/a')
+                      : activePosTileLine.unitAmount == null
+                        ? translateUiLiteral(language, '{count} units', {
+                            count: activePosTileLineQuantityPreview,
+                          })
+                        : formatCurrency(
+                            activePosTileLineQuantityPreview * activePosTileLine.unitAmount,
+                            currency,
+                            language,
+                            usdToKhrExchangeRate,
+                          )}
                   </p>
                 </div>
               </div>

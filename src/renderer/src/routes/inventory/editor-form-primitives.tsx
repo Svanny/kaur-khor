@@ -22,6 +22,34 @@ type EditorFieldProps = EditorFieldBaseProps & (
   | { tooltip: string; helpHref: string }
 );
 
+type EditorValidationRef = { current: HTMLElement | null };
+
+export type EditorValidationTarget<TKey extends string = string> = {
+  error?: string | null;
+  focusRef?: EditorValidationRef;
+  key: TKey;
+  ref: EditorValidationRef;
+};
+
+export function revealFirstEditorValidationError<TKey extends string>(
+  targets: EditorValidationTarget<TKey>[],
+) {
+  const target = targets.find((entry) => Boolean(entry.error));
+  if (!target) {
+    return null;
+  }
+
+  if (typeof target.ref.current?.scrollIntoView === 'function') {
+    target.ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  const focusTarget =
+    target.focusRef?.current ??
+    target.ref.current?.querySelector<HTMLElement>('input, textarea, button, [tabindex]:not([tabindex="-1"])') ??
+    target.ref.current;
+  focusTarget?.focus({ preventScroll: true });
+  return target.key;
+}
+
 export function EditorField({
   label,
   helper,

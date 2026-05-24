@@ -80,6 +80,8 @@ describe('backup IPC handlers', () => {
     expect(resolverSource).toContain('selectedUpdateDataDirectoryPath');
     expect(resolverSource).toContain('throw new Error(\'Choose the update data folder from Kaur Khor before starting the updater.\');');
     expect(resolverSource).toContain('function resolveUpdateBackupDirectoryPath');
+    expect(resolverSource).toContain('const defaultBackupDirectoryPath = desktopBackupDirectoryPath(desktopDataPath);');
+    expect(resolverSource).toContain('return defaultBackupDirectoryPath;');
     expect(resolverSource).toContain('selectedUpdateBackupDirectoryPath');
     expect(resolverSource).toContain('throw new Error(\'Choose the update snapshot export folder from Kaur Khor before starting the updater.\');');
     expect(source).toContain('selectedUpdateBackupDirectoryPath = selection.canceled ? null : selection.filePaths[0] ?? null;');

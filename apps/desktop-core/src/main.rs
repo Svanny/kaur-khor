@@ -4,6 +4,7 @@ use kaur_khor_sena_core::{
     SenaCatalog, SenaCreateOrderBatchPayload, SenaEngineParameters, SenaObservationInput,
     SenaObservationPageRequest, SenaObservationRecord, SenaOrderLookupPayload,
     SenaSplitOrderChildPayload, SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
+    DEFAULT_SENA_ALGORITHM_VERSION,
 };
 use serde::Deserialize;
 use serde::Serialize;
@@ -77,7 +78,7 @@ struct UpdateObservationPayload {
 }
 
 fn default_algorithm_version() -> String {
-    "sena-analysis-v3".to_string()
+    DEFAULT_SENA_ALGORITHM_VERSION.to_string()
 }
 
 fn main() -> Result<()> {
@@ -452,7 +453,7 @@ mod tests {
             .expect("observation should insert");
 
             let response = handle_line(
-                r#"{"id":42,"command":"sena.triggerRun","payload":{"algorithmVersion":"sena-analysis-v3"}}"#,
+                r#"{"id":42,"command":"sena.triggerRun","payload":{"algorithmVersion":"sena-analysis-v4"}}"#,
             );
 
             assert_eq!(response.id, 42);
@@ -608,7 +609,7 @@ mod tests {
             let completed = handle_command_inner(
                 "sena.triggerRun",
                 serde_json::json!({
-                    "algorithmVersion": "sena-analysis-v3",
+                    "algorithmVersion": "sena-analysis-v4",
                     "parameters": {
                         "particleCount": 64,
                         "targetServiceLevel": 0.8,

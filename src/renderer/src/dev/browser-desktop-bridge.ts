@@ -20,6 +20,7 @@ import {
   runBrowserSenaAnalysisJson,
   type BrowserSenaAnalysisOutput,
 } from '@/runtime/web/sena-analysis';
+import type { BrowserSenaPersistState } from '@/runtime/web/sena-persistence';
 import type {
   AutomationChannelConnection,
   AutomationConversationSummary,
@@ -890,6 +891,45 @@ export type BrowserMockState = {
   workspaceSummary: SenaWorkspaceSummary;
 };
 
+function browserStateHasCatalogEntities(state: Pick<BrowserMockState, 'catalog'>) {
+  return (
+    state.catalog.skus.length > 0 ||
+    state.catalog.services.length > 0 ||
+    state.catalog.bundles.length > 0 ||
+    state.catalog.sharingMask.length > 0
+  );
+}
+
+function browserStateHasObservations(state: Pick<BrowserMockState, 'observations'>) {
+  return state.observations.length > 0;
+}
+
+export function browserStateCatalogForDesktop(state: BrowserMockState): SenaCatalog | null {
+  return browserStateHasCatalogEntities(state) ? clone(state.catalog) : null;
+}
+
+export function browserStateWorkspaceSummaryForDesktop(state: BrowserMockState): SenaWorkspaceSummary | null {
+  return browserStateHasObservations(state) ? clone(state.workspaceSummary) : null;
+}
+
+export function browserStateLatestRunForDesktop(state: BrowserMockState): SenaAnalysisRunRecord | null {
+  return browserStateHasObservations(state) ? clone(state.latestRun) : null;
+}
+
+export function browserStateDiagnosticsForDesktop(state: BrowserMockState): SenaDiagnostics | null {
+  return browserStateHasObservations(state) ? clone(state.diagnostics) : null;
+}
+
+export function browserStateForSenaPersistence(state: BrowserMockState): BrowserSenaPersistState {
+  return {
+    ...state,
+    catalog: browserStateCatalogForDesktop(state),
+    diagnostics: browserStateDiagnosticsForDesktop(state),
+    latestRun: browserStateLatestRunForDesktop(state),
+    workspaceSummary: browserStateWorkspaceSummaryForDesktop(state),
+  };
+}
+
 export function createMockState(): BrowserMockState {
   const automation = createMockAutomationWorkspace();
   const serviceDetails = Object.fromEntries(
@@ -916,7 +956,7 @@ export function createMockState(): BrowserMockState {
   const latestRun: SenaAnalysisRunRecord = {
     runId: MOCK_RUN_ID,
     ownerSub: MOCK_OWNER_SUB,
-    algorithmVersion: 'sena-analysis-v3',
+    algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion,
     status: 'succeeded',
     observationCount: mockObservations.length,
     createdAt: '2025-03-30T15:05:00.000Z',
@@ -1113,7 +1153,7 @@ export function createMockState(): BrowserMockState {
   };
 }
 
-let browserMockState = createMockState();
+let browserMockState = createEmptyBrowserMockState();
 let observationCounter = browserMockState.observations.length + 1;
 let runCounter = 2;
 let automationTicketCounter = 1;
@@ -1437,7 +1477,7 @@ export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockSt
   state.latestRun = {
     runId: 'browser-empty-run',
     ownerSub: MOCK_OWNER_SUB,
-    algorithmVersion: 'sena-analysis-v3',
+    algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion,
     status: 'succeeded',
     observationCount: 0,
     createdAt,
@@ -1465,6 +1505,7 @@ export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockSt
   };
   state.automation.intakes = [];
   state.automation.conversations = [];
+  state.automation.exposures = [];
   state.automation.metrics = {
     ordersToday: 0,
     needsReview: 0,
@@ -1847,15 +1888,21 @@ function installBrowserDesktopBridge() {
           trigger: 'manual',
         },
       }),
-      clearCurrentData: async () => ({
-        clearedFileCount: 3,
-        safetySnapshot: {
-          createdAt: nowIso(),
-          fileCount: 3,
-          snapshotPath: `${browserMockState.localDataInfo.backupDirectoryPath}/browser-before-clear`,
-          trigger: 'manual',
-        },
-      }),
+      clearCurrentData: async () => {
+        const clearedAt = nowIso();
+        const previousBackupDirectory = browserMockState.localDataInfo.backupDirectoryPath;
+        setBrowserDesktopBridgeMockState(createEmptyBrowserMockState(clearedAt));
+        window.dispatchEvent(new Event('kaur-khor-browser-state-changed'));
+        return {
+          clearedFileCount: 3,
+          safetySnapshot: {
+            createdAt: clearedAt,
+            fileCount: 3,
+            snapshotPath: `${previousBackupDirectory}/browser-before-clear`,
+            trigger: 'manual',
+          },
+        };
+      },
       checkForUpdate: async () => ({
         availableVersions: [],
         currentVersion: browserMockState.appContext.appVersion,
@@ -1888,13 +1935,13 @@ function installBrowserDesktopBridge() {
       },
     },
     sena: {
-      getCatalog: async () => clone(browserMockState.catalog),
+      getCatalog: async () => browserStateCatalogForDesktop(browserMockState),
       getObservationFingerprint: async () => browserSenaObservationFingerprint(browserMockState.observations),
       getRecordUpdateContext: async () => browserSenaRecordUpdateContext(browserMockState.observations),
       getStartupWorkspace: async () => ({
-        catalog: clone(browserMockState.catalog),
-        workspaceSummary: clone(browserMockState.workspaceSummary),
-        latestRun: clone(browserMockState.latestRun),
+        catalog: browserStateCatalogForDesktop(browserMockState),
+        workspaceSummary: browserStateWorkspaceSummaryForDesktop(browserMockState),
+        latestRun: browserStateLatestRunForDesktop(browserMockState),
         observationFingerprint: browserSenaObservationFingerprint(browserMockState.observations),
       }),
       listObservationPage: async (payload?: SenaObservationPageRequest) =>
@@ -2073,7 +2120,7 @@ function installBrowserDesktopBridge() {
           parameters: browserMockState.preferences.senaEngineParameters,
         }));
       },
-      getWorkspaceSummary: async () => clone(browserMockState.workspaceSummary),
+      getWorkspaceSummary: async () => browserStateWorkspaceSummaryForDesktop(browserMockState),
       getSkuDetail: async ({ skuId, beforeIntervalIndex, limit }) => {
         const detail = browserMockState.skuDetails[skuId];
         return clone(detail ? pageBrowserSenaSkuDetail(detail, beforeIntervalIndex, limit) : null);
@@ -2097,7 +2144,7 @@ function installBrowserDesktopBridge() {
   console.info('[browser-mock] installed mock kaurKhorDesktop bridge');
 }
 
-function resetBrowserDesktopBridgeMock(nextState: BrowserMockState = createMockState()) {
+function resetBrowserDesktopBridgeMock(nextState: BrowserMockState = createEmptyBrowserMockState()) {
   setBrowserDesktopBridgeMockState(nextState);
 }
 

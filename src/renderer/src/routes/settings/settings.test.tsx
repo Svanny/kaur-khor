@@ -1643,7 +1643,7 @@ describe('SettingsRoute', () => {
     });
     await waitFor(() => {
       expect(triggerRun).toHaveBeenCalledWith({
-        algorithmVersion: 'sena-analysis-v3',
+        algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion,
         parameters: {
           ...DEFAULT_SENA_ENGINE_PARAMETERS,
           particleCount: 384,

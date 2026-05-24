@@ -60,10 +60,12 @@ export function useEmbeddedPhonePortraitViewport() {
 export function EmbeddedAutoZoomViewport({
   children,
   enablePhoneLandscapeWorkaround = false,
+  fitToViewport = false,
   phoneLandscapeOverlay,
 }: {
   children: ReactNode;
   enablePhoneLandscapeWorkaround?: boolean;
+  fitToViewport?: boolean;
   phoneLandscapeOverlay?: ReactNode;
 }) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
@@ -296,6 +298,8 @@ export function EmbeddedAutoZoomViewport({
           ? policy.phoneLandscape
             ? 'relative h-svh w-screen overflow-hidden'
             : 'relative h-svh overflow-hidden'
+          : fitToViewport
+          ? 'h-svh overflow-hidden'
           : 'h-svh overflow-auto',
       )}
       data-phone-landscape={policy.phoneViewport && !phonePortraitNative ? 'true' : 'false'}

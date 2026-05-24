@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
-import type { SenaEngineParameters } from '@shared/ipc';
+import { DEFAULT_SENA_ENGINE_PARAMETERS, type SenaEngineParameters } from '@shared/ipc';
 import type {
   SenaAnalysisArtifactRecord,
   SenaAnalysisRunRecord,
@@ -907,7 +907,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           if (payload.previousId !== nextId) {
             try {
               run = await window.kaurKhorDesktop.sena.triggerRun({
-                algorithmVersion: stateRef.current.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
+                algorithmVersion:
+                  stateRef.current.latestRun?.algorithmVersion ?? DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion,
               });
             } catch (error) {
               console.warn('[inventory] failed to refresh SENA run after catalog rename', error);

@@ -584,7 +584,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateBody:
     'កត់ត្រាការអាប់ដេតស្តុក ការផ្លាស់ប្តូរសេវាកម្មស្រេចចិត្ត និងសញ្ញាលំដាប់លក់ នៅក្នុងកំណត់ហេតុតែមួយ។',
   stockUpdateStepContextDescription:
-    'បញ្ជាក់ពេលវេលាអាប់ដេត បន្ថែមកំណត់ចំណាំស្រេចចិត្ត និងជ្រើសលំនាំលក់ស្រេចចិត្ត។',
+    'បន្ថែមព័ត៌មានលម្អិតស្រេចចិត្តសម្រាប់របាយការណ៍។',
   stockUpdateStepStockDescription:
     'រាប់តែ SKU ដែលអ្នកបានពិនិត្យ។ បន្ថែមសញ្ញាជួរ សម្រាប់ការបញ្ជាទិញ ការដឹកមកដល់ ឬព្រឹត្តិការណ៍ស្តុក។',
   stockUpdateStepServiceDescription:
@@ -600,9 +600,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ការអាប់ដេតសេវាកម្មអនុវត្តលើជួរសេវាកម្ម មិនមែនលើការរាប់ស្តុក SKU នីមួយៗទេ។',
   stockUpdateServiceFlagsTooltip:
     'បន្ថែមការផ្លាស់ប្តូរតម្លៃ ឬការរារាំងកម្រិតសេវាកម្ម ដែលប៉ះពាល់ដល់ភាពមានស្រាប់។',
-  stockUpdateRegimeHelp: 'លំនាំលក់នេះ អនុវត្តលើការអាប់ដេតទាំងមូល មិនមែនលើ SKU តែមួយទេ។',
+  stockUpdateRegimeHelp: 'កខ ទាយលំនាំពីភស្តុតាងក្នុងការអាប់ដេតទាំងមូល។',
   stockUpdateRegimeDescriptionEmpty:
-    'ទុកឲ្យទទេ ប្រសិនបើរយៈពេលនេះមិនត្រូវការការពន្យល់មូលហេតុលក់សំខាន់តែមួយទេ។',
+    'កខ ទុកលំនាំឱ្យខ្សោយ ពេលកំណត់ត្រាមិនមានការពន្យល់សំខាន់តែមួយ។',
   stockUpdateReviewTooltip:
     'កខ រក្សាទុកតែជួរដែលបានផ្លាស់ប្តូរ និងសញ្ញាដែលកំពុងសកម្ម បន្ទាប់មកផ្ទុកទិដ្ឋភាពផែនការឡើងវិញ។',
   stockUpdateReviewBody:
@@ -665,9 +665,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateDescriptorFirst:
     'ចាប់ផ្តើម កខ ដោយរាប់ SKU មួយជាមុនសិន បន្ទាប់មកការអាប់ដេតក្រោយៗអាចសាមញ្ញជាងនេះបាន។',
   stockUpdateContextFooterEmpty:
-    'ទុកលំនាំលក់ឲ្យទទេ ប្រសិនបើកំណត់ត្រានេះមិនត្រូវការការពន្យល់សំខាន់តែមួយទេ។',
+    'កខ ទាយលំនាំបន្ទាប់ពីរក្សាទុកការអាប់ដេតនេះ។',
   stockUpdateContextTooltip:
-    'កំណត់ពេលវេលាអាប់ដេត បន្ថែមកំណត់ចំណាំស្រេចចិត្ត និងជ្រើសលំនាំលក់ស្រេចចិត្ត សម្រាប់ការអាប់ដេតទាំងមូល។',
+    'កំណត់ពេលវេលាអាប់ដេត និងបន្ថែមកំណត់ចំណាំស្រេចចិត្តសម្រាប់ការអាប់ដេតទាំងមូល។',
   stockUpdateObservedAtTooltip:
     'ពេលវេលានេះជាគោលសម្រាប់រយៈពេលចាប់តាំងពីការអាប់ដេតដែលបានបញ្ជាក់ចុងក្រោយ។',
   stockUpdateObservedAtHelp:
@@ -1750,19 +1750,19 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       'ត្រូវការយកចិត្តទុកដាក់',
     overviewTaskConfidenceWatch:
       'តាមដានឲ្យជិតស្និទ្ធ',
-    stockUpdateRegimeHelp: 'លំនាំលក់នេះ អនុវត្តលើការអាប់ដេតទាំងមូល មិនមែនលើ SKU តែមួយទេ។',
-    stockUpdateOverallRegime: 'លំនាំលក់សរុប',
-    stockUpdateNoRegimeSignal: 'មិនមានសញ្ញាលំនាំលក់',
+    stockUpdateRegimeHelp: 'កខ ទាយលំនាំពីភស្តុតាងក្នុងការអាប់ដេតទាំងមូល។',
+    stockUpdateOverallRegime: 'លំនាំដែលបានទាយ',
+    stockUpdateNoRegimeSignal: 'មិនមានសញ្ញាលំនាំដែលបានទាយ',
     stockUpdateReviewTooltip:
       'កខ រក្សាទុកតែជួរដែលបានផ្លាស់ប្តូរ និងសញ្ញាដែលកំពុងសកម្ម បន្ទាប់មកផ្ទុកទិដ្ឋភាពផែនការឡើងវិញ។',
     stockUpdateReviewBody:
       'កខ នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Work ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមការអាប់ដេតនេះទៅក្នុង Explain។',
-    stockUpdateStepRegimeSummary: 'លំនាំលក់៖ {value}',
-    stockUpdateStepContextSummary: 'ពេលវេលាដែលបានសង្កេត កំណត់ចំណាំ និងលំនាំលក់',
+    stockUpdateStepRegimeSummary: 'លំនាំដែលបានទាយ៖ {value}',
+    stockUpdateStepContextSummary: 'ពេលវេលាដែលបានសង្កេត និងកំណត់ចំណាំ',
     stockUpdateContextFooterEmpty:
-      'ទុកលំនាំលក់ឱ្យទទេ ប្រសិនបើកំណត់ត្រានេះមិនត្រូវការការពន្យល់សំខាន់តែមួយ។',
+      'កខ ទាយលំនាំបន្ទាប់ពីរក្សាទុកការអាប់ដេតនេះ។',
     stockUpdateContextTooltip:
-      'កំណត់ពេលអាប់ដេត បន្ថែមកំណត់ចំណាំស្រេចចិត្ត និងជ្រើសលំនាំលក់ស្រេចចិត្ត សម្រាប់ការអាប់ដេតទាំងមូល។',
+      'កំណត់ពេលអាប់ដេត និងបន្ថែមកំណត់ចំណាំស្រេចចិត្តសម្រាប់ការអាប់ដេតទាំងមូល។',
     serviceEditorUnsavedLeavePrompt:
       'អ្នកមានការផ្លាស់ប្តូរសេវាកម្មមិនទាន់រក្សាទុក។ ចាកចេញពីទំព័រនេះ ហើយបោះបង់សេចក្តីព្រាងបច្ចុប្បន្នឬ?',
     settingsShowOptionalHelpHelp:
@@ -2783,9 +2783,8 @@ const exactValueTranslations: Record<string, string> = {
   'New price': 'តម្លៃថ្មី',
   'Remove price change': 'ដកការផ្លាស់ប្តូរតម្លៃចេញ',
   'Add price change': 'បន្ថែមការផ្លាស់ប្តូរតម្លៃ',
-  'Overall sales pattern': 'លំនាំលក់សរុប',
   '(optional)': '(ស្រេចចិត្ត)',
-  'No sales-pattern signal': 'មិនមានសញ្ញាលំនាំលក់',
+  'No inferred-pattern signal': 'មិនមានសញ្ញាលំនាំដែលបានទាយ',
   'Normal pattern': 'លំនាំធម្មតា',
   'Demand spike': 'តម្រូវការកើនខ្លាំង',
   'Demand lull': 'តម្រូវការធ្លាក់ចុះ',
@@ -2799,7 +2798,7 @@ const exactValueTranslations: Record<string, string> = {
   'Count at least one SKU': 'រាប់ SKU យ៉ាងហោចណាស់មួយ',
   'Optional on later updates': 'ស្រេចចិត្តសម្រាប់ការអាប់ដេតបន្ទាប់ៗ',
   Optional: 'ស្រេចចិត្ត',
-  'Observed time, notes, sales pattern': 'ពេលវេលាដែលបានសង្កេត កំណត់ចំណាំ និងលំនាំលក់',
+  'Observed time and notes': 'ពេលវេលាដែលបានសង្កេត និងកំណត់ចំណាំ',
   'Not ready yet': 'មិនទាន់រួចរាល់',
   'Ready to save': 'រួចរាល់សម្រាប់រក្សាទុក',
   'Discard changes': 'បោះបង់ការផ្លាស់ប្តូរ',
@@ -3708,11 +3707,16 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Browser data lives in this browser profile.': 'ទិន្នន័យកម្មវិធីរុករកស្ថិតនៅក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។',
   'Use the browser app banner to export or import backups. Native folder reveal, desktop snapshots, and log export are desktop-only. Clearing browser data can remove this workspace.':
     'ប្រើបដាកម្មវិធីរុករក ដើម្បីនាំចេញ ឬនាំចូលច្បាប់បម្រុង។ ការបង្ហាញថតក្នុងម៉ាស៊ីន ស្នេបស្ហតកុំព្យូទ័រ និងការនាំចេញកំណត់ហេតុ ប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រ។ ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបកន្លែងធ្វើការនេះ។',
+  'This demo uses a separate blank workspace.': 'ការសាកល្បងនេះប្រើកន្លែងធ្វើការទទេដាច់ដោយឡែក។',
+  'Demo data is stored in this browser profile and can be reset back to a blank workspace.':
+    'ទិន្នន័យសាកល្បងត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ ហើយអាចកំណត់ត្រឡប់ទៅកន្លែងធ្វើការទទេ។',
   'Demo data - not your real workspace.': 'ទិន្នន័យសាកល្បង មិនមែនកន្លែងធ្វើការពិតរបស់អ្នកទេ។',
-  'Sample workspace. Reset anytime.': 'កន្លែងធ្វើការគំរូ។ អាចកំណត់ឡើងវិញបានគ្រប់ពេល។',
+  'Blank demo workspace. Reset anytime.': 'កន្លែងធ្វើការសាកល្បងទទេ។ អាចកំណត់ឡើងវិញបានគ្រប់ពេល។',
+  'This removes the current demo changes and returns to a blank demo workspace. Export first if you want to keep this demo state. This action cannot be undone.':
+    'វាលុបការផ្លាស់ប្តូរសាកល្បងបច្ចុប្បន្ន ហើយត្រឡប់ទៅកន្លែងធ្វើការសាកល្បងទទេ។ នាំចេញជាមុន ប្រសិនបើអ្នកចង់រក្សាស្ថានភាពសាកល្បងនេះ។ សកម្មភាពនេះមិនអាចបកក្រោយបានទេ។',
   'Export a backup before closing.': 'នាំចេញច្បាប់បម្រុងមុនពេលបិទ។',
-  'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.':
-    'កន្លែងធ្វើការ កខ របស់អ្នកត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។ ការសម្អាតកម្មវិធីរុករក ការលុបទិន្នន័យគេហទំព័រ ឬការសម្អាតរបៀបឯកជនអាចលុបវាបាន។ នាំចេញច្បាប់បម្រុងមុនពេលបិទ ប្រសិនបើអ្នកត្រូវការកន្លែងធ្វើការនេះ។',
+  'This Kaur Khor workspace is stored in this browser profile. Clearing browser/site data or private browsing data may remove it. Export a backup before closing if needed.':
+    'កន្លែងធ្វើការ កខ នេះត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។ ការសម្អាតទិន្នន័យកម្មវិធីរុករក ឬគេហទំព័រ ឬទិន្នន័យរបៀបឯកជន អាចលុបវាបាន។ នាំចេញច្បាប់បម្រុងមុនពេលបិទ ប្រសិនបើត្រូវការ។',
   'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.':
     'កន្លែងធ្វើការ កខ របស់អ្នកត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។ នាំចេញច្បាប់បម្រុងមុនពេលបិទ។ ការបិទផ្ទាំងនេះក៏បញ្ឈប់ការស្តាប់តេលេក្រាមផ្ទាល់ និងការទទួលការបញ្ជាទិញស្វ័យប្រវត្តិ រហូតដល់អ្នកបើក /app ម្តងទៀត។',
   'Export backup': 'នាំចេញច្បាប់បម្រុង',

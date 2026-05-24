@@ -1045,6 +1045,7 @@ describe('SkuFormRoute', () => {
   });
 
   test('keeps new SKU cost blank and explains missing required fields on create', async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -1056,21 +1057,29 @@ describe('SkuFormRoute', () => {
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
     const [costPerUnitInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
-    expect(costPerUnitInput).toHaveValue('');
+    const [nameInput] = screen.getAllByRole('textbox');
+    try {
+      expect(costPerUnitInput).toHaveValue('');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
-    expect(upsertSenaCatalog).not.toHaveBeenCalled();
-    const nameError = screen.getByText('Enter a SKU name before saving.');
-    expect(nameError).toBeInTheDocument();
-    expect(nameError).toHaveAttribute('data-error-flash-key', '1');
-    expect(nameError).toHaveClass('motion-safe:animate-[kaur-khor-save-error-flash_1800ms_ease-in-out_1]');
-    expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
-    expect(screen.getByText('Enter the expected time of arrival days before saving.')).toBeInTheDocument();
-    expect(screen.getAllByText('Enter ETA variation days and hours or choose an ETA variation before saving.')).toHaveLength(1);
+      expect(upsertSenaCatalog).not.toHaveBeenCalled();
+      expect(scrollIntoView).toHaveBeenCalled();
+      expect(nameInput).toHaveFocus();
+      const nameError = screen.getByText('Enter a SKU name before saving.');
+      expect(nameError).toBeInTheDocument();
+      expect(nameError).toHaveAttribute('data-error-flash-key', '1');
+      expect(nameError).toHaveClass('motion-safe:animate-[kaur-khor-save-error-flash_1800ms_ease-in-out_1]');
+      expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
+      expect(screen.getByText('Enter the expected time of arrival days before saving.')).toBeInTheDocument();
+      expect(screen.getAllByText('Enter ETA variation days and hours or choose an ETA variation before saving.')).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
-    expect(screen.getByText('Enter a SKU name before saving.')).toHaveAttribute('data-error-flash-key', '2');
+      fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+      expect(scrollIntoView).toHaveBeenCalled();
+      expect(screen.getByText('Enter a SKU name before saving.')).toHaveAttribute('data-error-flash-key', '2');
+    } finally {
+      scrollIntoView.mockRestore();
+    }
   });
 
   test('blocks edit save when required SKU fields are cleared', async () => {
@@ -1127,6 +1136,7 @@ describe('SkuFormRoute', () => {
   });
 
   test('blocks edit save when SKU cost draft is negative', async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: {
@@ -1139,10 +1149,19 @@ describe('SkuFormRoute', () => {
 
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
-    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costPerUnitInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    try {
+      fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+      scrollIntoView.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
-    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+      expect(upsertSenaCatalog).not.toHaveBeenCalled();
+      expect(scrollIntoView).toHaveBeenCalled();
+      expect(costPerUnitInput).toHaveFocus();
+    } finally {
+      scrollIntoView.mockRestore();
+    }
   });
 
   test('localizes invalid SKU money validation in Khmer mode', async () => {

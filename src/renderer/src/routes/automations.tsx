@@ -927,6 +927,9 @@ export function AutomationsRoute({
   }
 
   const hasSavedTelegramConfiguration = Boolean(connection?.hasBotToken) || hasUnlockedAutomationTabs;
+  const hasUsableTelegramConfiguration = Boolean(
+    connection?.hasBotToken && (connection.status === 'connected' || connection.status === 'paused'),
+  );
   const section = forcedSection ?? (hasSavedTelegramConfiguration ? routeState.section : 'settings');
   const workIntakeWindow = useWorkspaceWindowMinHeight<HTMLDivElement>(`intake:${intakeTab}:${section}:${hasSavedTelegramConfiguration}`);
   const showOverviewSection = section === 'overview';
@@ -1079,7 +1082,11 @@ export function AutomationsRoute({
       </AutomationRouteLinkAction>
     </WorkspaceActionRow>
   ) : undefined;
-  const titleCardActions = hasSavedTelegramConfiguration ? titleActions : routeLinkTitleAction;
+  const titleCardActions = forcedSection === 'settings'
+    ? (hasUsableTelegramConfiguration ? titleActions : undefined)
+    : hasSavedTelegramConfiguration
+      ? titleActions
+      : routeLinkTitleAction;
   const titleCardTitle = forcedSection === 'settings' ? (
     <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
   ) : (

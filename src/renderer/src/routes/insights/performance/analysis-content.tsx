@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActionResetIcon } from '@icons/actions';
 import type { IconComponent } from '@icons';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SupplierFilter } from '@/components/system/supplier';
@@ -222,7 +223,7 @@ function AnalysisContentInner({
         await inventory.retrySenaRun({ runId: inventory.workspaceSummary.runId });
         return;
       }
-      await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await inventory.triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
     } finally {
       setIsRunningAnalysis(false);
     }

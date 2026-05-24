@@ -558,7 +558,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
           synthesized: false,
           payload: {
             generatedAt: '2026-04-03T08:00:00.000Z',
-            algorithmVersion: 'sena-analysis-v3',
+            algorithmVersion: 'sena-analysis-v4',
             engineParameters: { particleCount: 512, smoothingEnabled: true },
             diagnostics: { posteriorPredictiveErrorMean: 0.18, regimeHistory: diagnostics.regimeHistory },
             workspaceSummary,

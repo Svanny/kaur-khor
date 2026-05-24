@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import type { SenaSkuDetail, SenaTicketEvent, SenaTicketLine, SenaWorkspaceSummary } from '@shared/sena';
 import {
   ActionClipboardClockIcon,
@@ -889,7 +890,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   async function refreshQueueAfterSave() {
     setIsQueueSaving(true);
     try {
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
       await loadWorkSupportData({ includeObservations: true }).catch((error) => {
         console.warn('[dashboard] work support refresh failed after save', error);
       });
@@ -1596,7 +1597,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     try {
       setIsQueueSaving(true);
       await ingestSenaObservation(payload);
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
       await loadWorkSupportData({ includeObservations: true }).catch((error) => {
         console.warn('[dashboard] work support refresh failed after customer completion', error);
       });
@@ -1709,7 +1710,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     try {
       setIsQueueSaving(true);
       await ingestSenaObservation(payload);
-      await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      await triggerSenaRun({ algorithmVersion: DEFAULT_SENA_ENGINE_PARAMETERS.algorithmVersion });
       await loadWorkSupportData({ includeObservations: true }).catch((error) => {
         console.warn('[dashboard] work support refresh failed after customer ticket update', error);
       });

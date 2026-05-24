@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { HashRouter, useLocation } from 'react-router-dom';
 import App from '@/App';
 import {
+  browserStateForSenaPersistence,
   createEmptyBrowserMockState,
-  createMockState,
   getBrowserDesktopBridgeMockState,
   installBrowserDesktopBridge,
   normalizeBrowserDesktopPreferences,
@@ -63,7 +63,7 @@ type StorageUiState = {
   handle: BrowserStorageSupportedHandle | null;
 };
 
-export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
+export const BROWSER_WORKSPACE_CLOSE_WARNING = 'This Kaur Khor workspace is stored in this browser profile. Clearing browser/site data or private browsing data may remove it. Export a backup before closing if needed.';
 export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
 const BROWSER_APP_READY_MESSAGE = 'Your workspace is saved in this browser on this device.';
 const HIDDEN_PHONE_OPERATOR_HASH_PREFIX = '#/__phone/7f4b0e2d-9a61-4f83-a61e-21d63bfb8e7c';
@@ -109,7 +109,7 @@ function databaseForMode(mode: EmbeddedMode): KaurKhorBrowserDatabaseName {
 }
 
 export function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
-  const state = mode === 'demo' ? createMockState() : createEmptyBrowserMockState();
+  const state = createEmptyBrowserMockState();
   state.appContext = {
     ...state.appContext,
     platform: mode === 'demo' ? 'web-demo' : 'web',
@@ -265,10 +265,17 @@ function stateRecord(
   state: BrowserMockState,
   updatedAt = new Date().toISOString(),
 ): BrowserStorageDocumentRecord {
+  const senaState = browserStateForSenaPersistence(state);
   return {
     collection: 'browser_state',
     id: databaseName,
-    json: state,
+    json: {
+      ...state,
+      catalog: senaState.catalog,
+      diagnostics: senaState.diagnostics,
+      latestRun: senaState.latestRun,
+      workspaceSummary: senaState.workspaceSummary,
+    },
     updatedAt,
   };
 }
@@ -284,7 +291,7 @@ function isRecoverableBrowserMockStateRecord(value: unknown): value is Partial<B
 
   return (
     isObjectRecord(value.appContext) &&
-    isObjectRecord(value.catalog) &&
+    (value.catalog == null || isObjectRecord(value.catalog)) &&
     isObjectRecord(value.preferences) &&
     Array.isArray(value.observations)
   );
@@ -300,7 +307,7 @@ function readStateRecord(records: BrowserStorageDocumentRecord[], databaseName: 
 
 async function persistCurrentState(handle: BrowserStorageSupportedHandle, databaseName: KaurKhorBrowserDatabaseName) {
   const state = getBrowserDesktopBridgeMockState();
-  await handle.persistSenaState(state);
+  await handle.persistSenaState(browserStateForSenaPersistence(state));
   await handle.putDocuments([stateRecord(databaseName, state)]);
 }
 
@@ -385,6 +392,10 @@ function storageStateWithActionableError(current: StorageUiState, message: strin
     status: current.handle ? 'ready' : 'error',
     message,
   };
+}
+
+function isOnboardingHash() {
+  return window.location.hash.replace(/^#/, '').startsWith('/onboarding');
 }
 
 async function requestPersistentStorage(): Promise<StorageUiState['persistence']> {
@@ -792,8 +803,8 @@ function WebAppBanner({
             <p className={cn('font-semibold md:leading-4', isOnboarding ? 'whitespace-normal break-words leading-snug' : null)} data-slot="web-app-banner-title">
               {translateUiLiteral(language, isDemo ? 'Demo data - not your real workspace.' : 'Export a backup before closing.')}
             </p>
-            {isDemo ? (
-              <p className="hidden text-muted-foreground md:block" data-slot="web-app-banner-description">{translateUiLiteral(language, 'Sample workspace. Reset anytime.')}</p>
+            {isSidebarBanner ? null : isDemo ? (
+              <p className="hidden text-muted-foreground md:block" data-slot="web-app-banner-description">{translateUiLiteral(language, 'Blank demo workspace. Reset anytime.')}</p>
             ) : (
               <>
                 <p className="text-muted-foreground" data-slot="web-app-banner-description">{appWarningMessage}</p>
@@ -878,6 +889,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   const databaseName = databaseForMode(mode);
   const hiddenPhoneOperator = useHiddenPhoneOperatorState();
   const language = useBrowserWorkspaceLanguage();
+  const [fitToViewport, setFitToViewport] = useState(isOnboardingHash);
   const [storage, setStorage] = useState<StorageUiState>({
     status: 'loading',
     message: 'Opening SQLite WASM storage.',
@@ -889,6 +901,17 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
     handle: null,
   });
   const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const updateFitToViewport = () => {
+      setFitToViewport(isOnboardingHash());
+    };
+    updateFitToViewport();
+    window.addEventListener('hashchange', updateFitToViewport);
+    return () => {
+      window.removeEventListener('hashchange', updateFitToViewport);
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -929,7 +952,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
         setStorage({
           status: 'ready',
           message: mode === 'demo'
-            ? 'This demo uses a separate sample workspace.'
+            ? 'This demo uses a separate blank workspace.'
             : BROWSER_APP_READY_MESSAGE,
           databaseName,
           vfs: handle.init.vfs,
@@ -1105,6 +1128,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
 
   return (
     <EmbeddedAutoZoomViewport
+      fitToViewport={fitToViewport}
       phoneLandscapeOverlay={undefined}
     >
       <HashRouter basename={hiddenPhoneOperator ? HIDDEN_PHONE_OPERATOR_BASENAME : undefined}>
@@ -1138,6 +1162,8 @@ function EmbeddedAppContent({
 }) {
   const isPhonePortrait = useEmbeddedPhonePortraitViewport();
   const language = useBrowserWorkspaceLanguage();
+  const location = useLocation();
+  const isOnboarding = location.pathname === '/onboarding';
 
   if (hiddenPhoneOperator || isPhonePortrait) {
     return (
@@ -1159,6 +1185,26 @@ function EmbeddedAppContent({
           onReset={onReset}
         />
       </Suspense>
+    );
+  }
+
+  if (isOnboarding) {
+    return (
+      <div
+        className="grid h-[var(--kaur-khor-embedded-effective-height,100svh)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background"
+        data-slot="embedded-onboarding-layout"
+      >
+        <EmbeddedAppBanner
+          mode={mode}
+          storage={storage}
+          onExport={onExport}
+          onImport={onImport}
+          onReset={onReset}
+        />
+        <div className="min-h-0 overflow-hidden" data-slot="embedded-onboarding-route">
+          <App />
+        </div>
+      </div>
     );
   }
 

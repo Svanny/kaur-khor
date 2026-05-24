@@ -90,7 +90,6 @@ function observationLogRows(observations: Awaited<ReturnType<typeof window.kaurK
     leadTimeHintCount: observation.input.leadTimeHints.length,
     adjustmentSignalCount: observation.input.adjustmentSignals?.length ?? 0,
     recipeUsageHintCount: observation.input.recipeUsageHints?.length ?? 0,
-    regimeHint: observation.input.regimeHint ?? '',
     notes: observation.input.notes ?? '',
     payload: observation.input,
   }));

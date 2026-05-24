@@ -76,7 +76,7 @@ function deferred<T>() {
 
 function makeRun(runId: string): SenaAnalysisRunRecord {
   return {
-    algorithmVersion: 'sena-analysis-v3',
+    algorithmVersion: 'sena-analysis-v4',
     completedAt: '2026-04-03T08:00:00.000Z',
     createdAt: '2026-04-03T08:00:00.000Z',
     diagnostics: null,

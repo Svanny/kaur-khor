@@ -48,7 +48,13 @@ import { buildKaurKhorNavigationState, useNavigationHistory } from '@/state/navi
 import { usePreferences } from '@/state/preferences';
 import { buildSkuCatalogEditObservation } from './catalog-edit-observation';
 import { CatalogImageField } from './catalog-image-field';
-import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
+import {
+  EditorField,
+  editorInputClassName,
+  editorPanelClassName,
+  editorTextareaClassName,
+  revealFirstEditorValidationError,
+} from './editor-form-primitives';
 import { SkuPageHero } from './sku-page-hero';
 import { SectionLabel, SectionTitle } from './sku-detail/section-heading';
 
@@ -187,6 +193,12 @@ export function SkuFormRoute() {
     [catalog?.skus, skuId],
   );
   const previousMoneyFormatRef = useRef({ currency, usdToKhrExchangeRate });
+  const nameFieldRef = useRef<HTMLInputElement | null>(null);
+  const attributeFieldRef = useRef<HTMLDivElement | null>(null);
+  const costPerUnitFieldRef = useRef<HTMLInputElement | null>(null);
+  const productPriceFieldRef = useRef<HTMLInputElement | null>(null);
+  const leadTimeMeanDaysFieldRef = useRef<HTMLInputElement | null>(null);
+  const leadTimeUncertaintyFieldRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (existingSku) {
@@ -390,6 +402,14 @@ export function SkuFormRoute() {
     setSaveAttempted(true);
     if (hasSkuValidationErrors) {
       setSaveErrorFlashKey((current) => current + 1);
+      revealFirstEditorValidationError([
+        { key: 'name', error: skuValidationErrors.name, ref: nameFieldRef },
+        { key: 'attributes', error: skuValidationErrors.attributes, ref: attributeFieldRef },
+        { key: 'costPerUnit', error: skuValidationErrors.costPerUnit, ref: costPerUnitFieldRef },
+        { key: 'productPrice', error: skuValidationErrors.productPrice, ref: productPriceFieldRef },
+        { key: 'leadTimeMeanDays', error: skuValidationErrors.leadTimeMeanDays, ref: leadTimeMeanDaysFieldRef },
+        { key: 'leadTimeUncertainty', error: skuValidationErrors.leadTimeUncertainty, ref: leadTimeUncertaintyFieldRef },
+      ]);
       return false;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
@@ -516,6 +536,7 @@ export function SkuFormRoute() {
                 <input
                   autoFocus
                   className={editorInputClassName}
+                  ref={nameFieldRef}
                   required
                   value={form.name}
                   onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
@@ -554,18 +575,20 @@ export function SkuFormRoute() {
             />
           </WorkspacePanel>
 
-          <WorkspacePanel
-            className={editorPanelClassName}
-            descriptor={translateUiLiteral(language, 'Create active variants from selected attributes when saving this SKU.')}
-            title={<SectionTitle helpHref="/settings/help#catalog-product-attributes" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate SKU variants without copying logs, observations, or captures.')} />}
-          >
-            <ProductAttributesField
-              draft={attributeDraft}
-              language={language}
-              presets={attributePresets}
-              onChange={setAttributeDraft}
-            />
-          </WorkspacePanel>
+          <div ref={attributeFieldRef}>
+            <WorkspacePanel
+              className={editorPanelClassName}
+              descriptor={translateUiLiteral(language, 'Create active variants from selected attributes when saving this SKU.')}
+              title={<SectionTitle helpHref="/settings/help#catalog-product-attributes" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate SKU variants without copying logs, observations, or captures.')} />}
+            >
+              <ProductAttributesField
+                draft={attributeDraft}
+                language={language}
+                presets={attributePresets}
+                onChange={setAttributeDraft}
+              />
+            </WorkspacePanel>
+          </div>
 
           <WorkspacePanel
             className={editorPanelClassName}
@@ -583,6 +606,7 @@ export function SkuFormRoute() {
                 className={editorInputClassName}
                 currency={currency}
                 min="0"
+                ref={costPerUnitFieldRef}
                 required
                 value={costPerUnitDraft}
                 onChange={(event) => {
@@ -619,6 +643,7 @@ export function SkuFormRoute() {
                       className={editorInputClassName}
                       currency={currency}
                       min="0"
+                      ref={productPriceFieldRef}
                       value={productPriceDraft}
                       onChange={(event) => {
                         const nextValue = event.target.value;
@@ -667,6 +692,7 @@ export function SkuFormRoute() {
               className={editorInputClassName}
               data-testid="sku-lead-time-mean-days-input"
               min="0"
+              ref={leadTimeMeanDaysFieldRef}
               step="0.01"
               value={form.leadTimeMeanDaysHint ?? ''}
               onChange={(event) =>
@@ -687,28 +713,30 @@ export function SkuFormRoute() {
             label={t('fieldLeadTimeVariability')}
             tooltip={t('catalogSkuEditorLeadTimeVariabilityTooltip')}
           >
-            <LeadTimeVariabilityField
-              customInputClassName={editorInputClassName}
-              customStdDays={leadTimeStdDaysDraft}
-              language={language}
-              meanDays={form.leadTimeMeanDaysHint}
-              mode={leadTimeDraftMode}
-              placeholder={t('catalogSkuLeadTimeVariabilityPlaceholder')}
-              selectContentPosition="popper"
-              selectTriggerClassName={editorSelectTriggerClassName}
-              value={leadTimeVariability}
-              onCustomStdDaysChange={(value) => {
-                setLeadTimeDraftMode('std');
-                setLeadTimeStdDaysDraft(value);
-              }}
-              onModeChange={setLeadTimeDraftMode}
-              onValueChange={(value) => {
-                setLeadTimeVariability(value);
-                if (value) {
-                  setLeadTimeStdDaysDraft(derivedStdDaysDraft(form.leadTimeMeanDaysHint, value));
-                }
-              }}
-            />
+            <div ref={leadTimeUncertaintyFieldRef}>
+              <LeadTimeVariabilityField
+                customInputClassName={editorInputClassName}
+                customStdDays={leadTimeStdDaysDraft}
+                language={language}
+                meanDays={form.leadTimeMeanDaysHint}
+                mode={leadTimeDraftMode}
+                placeholder={t('catalogSkuLeadTimeVariabilityPlaceholder')}
+                selectContentPosition="popper"
+                selectTriggerClassName={editorSelectTriggerClassName}
+                value={leadTimeVariability}
+                onCustomStdDaysChange={(value) => {
+                  setLeadTimeDraftMode('std');
+                  setLeadTimeStdDaysDraft(value);
+                }}
+                onModeChange={setLeadTimeDraftMode}
+                onValueChange={(value) => {
+                  setLeadTimeVariability(value);
+                  if (value) {
+                    setLeadTimeStdDaysDraft(derivedStdDaysDraft(form.leadTimeMeanDaysHint, value));
+                  }
+                }}
+              />
+            </div>
           </EditorField>
         </WorkspacePanel>
       </form>

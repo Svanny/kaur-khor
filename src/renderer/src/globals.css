@@ -492,6 +492,11 @@
     overflow: clip;
   }
 
+  html[data-kaur-khor-embedded-viewport="true"] [data-slot="embedded-onboarding-route"] > [data-slot="onboarding-page"] {
+    height: 100%;
+    min-height: 0 !important;
+  }
+
   html[data-kaur-khor-embedded-viewport="true"] [data-slot="sidebar"] {
     display: block !important;
   }

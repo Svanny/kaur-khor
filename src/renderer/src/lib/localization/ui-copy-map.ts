@@ -2026,10 +2026,10 @@ export const enUiCopyV1 = {
   stockUpdateRemovePriceChange: 'Remove price change',
   stockUpdateAddPriceChange: 'Add price change',
   stockUpdateRegimeHelp:
-    'Regime stays observation-level and applies to the full update package.',
+    'SENA infers the regime from the evidence in the full update package.',
   stockUpdateRegimeDescriptionEmpty:
-    'Leave this empty when the record does not need a single dominant regime explanation.',
-  stockUpdateOverallRegime: 'Overall regime',
+    'SENA leaves the regime weak when the record does not have one dominant explanation.',
+  stockUpdateOverallRegime: 'Inferred regime',
   stockUpdateOptional: '(optional)',
   stockUpdateOptionalStepYes: 'Yes',
   stockUpdateOptionalStepNo: 'No',
@@ -2071,13 +2071,13 @@ export const enUiCopyV1 = {
   stockUpdateStepSkipped: 'Skipped',
   stockUpdateStepRowsChanged: '{count} row{suffix} changed',
   stockUpdateStepSignalsAdded: '{count} signal{suffix} added',
-  stockUpdateStepRegimeSummary: 'Regime: {value}',
-  stockUpdateStepContextSummary: 'Observed at, notes, regime',
+  stockUpdateStepRegimeSummary: 'Inferred regime: {value}',
+  stockUpdateStepContextSummary: 'Observed at and notes',
   stockUpdateStepObservedAtReady: 'Time confirmed',
   stockUpdateStepObservedAtMissing: 'Choose observed time',
   stockUpdateStepNotesAdded: 'Notes added',
   stockUpdateStepNotesOptional: 'Optional notes',
-  stockUpdateStepRegimeOptional: 'Optional regime',
+  stockUpdateStepRegimeOptional: 'Inferred regime',
   stockUpdateStepNotReady: 'Not ready yet',
   stockUpdateStepReadyToSave: 'Ready to save',
   stockUpdateGuidanceChooseObservedAt:
@@ -2149,9 +2149,9 @@ export const enUiCopyV1 = {
   stockUpdateDescriptorFirst:
     'Start Kaur Khor with one counted SKU, then future updates can stay sparse.',
   stockUpdateContextFooterEmpty:
-    'Leave regime empty when the record does not need one dominant explanation.',
+    'SENA infers the regime after this update is saved.',
   stockUpdateContextTooltip:
-    'Set the observation timestamp, add optional notes, and choose an optional regime for the full update package.',
+    'Set the observation timestamp and add optional notes for the full update package.',
   stockUpdateContextTooltipLabel: 'Record interval details',
   stockUpdateObservedAt: 'Observed at',
   stockUpdateObservedAtTooltip:
@@ -3004,7 +3004,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Check the run details and evidence coverage behind this analysis.',
   stockUpdateStepContextTitle: 'Capture details',
   stockUpdateStepContextDescription:
-    'Choose an optional sales pattern.',
+    'Add optional report details.',
   stockUpdateStepObservedAtTitle: 'Observed at',
   stockUpdateStepObservedAtDescription:
     'Confirm when this update was observed.',
@@ -3068,13 +3068,13 @@ export const enUiCopyV2: EnglishUiCopy = {
   stockUpdateStockRowOrderHint:
     'Tip: hover a SKU row and drag anywhere outside the input area to keep your preferred order for future stock counts.',
   stockUpdateRegimeHelp:
-    'This sales pattern applies to the full update, not just one SKU.',
+    'SENA infers this pattern from the full update, not from one SKU.',
   stockUpdateRegimeDescriptionEmpty:
-    'Leave this empty when the record does not need one main sales-pattern explanation.',
-  stockUpdateOverallRegime: 'Overall sales pattern',
+    'SENA leaves the pattern weak when the record does not have one main explanation.',
+  stockUpdateOverallRegime: 'Inferred pattern',
   stockUpdateOptionalStepYes: 'Yes',
   stockUpdateOptionalStepNo: 'No',
-  stockUpdateNoRegimeSignal: 'No sales-pattern signal',
+  stockUpdateNoRegimeSignal: 'No inferred-pattern signal',
   stockUpdateRegimeNormal: 'Normal pattern',
   stockUpdateRegimeNormalDetail:
     'A normal time period with no strong distortion signal.',
@@ -3093,13 +3093,13 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Bookkeeping or cleanup activity drove this period.',
   stockUpdateReviewBody:
     'Kaur Khor will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add this evidence to Explain.',
-  stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
-  stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
+  stockUpdateStepRegimeSummary: 'Inferred pattern: {value}',
+  stockUpdateStepContextSummary: 'Observed time and notes',
   stockUpdateStepObservedAtReady: 'Time confirmed',
   stockUpdateStepObservedAtMissing: 'Choose observed time',
   stockUpdateStepNotesAdded: 'Notes added',
   stockUpdateStepNotesOptional: 'Optional notes',
-  stockUpdateStepRegimeOptional: 'Optional sales pattern',
+  stockUpdateStepRegimeOptional: 'Inferred pattern',
   stockUpdateStepChooseYesNo: 'Choose Yes or No',
   stockUpdateStepSkipped: 'Skipped',
   stockUpdateStepRowsChanged: '{count} row{suffix} changed',
@@ -3109,9 +3109,9 @@ export const enUiCopyV2: EnglishUiCopy = {
   stockUpdateDescriptorFirst:
     'Start Kaur Khor with one counted SKU, then later updates can stay light.',
   stockUpdateContextFooterEmpty:
-    'Leave sales pattern empty when this record does not need one main explanation.',
+    'SENA infers the pattern after this update is saved.',
   stockUpdateContextTooltip:
-    'Set the update timestamp, add optional notes, and choose an optional sales pattern for the full update.',
+    'Set the update timestamp and add optional notes for the full update.',
   stockUpdateObservedAtTooltip:
     'This timestamp anchors the time period since the last confirmed update.',
   stockUpdateObservedAtHelp:
@@ -3314,19 +3314,19 @@ export const enUiCopyV2: EnglishUiCopy = {
         'needs attention',
       overviewTaskConfidenceWatch:
         'watch closely',
-      stockUpdateRegimeHelp: 'This sales pattern applies to the full update, not just one SKU.',
-      stockUpdateOverallRegime: 'Overall sales pattern',
-      stockUpdateNoRegimeSignal: 'No sales-pattern signal',
+      stockUpdateRegimeHelp: 'SENA infers this pattern from the full update, not from one SKU.',
+      stockUpdateOverallRegime: 'Inferred pattern',
+      stockUpdateNoRegimeSignal: 'No inferred-pattern signal',
       stockUpdateReviewTooltip:
         'Kaur Khor saves only changed rows and active signals, then refreshes the planning views.',
       stockUpdateReviewBody:
         'Kaur Khor will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add this update to Explain.',
-      stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
-      stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
+      stockUpdateStepRegimeSummary: 'Inferred pattern: {value}',
+      stockUpdateStepContextSummary: 'Observed time and notes',
       stockUpdateContextFooterEmpty:
-        'Leave sales pattern empty when this record does not need one main explanation.',
+        'SENA infers the pattern after this update is saved.',
       stockUpdateContextTooltip:
-        'Set the update time, add optional notes, and choose an optional sales pattern for the full update.',
+        'Set the update time and add optional notes for the full update.',
       stockUpdateNotesTooltip:
         'Use notes for human context. Add structured signals when Kaur Khor should learn from the change.',
       stockUpdateNotesHelp:

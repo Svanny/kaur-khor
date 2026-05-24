@@ -347,8 +347,8 @@ const landingKhmerCopy: Record<string, string> = {
   'The app you build may still show safety prompts': 'អេបដែលអ្នកសាងសង់អាចនៅតែបង្ហាញសារសុវត្ថិភាព',
   'To choose a native build explicitly, pass a platform flag such as': 'បើចង់ជ្រើសគោលដៅសាងសង់ក្នុងម៉ាស៊ីនច្បាស់ៗ សូមបន្ថែមជម្រើសប្រព័ន្ធដូចជា',
   'Track Customer Orders': 'តាមដានការបញ្ជាទិញរបស់អតិថិជន',
-  'Try sample data': 'សាកល្បងទិន្នន័យគំរូ',
-  'Try sample shelves': 'សាកល្បងធ្នើគំរូ',
+  'Try blank demo': 'សាកល្បងកន្លែងធ្វើការទទេ',
+  'Start with blank shelves': 'ចាប់ផ្តើមជាមួយធ្នើទទេ',
   'Use it in this browser': 'ប្រើវាក្នុងប្រោសឺរនេះ',
   'Open browser app': 'បើកអេបក្នុងប្រោសឺរ',
   'View logs': 'មើលកំណត់ហេតុ',
@@ -358,8 +358,8 @@ const landingKhmerCopy: Record<string, string> = {
   'YouTube tutorial for opening macOS app from unidentified developer': 'វីដេអូណែនាំការបើក macOS អេប ពីអ្នកអភិវឌ្ឍន៍មិនស្គាល់',
   'Your computer may show safety prompts': 'កុំព្យូទ័ររបស់អ្នកអាចបង្ហាញសារសុវត្ថិភាព',
   yourself: 'ដោយខ្លួនឯង',
-  'A warm, local-first inventory desk for small teams: try sample shelves in the browser, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.':
-    'អេបស្តុកក្នុងម៉ាស៊ីនសម្រាប់ក្រុមតូច៖ សាកល្បងទិន្នន័យគំរូក្នុងប្រោសឺរ រក្សាទិន្នន័យប្រោសឺរពិតក្នុងម៉ាស៊ីនពេល OPFS អាចប្រើបាន ឬដំឡើងដេសថបអេបសម្រាប់ប្រើក្រៅបណ្ដាញពេញលេញ។',
+  'A warm, local-first inventory desk for small teams: start from a blank browser workspace, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.':
+    'អេបស្តុកក្នុងម៉ាស៊ីនសម្រាប់ក្រុមតូច៖ ចាប់ផ្តើមពីកន្លែងធ្វើការប្រោសឺរទទេ រក្សាទិន្នន័យប្រោសឺរពិតក្នុងម៉ាស៊ីនពេល OPFS អាចប្រើបាន ឬដំឡើងដេសថបអេបសម្រាប់ប្រើក្រៅបណ្ដាញពេញលេញ។',
   'Kaur Khor mission control overview showing the main work queue':
     'រូបភាពផ្ទាំងបញ្ជា កខ បង្ហាញជួរការងារសំខាន់',
   'Kaur Khor supplier queue showing supplier follow-up work':
@@ -429,7 +429,7 @@ const productTiers: ProductTier[] = [
   {
     action: 'Start Quick Demo',
     benefits: [
-      { icon: PackageCheck, label: 'Try sample shelves' },
+      { icon: PackageCheck, label: 'Start with blank shelves' },
       { icon: ScanLine, label: 'See the main workflow' },
       { icon: RefreshCcw, label: 'Reset anytime' },
     ],
@@ -439,7 +439,7 @@ const productTiers: ProductTier[] = [
     ],
     href: publicPath('/demo#/onboarding'),
     icon: CirclePlay,
-    summary: 'Try sample data',
+    summary: 'Try blank demo',
     title: 'Demo',
     tone: 'demo',
   },
@@ -1058,7 +1058,7 @@ function HomeRoute() {
                 </h1>
               </div>
               <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground sm:text-xl">
-                {landingText(language, 'A warm, local-first inventory desk for small teams: try sample shelves in the browser, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.')}
+                {landingText(language, 'A warm, local-first inventory desk for small teams: start from a blank browser workspace, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.')}
               </p>
               <Button asChild className="pos-metadata-surface-gleam mt-8 h-14 w-full justify-center text-base sm:w-auto sm:min-w-56" size="lg">
                 <a href="#ways-to-start" onClick={onSectionAnchorClick('ways-to-start')}>{landingText(language, 'Get started')} <ActionContinueIcon className="size-4" /></a>

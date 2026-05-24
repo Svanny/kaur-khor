@@ -3,7 +3,7 @@
 The public web build is a GitHub Pages surface for Kaur Khor. It exposes:
 
 - `/` for the public overview
-- `/demo` for a seeded browser preview
+- `/demo` for a separate browser demo workspace
 - `/app` for the browser app entry
 
 GitHub Pages serves the site under `/kaur-khor/`, so the deployed URLs are `/kaur-khor/`, `/kaur-khor/demo`, and `/kaur-khor/app`. Desktop downloads and install notes live on the overview page at `/kaur-khor/#releases`.
@@ -12,8 +12,7 @@ GitHub Pages serves the site under `/kaur-khor/`, so the deployed URLs are `/kau
 
 The desktop app remains the primary supported runtime. The browser routes use the web React entry in production, and the Electron dev renderer entry recognizes `/kaur-khor/demo`, `/kaur-khor/app`, and `/main` paths so local browser-surface debugging can use the same route detection.
 
-The demo route mounts the existing renderer app inside a `HashRouter`, opens `kaur_khor_browser_demo_v1.sqlite3`, and keeps demo records separate from the browser-app database. A banner marks the route as demo data, and the reset action reseeds the demo workspace.
-The demo seed uses the same 10 Khmer SKUs, 10 Khmer services, product prices, supplier metadata, and generated product images as the dev fixture, so `/demo` shows the richer local products view without requiring desktop storage.
+The demo route mounts the existing renderer app inside a `HashRouter`, opens `kaur_khor_browser_demo_v1.sqlite3`, and keeps demo records separate from the browser-app database. A banner marks the route as demo data, and the reset action clears the demo workspace back to a blank slate. Seeded demo data is available only through explicit fixture/seed helpers, not normal route startup or reset.
 
 The app route opens `kaur_khor_browser_app_v1.sqlite3` through SQLite WASM in a Web Worker. The runtime prefers SQLite's OPFS SyncAccessHandle Pool VFS (`opfs-sahpool`) so it can run on static hosting without requiring COOP/COEP headers. If OPFS or SQLite initialization is unavailable, the real app route shows an unsupported-browser state and does not silently fall back to weaker storage.
 

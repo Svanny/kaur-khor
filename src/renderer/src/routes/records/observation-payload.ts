@@ -23,7 +23,6 @@ export interface ObservationSignalCounts {
   supplierReceipts: number;
   ticketEvents: number;
   recipeUsageHints: number;
-  regime: number;
   notes: number;
   deliveryFee: number;
   discount: number;
@@ -86,7 +85,6 @@ export function observationSignalCounts(input: SenaObservationInput): Observatio
     supplierReceipts,
     ticketEvents: input.ticketEvents?.length ?? 0,
     recipeUsageHints: input.recipeUsageHints?.length ?? 0,
-    regime: input.regimeHint ? 1 : 0,
     notes: input.notes?.trim() ? 1 : 0,
     deliveryFee: input.deliveryFee ? 1 : 0,
     discount: input.discount ? 1 : 0,
@@ -111,7 +109,6 @@ export function hasStructuredObservationSignal(input: SenaObservationInput) {
     counts.commercialEvents > 0 ||
     counts.ticketEvents > 0 ||
     counts.recipeUsageHints > 0 ||
-    counts.regime > 0 ||
     counts.notes > 0 ||
     counts.deliveryFee > 0 ||
     counts.discount > 0
@@ -256,9 +253,6 @@ export function observationCompositionParts(input: SenaObservationInput, languag
         suffix: counts.ticketEvents === 1 ? '' : 's',
       }),
     );
-  }
-  if (counts.regime > 0) {
-    parts.push(translateUiLiteral(language, 'sales pattern'));
   }
   if (counts.notes > 0) {
     parts.push(translateUiLiteral(language, 'note'));

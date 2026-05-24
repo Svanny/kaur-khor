@@ -52,9 +52,11 @@ vi.mock('./trading-chart-model', async () => {
 vi.mock('@/components/system/trading-chart/chart', () => ({
   SkuTradingChart: ({
     chartResolution,
+    chartRenderHeight,
     customChartResolution,
     customTimeframeRange,
     defaultIndicatorSettings,
+    fillAvailableHeight,
     indicatorSettings,
     onChartResolutionChange,
     onSaveDefaultIndicatorSettings,
@@ -64,9 +66,11 @@ vi.mock('@/components/system/trading-chart/chart', () => ({
     timeframe,
   }: {
     chartResolution: 'H' | '1D' | '1W' | '1M' | '3M' | '1Y' | 'Custom';
+    chartRenderHeight: string | number | undefined;
     customChartResolution: { amount: number; unit: 'm' | 'H' | 'D' | 'W' | 'M' | 'Y'; expression: string } | null;
     customTimeframeRange: { startAt: string; endAt: string } | null;
     defaultIndicatorSettings: ReturnType<typeof defaultTradingChartIndicators>;
+    fillAvailableHeight: boolean;
     indicatorSettings: ReturnType<typeof defaultTradingChartIndicators>;
     onChartResolutionChange: (value: 'H' | '1D' | '1W' | '1M' | '3M' | '1Y' | 'Custom', custom: { amount: number; unit: 'm' | 'H' | 'D' | 'W' | 'M' | 'Y'; expression: string } | null) => void;
     onSaveDefaultIndicatorSettings: (next: ReturnType<typeof defaultTradingChartIndicators>) => void;
@@ -79,6 +83,8 @@ vi.mock('@/components/system/trading-chart/chart', () => ({
       <div data-testid="current-demand">{String(indicatorSettings.demand.enabled)}</div>
       <div data-testid="current-receipts">{String(indicatorSettings.receipts.enabled)}</div>
       <div data-testid="default-receipts">{String(defaultIndicatorSettings.receipts.enabled)}</div>
+      <div data-testid="fill-available-height">{String(fillAvailableHeight)}</div>
+      <div data-testid="chart-render-height">{String(chartRenderHeight ?? 'none')}</div>
       <div data-testid="current-timeframe">{timeframe}</div>
       <div data-testid="current-resolution">{customChartResolution?.expression ?? chartResolution}</div>
       <div data-testid="current-range">{customTimeframeRange?.startAt ?? 'none'}</div>
@@ -160,6 +166,31 @@ describe('SkuDetailLedger', () => {
 
     expect(screen.getByText('Chart View')).toBeInTheDocument();
     expect(screen.queryByText('កខ')).not.toBeInTheDocument();
+  });
+
+  it('uses the shared fixed chart-window height in the non-expanded ledger', () => {
+    render(
+      <SkuDetailLedger
+        chartLayoutPreferences={defaultChartLayoutPreferences()}
+        hasOlderIntervals={false}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={async () => null}
+        model={buildModel('sku-1')}
+        onResetCharts={vi.fn()}
+        onTimeframeChange={vi.fn()}
+        selectedIntervalIndex={null}
+        setSelectedIntervalIndex={vi.fn()}
+        timeframe="Recent"
+      />,
+    );
+
+    expect(screen.getByTestId('fill-available-height').textContent).toBe('true');
+    expect(screen.getByTestId('chart-render-height').textContent).toBe('84svh');
+    expect(screen.getByTestId('chart-render-height').closest('section')).toHaveStyle({
+      minHeight: 'calc(84svh + 16rem)',
+    });
+    expect(screen.getByTestId('chart-render-height').closest('section')).not.toHaveClass('overflow-hidden');
   });
 
   it('remembers chart settings for same sku across remounts', async () => {

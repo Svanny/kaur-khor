@@ -1,9 +1,27 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ActionCloseIcon, ActionConfirmIcon, ActionDeleteIcon } from '@icons/actions';
 import { StatusAlertIcon } from '@icons/status';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
+const contentFitActionClassName = 'min-w-max justify-center';
 const wrappedActionClassName = 'min-w-max flex-[1_0_max-content] justify-center';
+
+export function shouldFillWrappedConfirmActionRow({
+  containerWidth,
+  gap,
+  itemWidths,
+}: {
+  containerWidth: number;
+  gap: number;
+  itemWidths: number[];
+}) {
+  if (containerWidth <= 0 || itemWidths.length <= 1) {
+    return false;
+  }
+  const contentWidth = itemWidths.reduce((sum, width) => sum + width, 0) + gap * (itemWidths.length - 1);
+  return contentWidth > containerWidth + 0.5;
+}
 
 export function ConfirmActionDialog({
   open,
@@ -44,15 +62,76 @@ export function ConfirmActionDialog({
   onDestructiveAction?: () => void;
   onConfirm: () => void;
 }) {
+  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const [actionsNeedRowFill, setActionsNeedRowFill] = useState(false);
+  const hasDestructiveAction = Boolean(destructiveActionLabel && onDestructiveAction);
+
+  useLayoutEffect(() => {
+    if (!open || !hasDestructiveAction) {
+      setActionsNeedRowFill(false);
+      return;
+    }
+
+    const measureActions = () => {
+      const actions = actionsRef.current;
+      if (!actions) {
+        return;
+      }
+      const actionItems = Array.from(actions.querySelectorAll<HTMLElement>('[data-slot="confirm-action-dialog-action-item"]'));
+      const gap = Number.parseFloat(window.getComputedStyle(actions).columnGap || '0') || 0;
+      const shouldFill = shouldFillWrappedConfirmActionRow({
+        containerWidth: actions.clientWidth,
+        gap,
+        itemWidths: actionItems.map((item) => item.scrollWidth),
+      });
+      setActionsNeedRowFill((current) => current === shouldFill ? current : shouldFill);
+    };
+
+    let measureFrame: number | null = null;
+    let lastObservedWidth = 0;
+    const scheduleNaturalWidthMeasure = (entries?: ResizeObserverEntry[]) => {
+      const observedWidth = entries?.[0]?.contentRect.width ?? actionsRef.current?.clientWidth ?? 0;
+      if (observedWidth > 0 && Math.abs(observedWidth - lastObservedWidth) < 0.5) {
+        return;
+      }
+      lastObservedWidth = observedWidth;
+      if (measureFrame !== null) {
+        window.cancelAnimationFrame(measureFrame);
+      }
+      measureFrame = window.requestAnimationFrame(() => {
+        measureFrame = null;
+        measureActions();
+      });
+    };
+
+    measureActions();
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleNaturalWidthMeasure);
+    if (resizeObserver && actionsRef.current) {
+      resizeObserver.observe(actionsRef.current);
+    }
+    const handleWindowResize = () => scheduleNaturalWidthMeasure();
+    window.addEventListener('resize', handleWindowResize);
+    return () => {
+      if (measureFrame !== null) {
+        window.cancelAnimationFrame(measureFrame);
+      }
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+    };
+  }, [hasDestructiveAction, open, destructiveActionLabel, cancelLabel, confirmLabel, hideCancel, isSubmitting]);
+
   if (!open) {
     return null;
   }
 
-  const hasDestructiveAction = Boolean(destructiveActionLabel && onDestructiveAction);
+  const actionClassName = actionsNeedRowFill ? wrappedActionClassName : contentFitActionClassName;
+  const actionsClassName = hasDestructiveAction
+    ? 'mt-6 flex flex-wrap items-center gap-3'
+    : 'mt-6 flex flex-wrap justify-end gap-3';
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
+      className="pointer-events-auto fixed inset-0 z-[130] flex items-center justify-center bg-black/30 px-4 py-6 backdrop-blur-none"
       role="presentation"
       onClick={() => {
         if (!isSubmitting) {
@@ -63,7 +142,7 @@ export function ConfirmActionDialog({
       <div
         aria-label={title}
         aria-modal="true"
-        className={`max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)] ${hasDestructiveAction ? 'w-full max-w-2xl' : 'w-full max-w-md'}`}
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
@@ -90,37 +169,49 @@ export function ConfirmActionDialog({
           </div>
         </div>
         <div
-          className={hasDestructiveAction ? 'mt-6 flex flex-wrap items-center gap-3' : 'mt-6 flex flex-wrap justify-end gap-3'}
+          ref={actionsRef}
+          className={actionsClassName}
           data-slot="confirm-action-dialog-actions"
         >
           {hasDestructiveAction ? (
-            <Button
-              className={wrappedActionClassName}
-              disabled={isDestructiveActionDisabled || isSubmitting}
-              type="button"
-              variant="destructive-outline"
-              onClick={onDestructiveAction!}
-            >
-              <ActionDeleteIcon data-icon="inline-start" />
-              {destructiveActionLabel}
-            </Button>
+            <div className={cn(actionClassName, !actionsNeedRowFill && 'mr-auto')} data-slot="confirm-action-dialog-action-item">
+              <Button
+                className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
+                disabled={isDestructiveActionDisabled || isSubmitting}
+                type="button"
+                variant="destructive-outline"
+                onClick={onDestructiveAction!}
+              >
+                <ActionDeleteIcon data-icon="inline-start" />
+                {destructiveActionLabel}
+              </Button>
+            </div>
           ) : null}
           {hideCancel ? null : (
-            <Button
-              className={hasDestructiveAction ? wrappedActionClassName : undefined}
-              disabled={isSubmitting}
-              type="button"
-              variant="ghost"
-              onClick={onCancel}
-            >
-              <ActionCloseIcon data-icon="inline-start" />
-              {cancelLabel}
-            </Button>
+            hasDestructiveAction ? (
+              <div className={actionClassName} data-slot="confirm-action-dialog-action-item">
+                <Button
+                  className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
+                  disabled={isSubmitting}
+                  type="button"
+                  variant="ghost"
+                  onClick={onCancel}
+                >
+                  <ActionCloseIcon data-icon="inline-start" />
+                  {cancelLabel}
+                </Button>
+              </div>
+            ) : (
+              <Button disabled={isSubmitting} type="button" variant="ghost" onClick={onCancel}>
+                <ActionCloseIcon data-icon="inline-start" />
+                {cancelLabel}
+              </Button>
+            )
           )}
           {hasDestructiveAction ? (
-            <div className={wrappedActionClassName}>
+            <div className={actionClassName} data-slot="confirm-action-dialog-action-item">
               <Button
-                className="w-full min-w-max justify-center"
+                className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
                 disabled={isConfirmDisabled || isSubmitting}
                 type="button"
                 variant={confirmVariant}
