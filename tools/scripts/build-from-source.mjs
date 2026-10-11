@@ -59,6 +59,7 @@ const RUSTUP_SHA256_BY_TARGET = {
 const MAX_SOURCE_ARCHIVE_REDIRECTS = 5;
 
 if (isDirectExecution()) {
+  assertSupportedNodeVersion();
   const options = parseArgs(process.argv.slice(2));
 
   if (options.help) {
@@ -67,6 +68,13 @@ if (isDirectExecution()) {
   }
 
   await main(options);
+}
+
+export function assertSupportedNodeVersion(version = process.versions.node) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  if (!match || Number(match[1]) < 22 || (Number(match[1]) === 22 && Number(match[2]) < 12)) {
+    throw new Error(`Kaur Khor source builds require Node.js 22.12.0 or newer; found ${version}. Upgrade Node.js before continuing. Your installed Node.js has not been changed.`);
+  }
 }
 
 async function main(options) {

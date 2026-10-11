@@ -11,7 +11,7 @@ on:
       - 'v*.*.*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   security-gate:
@@ -202,8 +202,23 @@ jobs:
         shell: bash
         run: pnpm install --frozen-lockfile
 
+      - name: Package unsigned macOS pull request
+        if: matrix.platform == 'mac' && github.event_name == 'pull_request'
+        shell: bash
+        env:
+          ALLOW_UNSIGNED_PACKAGING: "1"
+        run: bash tools/scripts/package-mac.sh
+
+      - name: Package unsigned Windows pull request
+        if: matrix.platform == 'win' && github.event_name == 'pull_request'
+        shell: bash
+        env:
+          ALLOW_UNSIGNED_PACKAGING: "1"
+          KAUR_KHOR_SKIP_INSTALLER_HANDOFF: "1"
+        run: pnpm package:win:native
+
       - name: Package macOS release
-        if: matrix.platform == 'mac'
+        if: matrix.platform == 'mac' && github.event_name != 'pull_request'
         shell: bash
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -220,7 +235,7 @@ jobs:
           bash tools/scripts/package-mac.sh
 
       - name: Package Windows release
-        if: matrix.platform == 'win'
+        if: matrix.platform == 'win' && github.event_name != 'pull_request'
         shell: bash
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -280,6 +295,8 @@ jobs:
   release:
     name: publish-release
     if: github.ref_type == 'tag'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     needs:
       - security-gate
