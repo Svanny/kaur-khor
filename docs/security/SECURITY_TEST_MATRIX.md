@@ -75,3 +75,7 @@ browser scenarios explicitly import synthetic backup fixtures; normal startup,
 reset, and fresh scenarios must remain blank. Chart checks retain geometry,
 internal-scroll, offscreen-flag, and unclipped-control assertions and verify that
 the complete control row can scroll into view.
+Fixed chart bounds run at a measured 1760x1000 content viewport. Responsive
+1280x800 and 1600x1000 native windows additionally check wrapped-control and
+header/chart containment. Resize checks distinguish native dimensions from CSS
+pixels using the actual zoom factor, and emit geometry diagnostics for CI.

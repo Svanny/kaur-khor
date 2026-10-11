@@ -66,6 +66,19 @@ scroll into view and capture it. No application behavior was changed to make
 these assertions pass. The PR UI workflow reruns the full matrix and saves its
 screenshots so drift is caught before merge.
 
+Fixed chart geometry uses a measured 1760x1000 content viewport, retaining the
+original ledger upper bound independently of the host display. Additional SKU,
+service, and Explain checks at native 1280x800 and 1600x1000 retain the chart and
+minimum-height checks, verify header/chart/control containment and every control
+button, and scroll the full control row into view. The minimum-height ledger
+may grow when controls wrap; that responsive state is captured explicitly.
+
+Native resize assertions poll the requested outer/content size first, then
+compare renderer CSS dimensions with native content size divided by the actual
+zoom factor, allowing one CSS pixel for Chromium rounding. Diagnostics retain
+native/content sizes, zoom, rem size, and element rectangles. Both resize stages
+and dependent-workspace reload/relaunch checks remain covered.
+
 The proxy/TLS test requires OpenSSL on PATH, including native Windows test runs;
 Windows packaging results alone do not establish that unit-test prerequisite.
 It generates temporary certificates and keeps TLS verification enabled.
