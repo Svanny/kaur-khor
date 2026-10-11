@@ -7,7 +7,7 @@
 ### Stack
 - Language and version: TypeScript targeting ES2022, React 19, Rust 2021 edition.
 - Framework(s): Electron 30 via `electron-vite`, Vite 7, React Router 7, Tailwind CSS 4, shadcn-style UI components with Radix primitives.
-- Package manager: `pnpm` 10.32.1, recorded in `package.json`.
+- Package manager: `pnpm` 10.34.5, recorded in `package.json`.
 - Runtime / deployment target: local desktop app for macOS, Windows, and Linux. Development data lives in `.kaur-khor-dev-data`; packaged builds use Electron `userData`.
 
 ### Commands

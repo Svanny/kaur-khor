@@ -169,6 +169,7 @@ test.describe('UI matrix: desktop dependent state', () => {
 
       await saveCustomerTicketRevisionThroughUi(launched.page, {
         expectedArrivalDate: '2026-05-27',
+        previousQuantity: '2',
         quantity: '3',
         targetId: service.serviceId,
         targetName: service.name,
@@ -181,6 +182,7 @@ test.describe('UI matrix: desktop dependent state', () => {
           entityId: service.serviceId,
           eventType: 'revised',
           family: 'customer',
+          quantityDelta: 1,
           stage: 'pending',
         },
         minObservationCount: initialCounts.observationCount + 3,
@@ -261,6 +263,7 @@ test.describe('UI matrix: desktop dependent state', () => {
 
       await saveSupplierTicketRevisionThroughUi(launched.page, {
         expectedArrivalDate: '2026-05-30',
+        previousQuantity: '5',
         quantity: '7',
         skuId: sku.skuId,
         skuName: sku.name,

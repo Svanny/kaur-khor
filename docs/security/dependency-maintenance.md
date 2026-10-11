@@ -38,6 +38,27 @@ moderate audit threshold passes; the strict network requirement remains enabled.
 These critical dependency paths belong to development/build tools. Their
 presence in the lockfile does not establish exploitation of the packaged app.
 
+## Package-manager repair
+
+The follow-up tooling repair pins pnpm 10.34.5 in the manifest, CI, and source-build
+helper. It clears the pre-existing package-manager advisories affecting 10.32.1,
+including [proxy-setting secret exfiltration](https://github.com/advisories/GHSA-vx52-2968-3vc6)
+and [virtual-store path traversal](https://github.com/advisories/GHSA-c59q-g84q-2gj5).
+CI also pins setup action [v6.0.10](https://github.com/pnpm/action-setup/releases/tag/v6.0.10)
+at `0977fd99725f1db4007ccb2928dbb4e90d06cc86`: its integrity-locked bootstrap uses
+pnpm 11.19.0 instead of vulnerable 11.1.1. Merely changing the requested pnpm
+version would leave that earlier bootstrap exposed. The current npm advisory
+service returns no findings for either selected pnpm version or the standalone
+11.19.0 bootstrap. This is separate from the application lockfile audit below.
+
+Source builds invoke `corepack pnpm@10.34.5` or
+`npm exec --yes --package=pnpm@10.34.5 -- pnpm`, preserving the global installation.
+When neither wrapper is available, an installed pnpm must report the exact pinned
+version before dependency installation starts. No Corepack global enable/activate
+step is used; `COREPACK_DEFAULT_TO_LATEST=0` also prevents updating its global
+known-good default. The application lockfile remains byte-for-byte unchanged and all
+installations use `--frozen-lockfile`.
+
 ## Remaining findings
 
 | Package and path | Finding | Constraint |
