@@ -36,7 +36,7 @@ async function tradingChartWindowMetrics(page: Page) {
       controlsBottom: controlsRect?.bottom ?? 0,
       ledgerBottom: ledgerRect?.bottom ?? 0,
       ledgerScrollTop: ledger?.scrollTop ?? 0,
-      ledgerMaxHeight: Number.parseFloat(ledgerStyle?.maxHeight ?? '0'),
+      ledgerMinHeight: Number.parseFloat(ledgerStyle?.minHeight ?? '0'),
       ledgerOverflowY: ledgerStyle?.overflowY ?? '',
       viewportHeight: window.innerHeight,
     };
@@ -46,11 +46,11 @@ async function tradingChartWindowMetrics(page: Page) {
 function expectSharedTradingChartWindow(metrics: Awaited<ReturnType<typeof tradingChartWindowMetrics>>, surface: string) {
   expect(metrics.chartHeight, `${surface} chart should consume the shared chart window after ledger controls`).toBeGreaterThanOrEqual(metrics.viewportHeight * 0.84 - 120);
   expect(metrics.chartHeight, `${surface} chart should not exceed the shared chart-window plot target`).toBeLessThanOrEqual(metrics.viewportHeight * 0.84 + 12);
-  expect(metrics.ledgerHeight, `${surface} chart window should be capped to the chart height plus controls`).toBeLessThanOrEqual(metrics.viewportHeight * 0.84 + 256 + 4);
-  expect(metrics.ledgerHeight, `${surface} chart window should use the shared chart-window cap`).toBeGreaterThanOrEqual(metrics.viewportHeight * 0.84 + 192 - 4);
-  expect(metrics.ledgerMaxHeight, `${surface} chart window should own the viewport cap`).toBeGreaterThanOrEqual(metrics.viewportHeight * 0.84 + 256 - 4);
-  expect(metrics.ledgerMaxHeight, `${surface} chart window should own the viewport cap`).toBeLessThanOrEqual(metrics.viewportHeight * 0.84 + 256 + 4);
-  expect(metrics.ledgerOverflowY, `${surface} chart window should not scroll its header or controls out of view`).toBe('hidden');
+  expect(metrics.ledgerHeight, `${surface} default chart and controls should fit the shared window`).toBeLessThanOrEqual(metrics.viewportHeight * 0.84 + 256 + 4);
+  expect(metrics.ledgerHeight, `${surface} chart window should reserve space for its controls`).toBeGreaterThanOrEqual(metrics.viewportHeight * 0.84 + 192 - 4);
+  expect(metrics.ledgerMinHeight, `${surface} chart window should own the viewport minimum`).toBeGreaterThanOrEqual(metrics.viewportHeight * 0.84 + 256 - 4);
+  expect(metrics.ledgerMinHeight, `${surface} chart window should own the viewport minimum`).toBeLessThanOrEqual(metrics.viewportHeight * 0.84 + 256 + 4);
+  expect(metrics.ledgerOverflowY, `${surface} chart window should leave its header and controls unclipped`).toBe('visible');
   expect(metrics.ledgerScrollTop, `${surface} chart window should not retain internal scroll state`).toBe(0);
   expect(metrics.controlsBottom, `${surface} chart controls should not be clipped by the ledger window`).toBeLessThanOrEqual(metrics.ledgerBottom + 1);
 }

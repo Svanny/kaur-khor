@@ -1,4 +1,5 @@
 import { expect, type Download, type Page, type TestInfo } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 import {
   assertNoBrokenNumericText,
   assertNoDocumentOverflow,
@@ -46,6 +47,31 @@ export async function browserWorkspaceCounts(page: Page) {
       skuCount: catalog?.skus.length ?? 0,
     };
   });
+}
+
+export async function importSeededDemoWorkspace(page: Page, testInfo: TestInfo) {
+  // Populated scenarios must explicitly import a fixture; normal demo startup/reset stays blank.
+  const backup = await page.evaluate(async () => {
+    const fixtureModule = '/kaur-khor/src/renderer/src/dev/browser-desktop-bridge.ts';
+    const backupModule = '/kaur-khor/src/renderer/src/runtime/web/backup.ts';
+    const constantsModule = '/kaur-khor/src/renderer/src/runtime/web/constants.ts';
+    const { createMockState } = await import(fixtureModule);
+    const { createBrowserStorageBackup } = await import(backupModule);
+    const { KAUR_KHOR_BROWSER_DEMO_DATABASE: databaseName } = await import(constantsModule);
+    const state = createMockState();
+    const updatedAt = new Date().toISOString();
+    state.preferences.onboardingCompletedAt = updatedAt;
+    return createBrowserStorageBackup(databaseName, [{
+      collection: 'browser_state', id: databaseName, json: state, updatedAt,
+    }], updatedAt);
+  });
+  const path = testInfo.outputPath('seeded-demo-backup.json');
+  await writeFile(path, JSON.stringify(backup), 'utf8');
+  await importEmbeddedBackup(page, path);
+  await expect.poll(async () => {
+    const counts = await browserWorkspaceCounts(page);
+    return counts.skuCount > 0 && counts.serviceCount > 0 && counts.observationCount > 0;
+  }, { message: 'explicit demo fixture should populate catalog and observations' }).toBe(true);
 }
 
 export async function expectEmbeddedBannerControls(page: Page, mode: 'app' | 'demo') {
