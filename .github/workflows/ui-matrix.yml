@@ -16,13 +16,15 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 20
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/kaur-khor-playwright
       KAUR_KHOR_UI_MATRIX_WEB_PORT: "5176"
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           persist-credentials: false
+
+      - name: Set test browser path
+        run: printf 'PLAYWRIGHT_BROWSERS_PATH=%s/kaur-khor-playwright\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a
