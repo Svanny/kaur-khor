@@ -55,3 +55,10 @@ Dependency audit gate includes:
 - `pnpm audit --audit-level=moderate`
 - an offline warning fallback for local machines without registry access
 - strict offline failure when `KAUR_KHOR_REQUIRE_NETWORK_AUDIT=1` is set
+
+The `release` workflow runs this gate and all five platform packaging jobs on
+pull requests targeting `main`, as well as on the existing main and tag pushes.
+Pull requests do not publish release artifacts; publication remains tag-only.
+Review dependency repairs against the audit and packaging results for the PR's
+current commit before merging. Keep unresolved upstream advisories visible and
+do not raise the audit threshold or add ignore rules to make a repair pass.
