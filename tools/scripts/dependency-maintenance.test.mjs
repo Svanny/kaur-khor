@@ -30,6 +30,17 @@ function containsSecret(value) {
 }
 
 describe('maintenance workflow security boundaries', () => {
+  test('the complete UI matrix runs on PRs/main with read-only access and no secrets', () => {
+    const ui = load(readFileSync(resolve('.github/workflows/ui-matrix.yml'), 'utf8'));
+    expect(ui.on.pull_request.branches).toContain('main');
+    expect(ui.on.push.branches).toContain('main');
+    expect(ui.permissions).toEqual({ contents: 'read' });
+    expect(containsSecret(ui)).toBe(false);
+    const job = ui.jobs['ui-matrix'];
+    expect(job.steps.some((step) => step.run === 'pnpm ui:matrix')).toBe(true);
+    expect(job.steps.find((step) => step.name === 'Checkout').with['persist-credentials']).toBe(false);
+  });
+
   test.each(['mac', 'win', 'linux'])('pull request packaging on %s is read-only and receives no signing secrets', (platform) => {
     expect(workflow.on.pull_request.branches).toContain('main');
     for (const job of Object.values(workflow.jobs)) {

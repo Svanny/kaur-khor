@@ -14,7 +14,7 @@ if (process.argv[2] === '--baseline-root' && process.argv[3]) roots.unshift(reso
 const config = join(scratch, 'openssl.cnf');
 fs.writeFileSync(config, '[req]\ndistinguished_name=dn\nx509_extensions=ext\nprompt=no\n[dn]\nCN=localhost\n[ext]\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n');
 const certificate = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-config', config, '-keyout', join(scratch, 'fixture-key.pem'), '-out', join(scratch, 'fixture-cert.pem')], {encoding:'utf8'});
-assert.equal(certificate.status, 0, 'OpenSSL fixture generation failed: ' + certificate.stderr);
+assert.equal(certificate.status, 0, 'OpenSSL must be installed on PATH for proxy/TLS tests (including Windows). Fixture generation failed: ' + (certificate.stderr || certificate.error?.message));
 
 const key = fs.readFileSync(scratch + '/fixture-key.pem');
 const cert = fs.readFileSync(scratch + '/fixture-cert.pem');

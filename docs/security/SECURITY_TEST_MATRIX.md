@@ -67,3 +67,11 @@ installed Electron proxy bootstrap are checked by
 Review dependency repairs against the audit and packaging results for the PR's
 current commit before merging. Keep unresolved upstream advisories visible and
 do not raise the audit threshold or add ignore rules to make a repair pass.
+
+The `ui-matrix` workflow also runs on PRs to `main` and main pushes. It uses a
+read-only token and no signing secrets, runs the complete desktop/browser/mobile
+matrix on macOS, and saves diagnostic screenshots for seven days. Populated
+browser scenarios explicitly import synthetic backup fixtures; normal startup,
+reset, and fresh scenarios must remain blank. Chart checks retain geometry,
+internal-scroll, offscreen-flag, and unclipped-control assertions and verify that
+the complete control row can scroll into view.

@@ -6,13 +6,18 @@ Developer docs entrypoint: [Kaur Khor developer docs](../README.md)
 
 The audit of main commit `eb70572333204b28468c7e00ba22e216a2050027` reported
 127 findings: 2 critical, 61 high, 53 moderate, and 11 low. The repaired lockfile
-reports 2 findings: 1 high and 1 low. The moderate audit threshold and strict
-network requirement remain unchanged.
+reports 1 low finding and no critical, high, or moderate findings. The unchanged
+moderate audit threshold passes; the strict network requirement remains enabled.
 
 - `tar` moves from 7.5.13 to 7.5.22 through Electron Builder 26.17.0, clearing
   [GHSA-23hp-3jrh-7fpw](https://github.com/advisories/GHSA-23hp-3jrh-7fpw).
-- `proxy-addr` moves from 2.0.7 to 2.0.8, clearing
-  [GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h).
+- The vulnerable `proxy-addr` path is removed with the unused installed shadcn
+  CLI, clearing [GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h).
+  The only application import was its Tailwind stylesheet. That exact 3.8.5
+  stylesheet and full MIT notice are retained in `globals.css`; compiled CSS is
+  identical after removing comments, and the notice survives compilation.
+  Existing component source stays local. The supported on-demand CLI remains
+  available with a root TypeScript discovery shim and a verified dry-run command.
 - Electron moves from 39.8.9 to 41.10.7, clearing the current runtime advisory
   ranges and replacing the vulnerable extractor with Electron's supported
   [internal extractor](https://github.com/electron/extract-zip/blob/main/SECURITY.md).
@@ -37,38 +42,41 @@ presence in the lockfile does not establish exploitation of the packaged app.
 
 | Package and path | Finding | Constraint |
 | --- | --- | --- |
-| `shadcn > fast-glob > micromatch > braces@3.0.3` | [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), high, recursive pattern parsing DoS | No patched official release is published. The maintainer [disputes the advisory](https://github.com/micromatch/braces/issues/73). The strict audit still fails. Removing shadcn would also remove the stylesheet imported by the renderer. |
 | `markmap-cli > markmap-lib > katex@0.16.45` | [GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7), low, existing prototype pollution can bypass trust restrictions | Fixed in 0.18.2+. The current Markmap dependency range stays on 0.16; update its supported integration in a separate docs-tooling change. This finding is below the existing moderate gate threshold. |
 
-Do not merge a dependency repair while the security gate fails. Prefer an
-official upstream fix or a supported consumer migration, preserving shadcn's
-styling and component tooling. Do not hide the finding with ignore rules,
-fabricated package versions, or a higher audit threshold.
+The old `shadcn > fast-glob > micromatch > braces@3.0.3` finding is absent from the
+application/build dependency graph after removing the unnecessary installed CLI.
+The optional CLI still has the upstream [disputed, unpatched advisory](https://github.com/micromatch/braces/issues/73);
+on-demand invocation does not patch it. No ignore rules, fabricated versions, or
+threshold changes are used.
 
-## Runtime verification limits
+## Runtime verification
 
-The local UI matrix reports 5 passed and 6 failed. Fresh desktop onboarding,
-catalog/stock/ticket persistence across reload/relaunch, required phone viewport
-sizes, and both browser scenarios pass. Three generated desktop cases expect a
-CSS maximum height and hidden overflow, while main defines a minimum height and
-visible overflow; the same chart assertion fails on baseline main. Electron
-39.8.9 and 41.10.7 render identical SKU, service, and Explain timeline chart
-heights and control positions in the isolated comparison.
+The local complete UI matrix passes all 11 desktop, browser, and mobile cases.
+The initial six failures reproduced on main and came from stale expectations:
+chart tests expected a maximum height/hidden overflow despite the existing
+minimum-height contract, and mobile tests expected seeded products or queue
+controls in intentionally blank workspaces.
 
-The three mobile failure paths also reproduce on baseline main with its original
-dependency installation (using a bounded 45-second test timeout): the tests
-expect seeded demo products or queue/search controls in an empty workspace.
-Preserve the intended blank-workspace behavior and repair the matrix fixtures
-and expectations in a separate focused maintenance change. The complete UI
-matrix is still red and must not be reported as passing.
+Populated scenarios now explicitly import synthetic fixtures through the public
+backup UI. Fresh/reset scenarios assert zero counts and correct creation links.
+The chart tests retain rendered geometry, internal-scroll, offscreen-flag, and
+unclipped-control checks; additional checks prove the complete control row can
+scroll into view and capture it. No application behavior was changed to make
+these assertions pass. The PR UI workflow reruns the full matrix and saves its
+screenshots so drift is caught before merge.
+
+The proxy/TLS test requires OpenSSL on PATH, including native Windows test runs;
+Windows packaging results alone do not establish that unit-test prerequisite.
+It generates temporary certificates and keeps TLS verification enabled.
 
 ## Bounded upkeep
 
 For the next four weeks, reuse the existing daily inspection and batch compatible
 dependency edits into a weekly maintenance pass: inspect current main,
 open PRs, and exact-commit CI; run the network-required audit; and update only
-affected dependency paths in one draft PR. Recheck the braces release/advisory
-status each pass and report a continuing upstream block without duplicating PRs.
+affected dependency paths in one draft PR. Review the remaining Markmap/KaTeX integration and optional CLI advisory status
+each pass, without duplicating PRs.
 
 Before a merge decision, require the security gate, TypeScript checks, desktop
 and web builds, all five packaging jobs, and the unit/UI matrix coverage relevant
