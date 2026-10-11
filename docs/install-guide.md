@@ -82,7 +82,7 @@ custom location.
 
 After a source build, the script opens the nested runnable-app folder under the versioned folder's `release/` directory when the platform emits one, such as `kaur-khor/kaur-khor-v0.5.2-source-build/release/mac-arm64` on Apple Silicon Macs.
 
-To choose a native build explicitly, pass a platform flag such as `./tools/scripts/build-from-source.sh --platform=linux-x64`. If a requested Node version or rustup target does not have a pinned digest in the source-build scripts, install that toolchain yourself from the official vendor instructions, then rerun the build instead of bypassing verification.
+To choose a native build explicitly, pass a platform flag such as `./tools/scripts/build-from-source.sh --platform=linux-x64`. Source builds require Node.js 22.12.0 or newer. If an older Node is installed, upgrade it before rerunning; the wrappers leave it in place. If a requested Node version or rustup target does not have a pinned digest in the source-build scripts, install that toolchain yourself from the official vendor instructions, then rerun the build instead of bypassing verification.
 
 ## Windows
 

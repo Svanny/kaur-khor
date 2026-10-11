@@ -189,6 +189,30 @@ function tarHeader(name: string, size: number) {
 }
 
 describe('build-from-source script', () => {
+  test.each(['22.12.0', '22.21.1', '24.0.0', '25.4.0'])('accepts supported Node.js %s for both source-build wrappers', async (version) => {
+    const { assertSupportedNodeVersion } = await import(pathToFileURL(scriptPath).href);
+    expect(() => assertSupportedNodeVersion(version)).not.toThrow();
+  });
+
+  test.each(['20.19.0', '22.11.9', 'invalid'])('rejects unsupported Node.js %s before source-build work', async (version) => {
+    const { assertSupportedNodeVersion } = await import(pathToFileURL(scriptPath).href);
+    expect(() => assertSupportedNodeVersion(version)).toThrow('require Node.js 22.12.0 or newer');
+  });
+
+  test('both wrappers delegate to an entry point that rejects old Node before build work', () => {
+    const root = mkdtempSync(join(tmpdir(), 'kaur-khor-node-version-test-'));
+    const preload = join(root, 'old-node.cjs');
+    writeFileSync(preload, "Object.defineProperty(process.versions, 'node', { value: '20.19.0' });\n");
+    try {
+      const result = spawnSync(process.execPath, ['--require', preload, scriptPath, '--resolve-only'], { encoding: 'utf8' });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('require Node.js 22.12.0 or newer; found 20.19.0');
+      expect(result.stdout).not.toContain('platform=');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('prints help without starting dependency installation', () => {
     const result = runScript(['--help']);
 

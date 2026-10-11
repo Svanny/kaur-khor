@@ -9,6 +9,7 @@ import {
   exportEmbeddedBackup,
   exportEmbeddedBackupPath,
   importEmbeddedBackup,
+  importSeededDemoWorkspace,
   openEmbeddedRoute,
   prepareWebPage,
   resetEmbeddedWorkspaceThroughUi,
@@ -130,6 +131,9 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
     expect(await phoneBackup.path(), 'phone portrait backup export should produce a local test artifact').not.toBeNull();
     await assertEmbeddedUiStable(page, 'phone portrait workspace safety');
     await captureUi(page, testInfo, 'mobile-phone-portrait-more-safety');
+
+    expect(await browserWorkspaceCounts(page)).toMatchObject({ observationCount: 0, serviceCount: 0, skuCount: 0 });
+    await importSeededDemoWorkspace(page, testInfo);
 
     await phoneNav.getByRole('link', { name: 'Products' }).click();
     await expect(page.locator('[data-slot="phone-products-page"]')).toBeVisible();
@@ -256,8 +260,12 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
       window.location.hash = '#/work/queue';
     });
     await page.waitForFunction(() => window.location.hash === '#/work/queue');
-    await expect(page.getByRole('heading', { name: 'Task queue' })).toBeVisible();
-    await expect(page.getByRole('searchbox', { name: 'Search queue' })).toBeVisible();
+    await expect(page.getByText('Work needs products first', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Create first SKU' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Create first service' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Task queue' })).toHaveCount(0);
+    await expect(page.getByRole('searchbox', { name: 'Search queue' })).toHaveCount(0);
+    expect(await browserWorkspaceCounts(page)).toEqual(emptyCounts);
     await assertEmbeddedUiStable(page, 'fresh tablet landscape work queue');
     await captureUi(page, testInfo, 'mobile-fresh-landscape-empty-work');
     prepared.issues.assertNoIssues('mobile fresh matrix');
@@ -277,6 +285,8 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
     await resetEmbeddedWorkspaceThroughUi(page, 'demo');
     await expectEmbeddedBannerControls(page, 'demo');
     await completeEmbeddedOnboardingIfPresent(page);
+    expect(await browserWorkspaceCounts(page)).toMatchObject({ observationCount: 0, serviceCount: 0, skuCount: 0 });
+    await importSeededDemoWorkspace(page, testInfo);
     await openEmbeddedRoute(page, 'demo', '/catalog');
     await expect(page.getByRole('searchbox', { name: 'Search products' })).toBeVisible();
     await page.getByRole('searchbox', { name: 'Search products' }).fill('ក្រមា');

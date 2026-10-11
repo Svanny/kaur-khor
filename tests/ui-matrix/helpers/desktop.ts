@@ -178,19 +178,46 @@ export async function firstActiveCatalogTargets(page: Page) {
 export async function resizeDesktopWindow(
   launched: LaunchedUiMatrixDesktop,
   size: { height: number; width: number },
+  coordinateSpace: 'outer' | 'content' = 'outer',
 ) {
-  const window = await launched.app.browserWindow(launched.page);
-  await window.evaluate((browserWindow, nextSize) => {
-    browserWindow.setSize(nextSize.width, nextSize.height);
-  }, size);
-  await launched.page.waitForFunction(
-    (nextSize) => window.innerWidth <= nextSize.width && window.innerHeight <= nextSize.height,
-    size,
-  );
-  const viewport = await launched.page.evaluate(() => ({
-    height: window.innerHeight,
-    width: window.innerWidth,
+  const nativeWindow = await launched.app.browserWindow(launched.page);
+  await nativeWindow.evaluate((browserWindow, { nextSize, coordinateSpace }) => {
+    if (coordinateSpace === 'content') {
+      browserWindow.setContentSize(nextSize.width, nextSize.height);
+    } else {
+      browserWindow.setSize(nextSize.width, nextSize.height);
+    }
+  }, { nextSize: size, coordinateSpace });
+  await expect.poll(
+    () => nativeWindow.evaluate((browserWindow, space) => (
+      space === 'content' ? browserWindow.getContentSize() : browserWindow.getSize()
+    ), coordinateSpace),
+    { message: `native ${coordinateSpace} window should resize to ${size.width}x${size.height}` },
+  ).toEqual([size.width, size.height]);
+
+  // Native content dimensions are DIPs; renderer dimensions are CSS pixels.
+  // Chromium rounds innerWidth/innerHeight after applying the managed zoom.
+  await expect.poll(async () => {
+    const { contentSize, viewport, zoomFactor } = await desktopWindowGeometry(launched);
+    return Math.max(
+      Math.abs(viewport.width - contentSize[0] / zoomFactor),
+      Math.abs(viewport.height - contentSize[1] / zoomFactor),
+    );
+  }, { message: 'renderer viewport should match native content size divided by zoom' }).toBeLessThanOrEqual(1);
+  console.log('[ui-matrix:window]', JSON.stringify(await desktopWindowGeometry(launched)));
+}
+
+export async function desktopWindowGeometry(launched: LaunchedUiMatrixDesktop) {
+  const nativeWindow = await launched.app.browserWindow(launched.page);
+  const native = await nativeWindow.evaluate((browserWindow) => ({
+    outerSize: browserWindow.getSize(),
+    contentSize: browserWindow.getContentSize(),
+    zoomFactor: browserWindow.webContents.getZoomFactor(),
+    zoomLevel: browserWindow.webContents.getZoomLevel(),
   }));
-  expect(viewport.width, 'desktop viewport should reflect resized Electron window width').toBeGreaterThan(0);
-  expect(viewport.height, 'desktop viewport should reflect resized Electron window height').toBeGreaterThan(0);
+  const renderer = await launched.page.evaluate(() => ({
+    viewport: { height: window.innerHeight, width: window.innerWidth },
+    rootRem: Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize),
+  }));
+  return { ...native, ...renderer };
 }
