@@ -6,6 +6,7 @@ type TicketExpectation = {
   eventType?: string;
   family?: string;
   minQuantityDelta?: number;
+  quantityDelta?: number;
   stage?: string;
 };
 
@@ -272,6 +273,7 @@ export async function latestTicketIdForEntity(page: Page, options: {
 
 export async function saveCustomerTicketRevisionThroughUi(page: Page, options: {
   expectedArrivalDate?: string;
+  previousQuantity: string;
   quantity?: string;
   targetId: string;
   targetName: string;
@@ -282,7 +284,7 @@ export async function saveCustomerTicketRevisionThroughUi(page: Page, options: {
     page,
     `/work/capture/customer-order?ticketMode=edit&ticketId=${encodeURIComponent(options.ticketId)}&targetAction=customer-order&targetType=${options.targetType}&targetId=${encodeURIComponent(options.targetId)}`,
   );
-  await addPosLineThroughUi(page, options.targetName, options.quantity ?? '3');
+  await editPosLineThroughUi(page, options.targetName, options.previousQuantity, options.quantity ?? '3');
   await fillPosExpectedArrivalDate(page, options.expectedArrivalDate ?? defaultFutureDateInput(14));
   await confirmPosMutationThroughUi(page);
   await navigateHashRoute(page, options.targetType === 'service' ? `/catalog/services/${options.targetId}` : `/catalog/skus/${options.targetId}`);
@@ -317,6 +319,7 @@ export async function fulfillCustomerTicketThroughUi(page: Page, options: {
 
 export async function saveSupplierTicketRevisionThroughUi(page: Page, options: {
   expectedArrivalDate?: string;
+  previousQuantity: string;
   quantity?: string;
   skuId: string;
   skuName: string;
@@ -326,7 +329,7 @@ export async function saveSupplierTicketRevisionThroughUi(page: Page, options: {
     page,
     `/work/capture/supplier-order?ticketMode=edit&ticketId=${encodeURIComponent(options.ticketId)}&targetAction=supplier-order&targetType=sku&targetId=${encodeURIComponent(options.skuId)}`,
   );
-  await addPosLineThroughUi(page, options.skuName, options.quantity ?? '7');
+  await editPosLineThroughUi(page, options.skuName, options.previousQuantity, options.quantity ?? '7');
   await fillPosExpectedArrivalDate(page, options.expectedArrivalDate ?? defaultFutureDateInput(21));
   await confirmPosMutationThroughUi(page);
   await navigateHashRoute(page, `/catalog/skus/${options.skuId}`);
@@ -376,7 +379,8 @@ export async function assertDesktopBridgeConsistent(page: Page, options: {
       ? ticketEvents.find((event) => {
           const hasLine = !expectedTicket.entityId || event.lines.some((line) =>
             line.entityId === expectedTicket.entityId &&
-            (expectedTicket.minQuantityDelta == null || Math.abs(line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? 0) >= expectedTicket.minQuantityDelta)
+            (expectedTicket.minQuantityDelta == null || Math.abs(line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? 0) >= expectedTicket.minQuantityDelta) &&
+            (expectedTicket.quantityDelta == null || line.quantityDelta === expectedTicket.quantityDelta)
           );
           return hasLine &&
             (!expectedTicket.eventType || event.eventType === expectedTicket.eventType) &&
@@ -431,6 +435,23 @@ async function addPosLineThroughUi(page: Page, targetName: string, quantity: str
   await dialog.getByRole('button', { name: /Add line|Update line/ }).click();
   await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
   await expect(page.getByText(targetName, { exact: false }).first()).toBeVisible();
+}
+
+async function editPosLineThroughUi(page: Page, targetName: string, previousQuantity: string, quantity: string) {
+  // Receipt lines appear after ticket hydration; the matching workbench tile can appear earlier.
+  const receiptLine = page.getByRole('button', { name: `Edit ${targetName} receipt line`, exact: true });
+  await expect(receiptLine).toBeVisible();
+  await expect(receiptLine.getByText(previousQuantity, { exact: true })).toBeVisible();
+  await receiptLine.click();
+
+  const dialog = page.getByRole('dialog', { name: targetName, exact: true });
+  await expect(dialog).toBeVisible();
+  const quantityInput = dialog.getByLabel(`Quantity for ${targetName}`, { exact: true });
+  await expect(quantityInput).toHaveValue(previousQuantity);
+  await quantityInput.fill(quantity);
+  await dialog.getByRole('button', { name: 'Update line', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(receiptLine.getByText(quantity, { exact: true })).toBeVisible();
 }
 
 async function confirmPosMutationThroughUi(page: Page) {
