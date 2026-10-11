@@ -28,7 +28,7 @@ import {
   releaseVersionFromSourceRoot,
 } from './update-support.mjs';
 
-const PNPM_VERSION = '10.32.1';
+const PNPM_VERSION = '10.34.5';
 const RUSTUP_VERSION = '1.28.2';
 const MINIMUM_CARGO_VERSION = '1.85.0';
 const DEFAULT_REPO = 'https://github.com/Svanny/kaur-khor.git';
@@ -756,28 +756,35 @@ function installLinuxBuildToolsIfPossible() {
 }
 
 function ensurePnpm() {
-  const pnpm = findCommand('pnpm');
-  if (pnpm) {
-    return { command: pnpm, prefix: [] };
-  }
-
   const corepack = findCommand('corepack');
   if (corepack) {
-    run(corepack, ['enable']);
-    run(corepack, ['prepare', `pnpm@${PNPM_VERSION}`, '--activate']);
-    const preparedPnpm = findCommand('pnpm');
-    if (preparedPnpm) {
-      return { command: preparedPnpm, prefix: [] };
-    }
-    return { command: corepack, prefix: ['pnpm'] };
+    return {
+      command: corepack,
+      prefix: [`pnpm@${PNPM_VERSION}`],
+      env: { COREPACK_DEFAULT_TO_LATEST: '0' },
+    };
   }
 
   const npm = findCommand('npm');
   if (npm) {
-    return { command: npm, prefix: ['exec', '--yes', `pnpm@${PNPM_VERSION}`, '--'] };
+    return { command: npm, prefix: ['exec', '--yes', `--package=pnpm@${PNPM_VERSION}`, '--', 'pnpm'] };
   }
 
-  fail('Could not bootstrap pnpm because pnpm, Corepack, and npm are all missing from PATH.');
+  const pnpm = findCommand('pnpm');
+  if (pnpm) {
+    const useCommandShell = process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(pnpm);
+    const result = spawnSync(useCommandShell ? process.env.ComSpec || 'cmd.exe' : pnpm,
+      useCommandShell ? ['/d', '/s', '/c', commandLine(pnpm, ['--version'])] : ['--version'], {
+        cwd: tmpdir(),
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+    if (result.status === 0 && result.stdout.trim() === PNPM_VERSION) {
+      return { command: pnpm, prefix: [] };
+    }
+  }
+
+  fail(`Source builds require Corepack, npm, or pnpm ${PNPM_VERSION} on PATH. Your global package manager has not been changed.`);
 }
 
 export async function ensureCargo(target) {
@@ -886,7 +893,7 @@ export function verifySha256Buffer(buffer, expected, label) {
 function runPnpm(pnpm, args, cwd, extraEnv = {}) {
   run(pnpm.command, [...pnpm.prefix, ...args], {
     cwd,
-    env: extraEnv,
+    env: { ...pnpm.env, ...extraEnv },
   });
 }
 

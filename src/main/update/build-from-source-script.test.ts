@@ -101,9 +101,11 @@ printf '%s  %s\\n' "$KAUR_KHOR_FAKE_SHA256" "$3"
 
 function createSourceBuildToolchainFixture({
   cargoVersion,
+  pnpmVersion = '10.34.5',
   rustupExitCode = 0,
 }: {
   cargoVersion: string;
+  pnpmVersion?: string;
   rustupExitCode?: number;
 }) {
   const root = mkdtempSync(join(tmpdir(), 'kaur-khor-build-source-toolchain-test-'));
@@ -118,6 +120,10 @@ function createSourceBuildToolchainFixture({
 printf 'cargo ${cargoVersion} (fixture)\\n'
 `);
   writeExecutable(join(fakeBin, 'pnpm'), `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf '${pnpmVersion}\\n'
+  exit 0
+fi
 printf '%s\\n' "$*" >> "$KAUR_KHOR_PNPM_MARKER"
 `);
   writeExecutable(join(fakeBin, 'rustup'), `#!/bin/sh
@@ -147,7 +153,7 @@ exit 0
     env: {
       ...process.env,
       HOME: root,
-      PATH: `${fakeBin}:/bin:/usr/bin`,
+      PATH: fakeBin,
       KAUR_KHOR_SKIP_RUST_TESTS: '1',
       KAUR_KHOR_PNPM_MARKER: pnpmMarker,
       KAUR_KHOR_RUSTUP_MARKER: rustupMarker,
@@ -189,6 +195,51 @@ function tarHeader(name: string, size: number) {
 }
 
 describe('build-from-source script', () => {
+  test.each([
+    ['corepack', 'pnpm@10.34.5'],
+    ['npm', 'exec --yes --package=pnpm@10.34.5 -- pnpm'],
+  ])('source builds bypass an old installed pnpm through pinned %s without global activation', (tool, prefix) => {
+    const expected = expectedNativeTarget();
+    if (!expected || process.platform === 'win32') return;
+    const fixture = createSourceBuildToolchainFixture({ cargoVersion: '1.85.0', pnpmVersion: '10.32.1' });
+    const marker = join(fixture.root, 'pinned-tool-called');
+    writeExecutable(join(fixture.root, 'bin', tool), `#!/bin/sh
+printf '%s\\n' "$*" >> "$KAUR_KHOR_PINNED_TOOL_MARKER"
+printf '%s\\n' "$COREPACK_DEFAULT_TO_LATEST" > "$KAUR_KHOR_PINNED_TOOL_MARKER-env"
+`);
+    try {
+      const result = runScript([`--platform=${expected.id}`], {
+        ...fixture.env,
+        KAUR_KHOR_PINNED_TOOL_MARKER: marker,
+      });
+      expect(result.status).toBe(0);
+      expect(existsSync(fixture.pnpmMarker)).toBe(false);
+      const calls = readFileSync(marker, 'utf8').trim().split('\n');
+      expect(calls).toHaveLength(2);
+      expect(calls[0]).toBe(`${prefix} install --frozen-lockfile`);
+      expect(calls[1].startsWith(`${prefix} `)).toBe(true);
+      expect(calls.join('\n')).not.toMatch(/enable|prepare|--activate|--global/);
+      if (tool === 'corepack') expect(readFileSync(`${marker}-env`, 'utf8').trim()).toBe('0');
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  test('source builds reject an old standalone pnpm before installing dependencies', () => {
+    const expected = expectedNativeTarget();
+    if (!expected || process.platform === 'win32') return;
+    const fixture = createSourceBuildToolchainFixture({ cargoVersion: '1.85.0', pnpmVersion: '10.32.1' });
+    try {
+      const result = runScript([`--platform=${expected.id}`], fixture.env);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('require Corepack, npm, or pnpm 10.34.5 on PATH');
+      expect(result.stderr).toContain('global package manager has not been changed');
+      expect(existsSync(fixture.pnpmMarker)).toBe(false);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+
   test.each(['22.12.0', '22.21.1', '24.0.0', '25.4.0'])('accepts supported Node.js %s for both source-build wrappers', async (version) => {
     const { assertSupportedNodeVersion } = await import(pathToFileURL(scriptPath).href);
     expect(() => assertSupportedNodeVersion(version)).not.toThrow();

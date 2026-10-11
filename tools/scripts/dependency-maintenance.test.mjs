@@ -30,6 +30,21 @@ function containsSecret(value) {
 }
 
 describe('maintenance workflow security boundaries', () => {
+  test('all CI jobs select the repository pin through the patched setup bootstrap', () => {
+    const manifest = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
+    expect(manifest.packageManager).toBe('pnpm@10.34.5');
+    for (const path of ['release.yml', 'pages.yml', 'ui-matrix.yml']) {
+      const config = load(readFileSync(resolve('.github/workflows', path), 'utf8'));
+      for (const job of Object.values(config.jobs)) {
+        const setup = job.steps.filter((step) => step.uses?.startsWith('pnpm/action-setup@'));
+        for (const step of setup) {
+          expect(step.uses).toBe('pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86');
+          expect(step.with.version).toBe(manifest.packageManager.slice('pnpm@'.length));
+        }
+      }
+    }
+  });
+
   test('the complete UI matrix runs on PRs/main with read-only access and no secrets', () => {
     const ui = load(readFileSync(resolve('.github/workflows/ui-matrix.yml'), 'utf8'));
     expect(ui.on.pull_request.branches).toContain('main');

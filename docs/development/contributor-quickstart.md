@@ -11,7 +11,7 @@ Kaur Khor is a desktop-first Electron app for local inventory work. The primary 
 Install:
 
 - Node.js 22.12.0+ (CI uses Node.js 24)
-- `pnpm`
+- `pnpm` 10.34.5 (the exact version pinned in `package.json`)
 - Rust toolchain
 - OpenSSL on `PATH` for the proxy/TLS compatibility case in `pnpm test`, including
   native Windows test runs. Packaging success alone does not verify Windows unit

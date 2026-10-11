@@ -169,7 +169,7 @@ Kaur Khor does not require disabling Linux security features globally. Most inst
 ### Prerequisites
 
 - Node.js 22.12.0+ (CI uses Node.js 24)
-- `pnpm`
+- `pnpm` 10.34.5 (the exact version pinned in `package.json`)
 - Rust toolchain
 
 Install Node.js 22.12.0+ from [nodejs.org](https://nodejs.org/).
