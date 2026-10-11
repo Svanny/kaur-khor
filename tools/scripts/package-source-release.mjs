@@ -56,6 +56,7 @@ const includeFiles = new Set([
   'LICENSE',
   'package.json',
   'pnpm-lock.yaml',
+  'tsconfig.json',
   'tools/scripts/after-pack-win-unsigned-icon.mjs',
   'tools/scripts/build-from-source.mjs',
   'tools/scripts/build-from-source.ps1',

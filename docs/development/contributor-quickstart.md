@@ -13,6 +13,10 @@ Install:
 - Node.js 22.12.0+ (CI uses Node.js 24)
 - `pnpm`
 - Rust toolchain
+- OpenSSL on `PATH` for the proxy/TLS compatibility case in `pnpm test`, including
+  native Windows test runs. Packaging success alone does not verify Windows unit
+  test prerequisites. The test generates temporary certificates and keeps TLS
+  certificate verification enabled.
 
 Main commands:
 
@@ -28,6 +32,21 @@ cargo test --manifest-path apps/sena-core/Cargo.toml
 
 `pnpm dev` preserves the current local workspace. Use `pnpm dev:seed` when you
 want the development shell to seed generated demo data on startup.
+
+The UI primitives live in this repository. The app retains shadcn 3.8.5's
+Tailwind utilities and full MIT notice in `src/renderer/src/globals.css`;
+building/running the app does not install the shadcn CLI. Use the supported
+[on-demand CLI](https://ui.shadcn.com/docs/cli) when editing components:
+
+```bash
+pnpm dlx shadcn@latest info --json
+pnpm dlx shadcn@latest add button --dry-run
+```
+
+The root `tsconfig.json` is a discovery shim for that CLI; the actual compiler
+configuration remains under `config`. Review generated changes before applying
+them and preserve the local stylesheet and license notice. The CLI still has
+upstream advisories; fetching it on demand does not resolve those advisories.
 
 Packaging commands:
 
