@@ -141,3 +141,6 @@ Playwright captures, source-build folders, and temporary design/debug files
 belong outside git. The tracked `.codex`, `.opencode`, and `.claude` folders
 are intentional repo-local agent/tooling configuration; generated caches inside
 those tools should stay ignored.
+
+Serena is not part of this project's tooling. Do not activate it for this
+repository or recreate its `.serena/` project configuration, memories, or caches.
