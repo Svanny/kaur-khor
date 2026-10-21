@@ -59,6 +59,32 @@ step is used; `COREPACK_DEFAULT_TO_LATEST=0` also prevents updating its global
 known-good default. The application lockfile remains byte-for-byte unchanged and all
 installations use `--frozen-lockfile`.
 
+## Markdown parser repair
+
+The October 21 follow-up moves the `markdown-it` override from 14.3.2 to 14.3.3
+and regenerates the lockfile with pnpm 10.34.5. This patch clears
+[GHSA-gfr2-rv44-r23c](https://github.com/advisories/GHSA-gfr2-rv44-r23c) (high,
+quadratic parsing of unclosed reference definitions) and
+[GHSA-vfgh-jcmw-g37q](https://github.com/advisories/GHSA-vfgh-jcmw-g37q) (low,
+quadratic parsing of unterminated inline HTML with HTML enabled).
+
+The installed path is `markmap-cli > markmap-lib > markdown-it`, used to generate
+developer documentation. Markmap 0.18.12 accepts `^14.1.0`, so the patch stays
+within its supported range. No application imports of this parser were found;
+these findings do not establish an exploit impact on the packaged app.
+
+`tools/scripts/markdown-it-maintenance.test.mjs` exercises Markmap's resolved
+parser with ordinary reference links and inline HTML, unclosed reference labels
+and titles, and all four affected inline HTML constructs. Pathological inputs
+run in child processes with a ten-second deadline so a vulnerable parser cannot
+block the test runner. The reference-title and inline-comment cases time out on
+14.3.2; all seven tests pass on 14.3.3. The completed network audit now reports
+only the unchanged low KaTeX finding, and the existing moderate threshold passes.
+Reproduce the coverage with `pnpm test -- tools/scripts/markdown-it-maintenance.test.mjs`.
+Also smoke-test the real documentation source with
+`pnpm exec markmap docs/development/user-decision-tree.markmap.md --offline --no-open -o out/markmap-maintenance-smoke.html`
+after building, keeping the tracked generated HTML untouched.
+
 ## Remaining findings
 
 | Package and path | Finding | Constraint |
