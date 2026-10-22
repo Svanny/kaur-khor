@@ -55,3 +55,4 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Telegram automation loop tests must await `stopAndDrain()` so pending async fetches cannot leak into later tests or release security gates.
 - Repo cleanup must separate reproducible local artifacts from intentional tracked assets before deleting files or broadening ignore rules.
 - Keep root cleanup aggressive but explicit: root stays for discovery anchors and required tool stubs such as Vite's web `index.html`; configs live in `config`, scripts/tools in `tools`, and Playwright benchmark/UI/e2e workspaces in `tests`.
+- Assess dependency security upgrades through affected APIs and startup, IPC, persistence, and packaging tests; a major version number alone does not establish incompatibility or require approval.

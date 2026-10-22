@@ -97,16 +97,50 @@ no public `mockerPlugin` or `interceptorPlugin` integration was found. Existing
 mock-heavy tests and the full unit suite verify compatibility without adding
 these unused development-server plugins to the application.
 
-The current audit also reports a new moderate Electron finding described below.
+The October 22 audit initially also reported a new moderate Electron finding.
 The October 21 passing security-gate result predates that advisory's publication
-to the npm audit service; it does not establish that today's audit passes.
-The moderate audit threshold and required network check remain unchanged.
+to the npm audit service. The runtime follow-up below addresses it separately
+from the test-tooling patch; audit thresholds and network requirements stay intact.
+
+## Electron permission-origin repair
+
+The runtime follow-up moves Electron 41.10.7 to 43.8.3 to clear
+[GHSA-fw47-9c62-h3vw](https://github.com/advisories/GHSA-fw47-9c62-h3vw). The fix
+starts at 42.11.3 (and 43.7.0 on the 43 line). On October 22, Electron 45 is
+current stable; 43.8.3 is the latest patch on the oldest supported line under its
+[three-major support policy](https://www.electronjs.org/docs/latest/tutorial/electron-timelines#version-support-policy).
+The installer still requires Node.js 22.12.0+. No `setPermissionCheckHandler`,
+HID/USB device-selection handlers, or HID/USB iframe delegation were found in
+the app, so the advisory's stated exploit preconditions were not established.
+
+Compatibility review covered the 42/43 API changes. The app does not use
+offscreen rendering, native bitmap buffers, Linux frameless window controls,
+or the removed Linux hidden-file dialog option. Native benchmark notifications
+are development-only; the newer macOS signing requirement does not add a
+production notification path or require signing/access changes for this repair.
+The existing isolated preload, IPC contracts, storage formats, and application
+code stay unchanged. Native dialogs retain their explicit paths where provided;
+an unspecified initial directory follows Electron's newer Downloads default.
+
+Electron 42+ downloads its binary on first use. The project `postinstall` helper
+explicitly invokes the installed package's supported installer before parallel
+tests, preserving the previous ready-after-install behavior. It retains the
+source-build `ELECTRON_SKIP_BINARY_DOWNLOAD=1` opt-out and propagates installer
+errors, exit codes, and signal failures. Regression coverage exercises those
+lifecycle boundaries without network access. Source packaging continues to
+skip the unnecessary development binary download.
+
+The real Windows 43.8.3 runtime (embedded Node.js 24.22.0) passed an isolated
+startup/IPC smoke: context isolation stayed enabled, renderer Node integration
+stayed disabled, the Rust startup read succeeded, and preference writes survived
+both renderer reload and application restart without renderer exceptions.
+The existing UI matrix supplies ticket/SQLite persistence and resize coverage;
+the five packaging jobs exercise every shipped platform/architecture.
 
 ## Remaining findings
 
 | Package and path | Finding | Constraint |
 | --- | --- | --- |
-| `electron@41.10.7` | [GHSA-fw47-9c62-h3vw](https://github.com/advisories/GHSA-fw47-9c62-h3vw), moderate, HID/USB permission checks can use the wrong frame origin | Fixed versions start at 42.11.3; no 41.x patch is published. No `setPermissionCheckHandler`, device-selection handlers, or HID/USB iframe delegation were found in this app, so the advisory's stated preconditions are not established here. The audit still reports it and blocks the unchanged security gate. Treat the required Electron major upgrade as a separate runtime change with startup, IPC, persistence, and packaging verification. |
 | `markmap-cli > markmap-lib > katex@0.16.45` | [GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7), low, existing prototype pollution can bypass trust restrictions | Fixed in 0.18.2+. The current Markmap dependency range stays on 0.16; update its supported integration in a separate docs-tooling change. This finding is below the existing moderate gate threshold. |
 
 The old `shadcn > fast-glob > micromatch > braces@3.0.3` finding is absent from the
