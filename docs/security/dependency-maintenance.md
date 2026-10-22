@@ -59,6 +59,84 @@ step is used; `COREPACK_DEFAULT_TO_LATEST=0` also prevents updating its global
 known-good default. The application lockfile remains byte-for-byte unchanged and all
 installations use `--frozen-lockfile`.
 
+## Markdown parser repair
+
+The October 21 follow-up moves the `markdown-it` override from 14.3.2 to 14.3.3
+and regenerates the lockfile with pnpm 10.34.5. This patch clears
+[GHSA-gfr2-rv44-r23c](https://github.com/advisories/GHSA-gfr2-rv44-r23c) (high,
+quadratic parsing of unclosed reference definitions) and
+[GHSA-vfgh-jcmw-g37q](https://github.com/advisories/GHSA-vfgh-jcmw-g37q) (low,
+quadratic parsing of unterminated inline HTML with HTML enabled).
+
+The installed path is `markmap-cli > markmap-lib > markdown-it`, used to generate
+developer documentation. Markmap 0.18.12 accepts `^14.1.0`, so the patch stays
+within its supported range. No application imports of this parser were found;
+these findings do not establish an exploit impact on the packaged app.
+
+`tools/scripts/markdown-it-maintenance.test.mjs` exercises Markmap's resolved
+parser with ordinary reference links and inline HTML, unclosed reference labels
+and titles, and all four affected inline HTML constructs. Pathological inputs
+run in child processes with a ten-second deadline so a vulnerable parser cannot
+block the test runner. The reference-title and inline-comment cases time out on
+14.3.2; all seven tests pass on 14.3.3. The completed network audit now reports
+only the unchanged low KaTeX finding, and the existing moderate threshold passes.
+Reproduce the coverage with `pnpm test -- tools/scripts/markdown-it-maintenance.test.mjs`.
+Also smoke-test the real documentation source with
+`pnpm exec markmap docs/development/user-decision-tree.markmap.md --offline --no-open -o out/markmap-maintenance-smoke.html`
+after building, keeping the tracked generated HTML untouched.
+
+## Vitest mocker repair
+
+The October 22 follow-up moves Vitest from 4.1.11 to the compatible 4.1.12 patch,
+including its matching `@vitest/mocker` dependency. This clears
+[GHSA-qxg6-89mg-rqv8](https://github.com/advisories/GHSA-qxg6-89mg-rqv8) (manual
+mock code injection) and
+[GHSA-xp26-3454-mjgp](https://github.com/advisories/GHSA-xp26-3454-mjgp) (Windows
+backslash traversal in redirect mocks). The project uses Node/jsdom Vitest runs;
+no public `mockerPlugin` or `interceptorPlugin` integration was found. Existing
+mock-heavy tests and the full unit suite verify compatibility without adding
+these unused development-server plugins to the application.
+
+The October 22 audit initially also reported a new moderate Electron finding.
+The October 21 passing security-gate result predates that advisory's publication
+to the npm audit service. The runtime follow-up below addresses it separately
+from the test-tooling patch; audit thresholds and network requirements stay intact.
+
+## Electron permission-origin repair
+
+The runtime follow-up moves Electron 41.10.7 to 43.8.3 to clear
+[GHSA-fw47-9c62-h3vw](https://github.com/advisories/GHSA-fw47-9c62-h3vw). The fix
+starts at 42.11.3 (and 43.7.0 on the 43 line). On October 22, Electron 45 is
+current stable; 43.8.3 is the latest patch on the oldest supported line under its
+[three-major support policy](https://www.electronjs.org/docs/latest/tutorial/electron-timelines#version-support-policy).
+The installer still requires Node.js 22.12.0+. No `setPermissionCheckHandler`,
+HID/USB device-selection handlers, or HID/USB iframe delegation were found in
+the app, so the advisory's stated exploit preconditions were not established.
+
+Compatibility review covered the 42/43 API changes. The app does not use
+offscreen rendering, native bitmap buffers, Linux frameless window controls,
+or the removed Linux hidden-file dialog option. Native benchmark notifications
+are development-only; the newer macOS signing requirement does not add a
+production notification path or require signing/access changes for this repair.
+The existing isolated preload, IPC contracts, storage formats, and application
+code stay unchanged. Native dialogs retain their explicit paths where provided;
+an unspecified initial directory follows Electron's newer Downloads default.
+
+Electron 42+ downloads its binary on first use. The project `postinstall` helper
+explicitly invokes the installed package's supported installer before parallel
+tests, preserving the previous ready-after-install behavior. It retains the
+source-build `ELECTRON_SKIP_BINARY_DOWNLOAD=1` opt-out and propagates installer
+errors, exit codes, and signal failures. Regression coverage exercises those
+lifecycle boundaries without network access. Source packaging continues to
+skip the unnecessary development binary download.
+
+The real Windows 43.8.3 runtime (embedded Node.js 24.22.0) passed an isolated
+startup/IPC smoke: context isolation stayed enabled, renderer Node integration
+stayed disabled, the Rust startup read succeeded, and preference writes survived
+both renderer reload and application restart without renderer exceptions.
+The existing UI matrix supplies ticket/SQLite persistence and resize coverage;
+the five packaging jobs exercise every shipped platform/architecture.
+
 ## Remaining findings
 
 | Package and path | Finding | Constraint |
