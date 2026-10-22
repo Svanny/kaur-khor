@@ -21,6 +21,21 @@ export interface UiMatrixCase {
 
 export const UI_MATRIX_CASES: UiMatrixCase[] = [
   {
+    id: 'desktop-fresh-home-first-update',
+    productTarget: 'desktop',
+    dataState: 'fresh',
+    area: 'Home first useful workflow',
+    initialData: 'Isolated empty desktop workspace.',
+    interaction: 'Open and leave stock item creation, create a SKU from Home, restart, save/resume a first-capture draft from Home, save the stock count, and reload.',
+    expectedUi: 'Home offers product creation, then first capture, then daily work as real evidence becomes available.',
+    expectedState: 'Leaving an untouched form creates no data; one SKU and one saved observation survive restart/reload.',
+    consistency: 'Home guidance and counts agree with persisted bridge data.',
+    priority: 'P0',
+    testTypes: ['end-to-end', 'regression', 'stateful', 'visual'],
+    captures: ['home-create-product', 'home-first-update-after-restart', 'home-first-update-saved'],
+    edgeNotes: 'No extra setup preference or completion flag; progress follows the current workspace.',
+  },
+  {
     id: 'desktop-fresh-first-run-empty-routes',
     productTarget: 'desktop',
     dataState: 'fresh',

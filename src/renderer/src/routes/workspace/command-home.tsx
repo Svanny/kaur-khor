@@ -21,7 +21,9 @@ import {
   usePageStateMemoryVersion,
 } from '@/lib/settings/page-state-memory';
 import { deriveNavigationAvailability } from '@/lib/navigation/navigation-availability';
+import { RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/navigation/record-update-routes';
 import { activeSenaCatalog } from '@/lib/catalog/sena-catalog';
+import { deriveAvailableObservationCount } from '@/lib/ui/observation-count';
 import { gridCardSurfaceClassName, type GridCardColorKey } from '@/lib/ui/grid-card-colors';
 import { translateUiLiteral } from '@/lib/localization/translations';
 import { useInventory } from '@/state/inventory';
@@ -58,7 +60,7 @@ function CommandAction({
     </LiquidGridCard>
   );
 
-  return <Link className="flex h-full w-full min-w-0 items-center justify-center focus-visible:outline-none" to={to}>{content}</Link>;
+  return <Link aria-label={label} className="flex h-full w-full min-w-0 items-center justify-center focus-visible:outline-none" to={to}>{content}</Link>;
 }
 
 export function CommandHomeRoute() {
@@ -68,11 +70,10 @@ export function CommandHomeRoute() {
   const catalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const skuCount = catalog?.skus.filter((sku) => !sku.archived).length ?? 0;
   const serviceCount = catalog?.services.filter((service) => !service.archived).length ?? 0;
-  const observationCount = Math.max(
-    inventory.observations?.length ?? 0,
-    inventory.latestRun?.observationCount ?? 0,
-    inventory.workspaceSummary?.intervalCount ?? 0,
-  );
+  const observationCount = deriveAvailableObservationCount(inventory);
+  const navigationAvailability = deriveNavigationAvailability(inventory);
+  const needsProducts = !navigationAvailability.hasWorkCapture;
+  const needsFirstUpdate = !needsProducts && observationCount === 0;
   const overviewModel = buildOverviewModel({
     catalog: inventory.catalog,
     detailBySkuId: {},
@@ -82,23 +83,41 @@ export function CommandHomeRoute() {
     orderBatches: inventory.orderBatches ?? [],
     workspaceSummary: inventory.workspaceSummary,
   });
-  const nextMove = overviewModel.tasks[0]?.actionLabel ?? translateUiLiteral(language, 'Start Work');
-  const navigationAvailability = deriveNavigationAvailability(inventory);
+  const nextMove = translateUiLiteral(language, needsProducts
+    ? 'Create first SKU'
+    : needsFirstUpdate
+      ? 'Capture first update'
+      : overviewModel.tasks[0]?.actionLabel ?? 'Start Work');
+  const descriptor = needsProducts
+    ? 'Start with one stock item, then capture your first update. You can add services once your stock item is saved.'
+    : needsFirstUpdate
+      ? 'Your products are ready. Record stock counts or service availability to start your workspace.'
+      : 'Start with the next operational decision, then move into capture, products, or insight work.';
   const commandActions = [
+    {
+      description: translateUiLiteral(language, 'Define a stock item you buy, count, or sell.'),
+      icon: EntitySkuIcon,
+      isVisible: needsProducts,
+      label: translateUiLiteral(language, 'Create first SKU'),
+      to: '/catalog/skus/new',
+      tone: 'open-insights',
+    },
     {
       description: translateUiLiteral(language, 'Open supplier, customer, and intake work that needs a decision.'),
       icon: NavigationWorkIcon,
-      isVisible: true,
+      isVisible: !needsProducts && !needsFirstUpdate,
       label: translateUiLiteral(language, 'Start Work'),
       to: buildRememberedInboxHref(),
       tone: 'continue-work',
     },
     {
-      description: translateUiLiteral(language, 'Save a stock count, customer order, sale, supplier order, or custom event.'),
+      description: translateUiLiteral(language, needsFirstUpdate
+        ? 'Record stock counts or service availability to give your workspace its first evidence.'
+        : 'Save a stock count, customer order, sale, supplier order, or custom event.'),
       icon: ActionCreatePackageIcon,
       isVisible: navigationAvailability.hasWorkCapture,
-      label: translateUiLiteral(language, 'Capture Update'),
-      to: '/work/capture',
+      label: translateUiLiteral(language, needsFirstUpdate ? 'Capture first update' : 'Capture Update'),
+      to: needsFirstUpdate ? RECORD_UPDATE_STOCK_COUNT_PATH : '/work/capture',
       tone: 'capture-update',
     },
     {
@@ -133,7 +152,8 @@ export function CommandHomeRoute() {
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Home')}
         title={translateUiLiteral(language, 'Command home')}
-        descriptor={translateUiLiteral(language, 'Start with the next operational decision, then move into capture, products, or insight work.')}
+        descriptor={translateUiLiteral(language, descriptor)}
+        helperExemptReason="Home's descriptor explains the current workspace step."
         className="rounded-xl"
       >
         <div className="grid gap-3 sm:grid-cols-3" data-slot="command-home-summary-grid">
