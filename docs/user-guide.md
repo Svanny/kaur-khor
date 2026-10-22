@@ -78,12 +78,14 @@ The command palette can open Home, Work, Products, Insights, History, archived p
 
 Home is the first screen. It is a quiet command surface for choosing the next broad action. It also shows a short status summary: the next move, active products count, and saved updates count.
 
+In an empty workspace, Home offers **Create first SKU** directly. Kaur Khor requires a stock item before the first catalog can be saved; you can add services after that. Once a product exists, **Capture first update** opens Products Update so you can record stock counts or service availability. You can leave and return later: guidance follows the products and saved evidence already on this device, including after a restart. Once the first update is saved, Home shows the daily actions below.
+
 - **Start Work**
 - **Capture Update**
 - **Open Products**
 - **Open Inventory**
 
-The available actions sit in a centered command grid, matching the Capture hub layout. Kaur Khor hides unavailable actions instead of showing disabled cards. For example, Capture and Products only appear when the current workspace state supports them, and Inventory appears when insight views are enabled.
+The available actions sit in a centered command grid, matching the Capture hub layout. Kaur Khor hides unavailable actions instead of showing disabled cards. Products appears when the current workspace supports it, and Inventory appears when enough saved evidence and the interface settings support insights.
 
 Use Home when you are not sure where to begin. It points you toward the next practical operator action without exposing backend or analysis jargon.
 

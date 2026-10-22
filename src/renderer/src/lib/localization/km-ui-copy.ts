@@ -3032,6 +3032,15 @@ const exactValueTranslations: Record<string, string> = {
   'Sales-pattern and price changes will appear here once កខ has enough activity to explain them.':
     'ការផ្លាស់ប្តូរលំនាំលក់ និងតម្លៃ នឹងបង្ហាញនៅទីនេះ ពេលកខមានសកម្មភាពគ្រប់គ្រាន់សម្រាប់ពន្យល់។',
   ...literalTranslationGroup({
+    'Capture first update': 'កត់ត្រាបច្ចុប្បន្នភាពដំបូង',
+    'Start with one stock item, then capture your first update. You can add services once your stock item is saved.':
+      'ចាប់ផ្តើមដោយមុខទំនិញក្នុងស្តុកមួយ រួចកត់ត្រាបច្ចុប្បន្នភាពដំបូងរបស់អ្នក។ អ្នកអាចបន្ថែមសេវាបន្ទាប់ពីរក្សាទុកមុខទំនិញក្នុងស្តុករួច។',
+    'Your products are ready. Record stock counts or service availability to start your workspace.':
+      'ទំនិញរបស់អ្នករួចរាល់ហើយ។ កត់ត្រាចំនួនស្តុក ឬភាពអាចផ្តល់សេវា ដើម្បីចាប់ផ្តើមកន្លែងធ្វើការរបស់អ្នក។',
+    'Define a stock item you buy, count, or sell.':
+      'កំណត់មុខទំនិញក្នុងស្តុកដែលអ្នកទិញ រាប់ ឬលក់។',
+    'Record stock counts or service availability to give your workspace its first evidence.':
+      'កត់ត្រាចំនួនស្តុក ឬភាពអាចផ្តល់សេវា ដើម្បីឱ្យកន្លែងធ្វើការរបស់អ្នកមានទិន្នន័យដំបូង។',
     'Main view': 'ទិដ្ឋភាពមេ',
     Workbench: 'ទិដ្ឋភាពមេ',
     'Work needs your first update': 'ទិដ្ឋភាពទូទៅត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',

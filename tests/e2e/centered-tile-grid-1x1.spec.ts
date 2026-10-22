@@ -41,12 +41,12 @@ test.describe('CenteredTileGrid 1x1 centering', () => {
 
       // Ensure onboarding is complete so we land on the app
       await page.evaluate(async () => {
-        await (window as any).kaurKhorDesktop?.preferences?.save({ onboardingCompletedAt: new Date().toISOString() });
+        await (window as any).kaurKhorDesktop?.preferences?.save({ language: 'en', onboardingCompletedAt: new Date().toISOString() });
       });
       await page.reload();
       await page.waitForLoadState('domcontentloaded');
 
-      // Navigate to home page where only Start Work is visible in empty workspace
+      // Keep the geometry regression grounded in a real single-action state.
       await page.evaluate(() => {
         window.location.hash = '#/';
       });
@@ -56,6 +56,8 @@ test.describe('CenteredTileGrid 1x1 centering', () => {
 
       const outerGrid = page.locator('[data-slot="centered-tile-grid"]').first();
       await outerGrid.waitFor({ state: 'visible', timeout: 10000 });
+      await expect(outerGrid.locator('.liquid-grid-card-frame')).toHaveCount(1);
+      await expect(outerGrid.getByRole('link', { name: /Create first SKU/ })).toBeVisible();
 
       // Force the grid area to be smaller than the tile so we exercise overflow centering
       await outerGrid.evaluate((el) => {

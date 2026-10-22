@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { UI_MATRIX_CASES } from '../matrix-cases';
+import { createSkuThroughUi } from '../helpers/forms';
 import {
   closeDesktopUiMatrix,
   completeOnboardingThroughUi,
@@ -113,6 +114,75 @@ const freshEmptyRoutes: Array<{
 ];
 
 test.describe('UI matrix: desktop fresh state', () => {
+  test('Home resumes product setup and leads directly to the first saved update', async ({}, testInfo) => {
+    testInfo.annotations.push({
+      type: 'ui-matrix',
+      description: UI_MATRIX_CASES.find((entry) => entry.id === 'desktop-fresh-home-first-update')?.expectedUi ?? '',
+    });
+    const launched = await launchDesktopUiMatrix({ fresh: true, name: 'desktop-first-update', testInfo });
+
+    try {
+      // Windows needs an inactive visible window to keep screenshot compositing alive.
+      if (process.platform === 'win32') {
+        await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
+      }
+      await completeOnboardingThroughUi(launched.page);
+      await saveAllVisibilityPreferences(launched.page);
+      await launched.page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(launched.page.getByRole('link', { name: /Create first SKU/ })).toBeVisible();
+      await captureUi(launched.page, testInfo, 'home-create-product');
+
+      await launched.page.getByRole('link', { name: /Create first SKU/ }).click();
+      await expect(launched.page.getByRole('heading', { name: 'New SKU' })).toBeVisible();
+      await navigateHashRoute(launched.page, '/');
+      expect(await desktopWorkspaceCounts(launched.page)).toMatchObject({ skuCount: 0, serviceCount: 0, observationCount: 0 });
+      await launched.page.getByRole('link', { name: /Create first SKU/ }).click();
+      await expect(launched.page.getByRole('heading', { name: 'New SKU' })).toBeVisible();
+      const sku = await createSkuThroughUi(launched.page, { name: 'First workspace item' });
+      await navigateHashRoute(launched.page, '/');
+      await expect(launched.page.getByRole('link', { name: /Capture first update/ })).toHaveAttribute('href', '#/work/capture/stock-count');
+
+      await closeDesktopUiMatrix(launched);
+      Object.assign(launched, await launchDesktopUiMatrix({
+        dataDirectory: launched.dataDirectory,
+        fresh: true,
+        name: 'desktop-first-update-resume',
+        outputDirectory: launched.outputDirectory,
+        testInfo,
+      }));
+      if (process.platform === 'win32') {
+        await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
+      }
+      await navigateHashRoute(launched.page, '/');
+      await captureUi(launched.page, testInfo, 'home-first-update-after-restart');
+      await launched.page.getByRole('link', { name: /Capture first update/ }).click();
+      await launched.page.getByRole('button', { name: new RegExp(sku.name, 'i') }).first().click();
+      const itemDialog = launched.page.getByRole('dialog').first();
+      await itemDialog.getByRole('textbox', { name: 'Units in stock' }).fill('7');
+      await itemDialog.getByRole('button', { name: 'Done' }).click();
+      await launched.page.getByRole('link', { name: 'Home', exact: true }).click();
+      await launched.page.getByRole('dialog', { name: 'Leave record update?' }).getByRole('button', { name: 'Save draft', exact: true }).click();
+      expect(await desktopWorkspaceCounts(launched.page)).toMatchObject({ observationCount: 0 });
+      await launched.page.getByRole('link', { name: /Capture first update/ }).click();
+      await launched.page.getByRole('button', { name: new RegExp(sku.name, 'i') }).first().click();
+      await expect(itemDialog.getByRole('textbox', { name: 'Units in stock' })).toHaveValue('7');
+      await itemDialog.getByRole('button', { name: 'Done' }).click();
+      await launched.page.getByRole('button', { name: /^Done$/ }).last().click();
+      await launched.page.getByRole('dialog', { name: 'Review update' }).getByRole('button', { name: 'Confirm save' }).click();
+      await launched.page.waitForFunction(() => window.kaurKhorDesktop.sena.listObservations().then((observations) => observations.length === 1));
+      await navigateHashRoute(launched.page, '/');
+      await launched.page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(launched.page.getByRole('link', { name: /Start Work/ })).toBeVisible();
+      await expect(launched.page.getByRole('link', { name: /Capture first update/ })).toHaveCount(0);
+      expect(await desktopWorkspaceCounts(launched.page)).toMatchObject({ skuCount: 1, serviceCount: 0, observationCount: 1 });
+      await assertUiStable(launched.page, 'Home after first saved update and reload');
+      await captureUi(launched.page, testInfo, 'home-first-update-saved');
+      launched.issues.assertNoIssues('Home first-use workflow');
+    } finally {
+      await closeDesktopUiMatrix(launched);
+    }
+  });
+
   test('first-run and empty workspace surfaces stay stable', async ({}, testInfo) => {
     testInfo.annotations.push({
       type: 'ui-matrix',
