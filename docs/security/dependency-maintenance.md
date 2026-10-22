@@ -85,10 +85,28 @@ Also smoke-test the real documentation source with
 `pnpm exec markmap docs/development/user-decision-tree.markmap.md --offline --no-open -o out/markmap-maintenance-smoke.html`
 after building, keeping the tracked generated HTML untouched.
 
+## Vitest mocker repair
+
+The October 22 follow-up moves Vitest from 4.1.11 to the compatible 4.1.12 patch,
+including its matching `@vitest/mocker` dependency. This clears
+[GHSA-qxg6-89mg-rqv8](https://github.com/advisories/GHSA-qxg6-89mg-rqv8) (manual
+mock code injection) and
+[GHSA-xp26-3454-mjgp](https://github.com/advisories/GHSA-xp26-3454-mjgp) (Windows
+backslash traversal in redirect mocks). The project uses Node/jsdom Vitest runs;
+no public `mockerPlugin` or `interceptorPlugin` integration was found. Existing
+mock-heavy tests and the full unit suite verify compatibility without adding
+these unused development-server plugins to the application.
+
+The current audit also reports a new moderate Electron finding described below.
+The October 21 passing security-gate result predates that advisory's publication
+to the npm audit service; it does not establish that today's audit passes.
+The moderate audit threshold and required network check remain unchanged.
+
 ## Remaining findings
 
 | Package and path | Finding | Constraint |
 | --- | --- | --- |
+| `electron@41.10.7` | [GHSA-fw47-9c62-h3vw](https://github.com/advisories/GHSA-fw47-9c62-h3vw), moderate, HID/USB permission checks can use the wrong frame origin | Fixed versions start at 42.11.3; no 41.x patch is published. No `setPermissionCheckHandler`, device-selection handlers, or HID/USB iframe delegation were found in this app, so the advisory's stated preconditions are not established here. The audit still reports it and blocks the unchanged security gate. Treat the required Electron major upgrade as a separate runtime change with startup, IPC, persistence, and packaging verification. |
 | `markmap-cli > markmap-lib > katex@0.16.45` | [GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7), low, existing prototype pollution can bypass trust restrictions | Fixed in 0.18.2+. The current Markmap dependency range stays on 0.16; update its supported integration in a separate docs-tooling change. This finding is below the existing moderate gate threshold. |
 
 The old `shadcn > fast-glob > micromatch > braces@3.0.3` finding is absent from the
