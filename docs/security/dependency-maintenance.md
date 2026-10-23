@@ -199,3 +199,28 @@ Review temporary overrides when upstream consumers adopt the fixed versions.
 Reuse any existing maintenance automation instead of creating another schedule.
 Merging, auto-merge, tagging, release publication, and deployment require a
 separate explicit decision.
+
+## October 23 Node certificate maintenance
+
+The [October Node security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)
+blocks compromised eMudhra intermediates and fixes other Node vulnerabilities.
+Source builds now require patched 22.23.4, 24.22.1, or 26.12.1 release lines.
+Both absent-Node wrappers pin 22.23.4 with the official archive SHA-256 digests
+for their supported platforms. Installed older Node versions remain untouched
+and are rejected before build work. CI pins 24.22.1 explicitly: the previous
+floating major resolved to cached 24.21.0 in the October 22 Pages test job.
+
+Electron 43.8.3 already carries the certificate mitigation even though
+process.versions.node reports 24.22.0. The [Electron advisory](https://github.com/electron/electron/security/advisories/GHSA-jr5w-w6x2-84p9)
+lists 43.8.1 as patched and covers Chromium plus Node tls, https, and fetch.
+An isolated Windows runtime probe rejected both public eMudhra test endpoints
+with CERT_REVOKED through Node fetch and ERR_CERT_REVOKED through net.fetch.
+The optional Telegram integration uses net.fetch in Electron, with global fetch
+as its fallback. No TLS flags, trust-store overrides, or security settings change.
+
+Neither Rust manifest or lockfile includes webpki-roots, webpki-root-certs,
+rustls-webpki, rustls-native-certs, or a Rust HTTP/TLS client. No Rust CA update
+applies to the current graph. This review establishes no Render deployment or
+exploitation, and the separate PHP advisory has no demonstrated application path.
+The package audit still has the documented low KaTeX/Markmap limitation; runtime
+certificate trust is checked separately from that package audit.

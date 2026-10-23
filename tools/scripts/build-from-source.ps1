@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$NodeVersion = if ($env:KAUR_KHOR_NODE_VERSION) { $env:KAUR_KHOR_NODE_VERSION } else { "22.21.1" }
+$NodeVersion = if ($env:KAUR_KHOR_NODE_VERSION) { $env:KAUR_KHOR_NODE_VERSION } else { "22.23.4" }
 $ToolsDir = if ($env:KAUR_KHOR_BUILD_TOOLS_DIR) { $env:KAUR_KHOR_BUILD_TOOLS_DIR } else { Join-Path $HOME ".kaur-khor-build-tools" }
 
 function Resolve-PhysicalPath {
@@ -52,7 +52,7 @@ function Get-ExpectedNodeSha256 {
   )
 
   switch ("${Version}:${NodePlatform}") {
-    "22.21.1:win-x64" { return "3c624e9fbe07e3217552ec52a0f84e2bdc2e6ffa7348f3fdfb9fbf8f42e23fcf" }
+    "22.23.4:win-x64" { return "cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20" }
     default { return "" }
   }
 }

@@ -72,8 +72,11 @@ if (isDirectExecution()) {
 
 export function assertSupportedNodeVersion(version = process.versions.node) {
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
-  if (!match || Number(match[1]) < 22 || (Number(match[1]) === 22 && Number(match[2]) < 12)) {
-    throw new Error(`Kaur Khor source builds require Node.js 22.12.0 or newer; found ${version}. Upgrade Node.js before continuing. Your installed Node.js has not been changed.`);
+  const minimumByMajor = { 22: [23, 4], 24: [22, 1], 26: [12, 1] };
+  const minimum = match ? minimumByMajor[Number(match[1])] : undefined;
+  if (!match || !minimum || Number(match[2]) < minimum[0]
+    || (Number(match[2]) === minimum[0] && Number(match[3]) < minimum[1])) {
+    throw new Error(`Kaur Khor source builds require patched Node.js 22.23.4+, 24.22.1+, or 26.12.1+ within those release lines; found ${version}. Upgrade Node.js before continuing. Your installed Node.js has not been changed.`);
   }
 }
 
