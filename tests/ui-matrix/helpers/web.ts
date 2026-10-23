@@ -19,7 +19,17 @@ export async function openEmbeddedRoute(page: Page, mode: 'app' | 'demo', route:
   await page.goto(`/kaur-khor/${mode}#${route}`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-slot="embedded-phone-shell"], [data-slot="embedded-auto-zoom-viewport"]').first()
     .waitFor({ state: 'visible' });
-  await page.waitForFunction(() => (document.body?.innerText.trim().length ?? 0) > 0);
+  await page.waitForFunction(() => {
+    const viewport = document.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    const visual = window.visualViewport;
+    if (!viewport || (visual && (Math.abs(visual.width - window.innerWidth) > 1
+      || Math.abs(visual.height - window.innerHeight) > 1))) return false;
+    const width = Math.round(Math.min(visual?.width ?? Infinity, window.innerWidth, document.documentElement.clientWidth));
+    const height = Math.round(Math.min(visual?.height ?? Infinity, window.innerHeight, document.documentElement.clientHeight));
+    return Number(viewport.getAttribute('data-measured-area')) === width * height
+      && !document.querySelector('[data-slot="embedded-phone-loading"]')
+      && (document.body?.innerText.trim().length ?? 0) > 0;
+  });
 }
 
 export async function prepareWebPage(page: Page): Promise<PreparedWebPage> {

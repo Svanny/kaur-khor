@@ -16,6 +16,35 @@ import {
 } from '../helpers/web';
 
 test.describe('UI matrix: browser and demo surfaces', () => {
+  test('navigation waits for delayed visual viewport measurements', async ({ page }, testInfo) => {
+    const prepared = await prepareWebPage(page);
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.addInitScript(() => {
+      const visual = window.visualViewport;
+      if (!visual) throw new Error('Visual viewport is required for this regression.');
+      Object.defineProperty(visual, 'width', { configurable: true, get: () => 430 });
+      document.addEventListener('kaur-khor:embedded-viewport-change', () => {
+        const viewport = document.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+        document.documentElement.dataset.uiMatrixInitialArea = viewport?.getAttribute('data-measured-area') ?? '';
+        setTimeout(() => {
+          Reflect.deleteProperty(visual, 'width');
+          visual.dispatchEvent(new Event('resize'));
+        }, 1500);
+      }, { capture: true, once: true });
+    });
+
+    await openEmbeddedRoute(page, 'demo');
+
+    expect(await page.locator('html').getAttribute('data-ui-matrix-initial-area')).toBe(String(430 * 1024));
+    const viewport = page.locator('[data-slot="embedded-auto-zoom-viewport"]');
+    expect(await viewport.getAttribute('data-measured-area')).toBe(String(768 * 1024));
+    await expect(viewport).toHaveAttribute('data-phone-portrait', 'false');
+    await expect(page.locator('[data-slot="embedded-phone-shell"]')).toHaveCount(0);
+    await assertEmbeddedUiStable(page, 'desktop shell after delayed phone-to-tablet measurement');
+    await captureUi(page, testInfo, 'web-delayed-viewport-ready');
+    prepared.issues.assertNoIssues('delayed responsive viewport readiness');
+  });
+
   test('demo browser mode opens a blank isolated workspace with banner controls and major routes', async ({ page }, testInfo) => {
     testInfo.annotations.push({
       type: 'ui-matrix',
