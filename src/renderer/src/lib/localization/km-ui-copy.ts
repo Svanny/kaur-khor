@@ -3032,6 +3032,10 @@ const exactValueTranslations: Record<string, string> = {
   'Sales-pattern and price changes will appear here once កខ has enough activity to explain them.':
     'ការផ្លាស់ប្តូរលំនាំលក់ និងតម្លៃ នឹងបង្ហាញនៅទីនេះ ពេលកខមានសកម្មភាពគ្រប់គ្រាន់សម្រាប់ពន្យល់។',
   ...literalTranslationGroup({
+    'Continue your saved sale or start a new one.':
+      'បន្តការលក់ដែលអ្នកបានរក្សាទុក ឬចាប់ផ្តើមការលក់ថ្មី។',
+    'Create a new order, continue a saved draft, or choose an open ticket to update.':
+      'បង្កើតការបញ្ជាទិញថ្មី បន្តសេចក្តីព្រាងដែលបានរក្សាទុក ឬជ្រើសសំបុត្រដែលនៅបើក ដើម្បីធ្វើបច្ចុប្បន្នភាព។',
     'Capture first update': 'កត់ត្រាបច្ចុប្បន្នភាពដំបូង',
     'Start with one stock item, then capture your first update. You can add services once your stock item is saved.':
       'ចាប់ផ្តើមដោយមុខទំនិញក្នុងស្តុកមួយ រួចកត់ត្រាបច្ចុប្បន្នភាពដំបូងរបស់អ្នក។ អ្នកអាចបន្ថែមសេវាបន្ទាប់ពីរក្សាទុកមុខទំនិញក្នុងស្តុករួច។',

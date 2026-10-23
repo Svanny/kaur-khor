@@ -21,6 +21,21 @@ export interface UiMatrixCase {
 
 export const UI_MATRIX_CASES: UiMatrixCase[] = [
   {
+    id: 'desktop-ticket-chooser-keyboard',
+    productTarget: 'desktop',
+    dataState: 'dependent',
+    area: 'Capture ticket chooser and draft safety',
+    initialData: 'One UI-created SKU, a persisted legacy supplier batch fixture, and isolated interrupted drafts for all ticket lanes.',
+    interaction: 'Cycle keyboard focus, close/reopen each chooser, return from the ticket picker, cancel replacement, and resume.',
+    expectedUi: 'Focus stays inside each chooser, Escape and Cancel restore the opening card, Back returns to choices, and Keep draft has safe initial focus.',
+    expectedState: 'Cancelled and interrupted choices preserve exact draft bytes and workspace counts; Resume opens the existing supplier draft.',
+    consistency: 'The same chooser semantics apply to customer orders, supplier orders, and immediate sales.',
+    priority: 'P0',
+    testTypes: ['end-to-end', 'regression', 'interaction', 'stateful', 'visual'],
+    captures: ['ticket-picker-keyboard', 'ticket-draft-safe-default', 'ticket-chooser-after-interruption'],
+    edgeNotes: 'Includes compact desktop geometry; unit coverage also verifies Khmer copy and blocked draft storage.',
+  },
+  {
     id: 'desktop-fresh-home-first-update',
     productTarget: 'desktop',
     dataState: 'fresh',
