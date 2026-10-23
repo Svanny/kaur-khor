@@ -1,5 +1,6 @@
 import { expect, type Download, type Page, type TestInfo } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
+import { deriveResponsiveViewportPolicy, isPhonePortraitViewport } from '../../../src/shared/responsive-zoom';
 import {
   assertNoBrokenNumericText,
   assertNoDocumentOverflow,
@@ -17,7 +18,28 @@ export interface PreparedWebPage {
 
 export async function openEmbeddedRoute(page: Page, mode: 'app' | 'demo', route: `/${string}` = '/') {
   await page.goto(`/kaur-khor/${mode}#${route}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(750);
+  await page.locator('[data-slot="embedded-phone-shell"], [data-slot="embedded-auto-zoom-viewport"]').first()
+    .waitFor({ state: 'visible' });
+  await expect.poll(async () => {
+    const state = await page.evaluate(() => {
+      const viewport = document.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+      const visual = window.visualViewport;
+      const layoutWidth = Math.min(window.innerWidth, document.documentElement.clientWidth);
+      const layoutHeight = Math.min(window.innerHeight, document.documentElement.clientHeight);
+      return {
+        width: Math.round(Math.min(visual?.width ?? Infinity, layoutWidth)),
+        height: Math.round(Math.min(visual?.height ?? Infinity, layoutHeight)),
+        visualReady: !visual || (Math.abs(visual.width - layoutWidth) <= 1 && Math.abs(visual.height - layoutHeight) <= 1),
+        measuredArea: Number(viewport?.getAttribute('data-measured-area')),
+        rendered: !document.querySelector('[data-slot="embedded-phone-loading"]')
+          && (document.body?.innerText.trim().length ?? 0) > 0,
+      };
+    });
+    const expectedArea = isPhonePortraitViewport(state.width, state.height)
+      ? state.width * state.height
+      : Math.round(deriveResponsiveViewportPolicy(state).measuredArea);
+    return state.visualReady && state.rendered && state.measuredArea === expectedArea;
+  }, { message: 'embedded shell should reflect the current responsive viewport', timeout: 30_000 }).toBe(true);
 }
 
 export async function prepareWebPage(page: Page): Promise<PreparedWebPage> {

@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-NODE_VERSION="${KAUR_KHOR_NODE_VERSION:-22.21.1}"
+NODE_VERSION="${KAUR_KHOR_NODE_VERSION:-22.23.4}"
 TOOLS_DIR="${KAUR_KHOR_BUILD_TOOLS_DIR:-"${HOME}/.kaur-khor-build-tools"}"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 
@@ -77,17 +77,17 @@ expected_node_sha256() {
   node_platform="$2"
 
   case "${version}:${node_platform}" in
-    22.21.1:darwin-arm64)
-      printf '%s\n' "39f53ffcf1604291e85974c8588bb290c14b358ac085e342920e703651d63c5e"
+    22.23.4:darwin-arm64)
+      printf '%s\n' "037650d0839f457747396f052073fb48333d31bf5abd3c98b74da20d89ebb1ad"
       ;;
-    22.21.1:darwin-x64)
-      printf '%s\n' "2f4fd943768fdd82308da88bb53f3a16259275c770bc4393e45b986844ea3017"
+    22.23.4:darwin-x64)
+      printf '%s\n' "f42abca7aaac61efc57d49fb42ea84fc53bbeba9a749cb03a291ce6e4e7a69c1"
       ;;
-    22.21.1:linux-arm64)
-      printf '%s\n' "e660365729b434af422bcd2e8e14228637ecf24a1de2cd7c916ad48f2a0521e1"
+    22.23.4:linux-arm64)
+      printf '%s\n' "6287aa46b6c375d816e63ae66d024fbbfd70404825aabdfdf898a970871d2f4b"
       ;;
-    22.21.1:linux-x64)
-      printf '%s\n' "a696aaf0b8e13ac1abf057dd6d82a22a3bedd03190c560d8187e3aff8527803d"
+    22.23.4:linux-x64)
+      printf '%s\n' "1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce"
       ;;
   esac
 }

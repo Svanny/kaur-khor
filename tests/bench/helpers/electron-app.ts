@@ -84,8 +84,10 @@ export async function launchKaurKhorForBenchmark(
   }
   let app: ElectronApplication | null = null;
   let lastError: unknown = null;
+  let launchDeadline = 0;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
+      launchDeadline = Date.now() + BENCHMARK_APP_LAUNCH_TIMEOUT_MS;
       app = await electron.launch({
         executablePath: electronPath as string,
         args: ['.'],
@@ -117,9 +119,14 @@ export async function launchKaurKhorForBenchmark(
   if (!app) {
     throw lastError;
   }
-  const page = await app.firstWindow();
-  await page.waitForLoadState('domcontentloaded');
-  return { app, dataDirectory, outputDirectory, page, runId, tracePath };
+  try {
+    const page = await app.firstWindow({ timeout: Math.max(1, launchDeadline - Date.now()) });
+    await page.waitForLoadState('domcontentloaded', { timeout: Math.max(1, launchDeadline - Date.now()) });
+    return { app, dataDirectory, outputDirectory, page, runId, tracePath };
+  } catch (error) {
+    await closeKaurKhorBenchmarkSession({ app, tracePath });
+    throw error;
+  }
 }
 
 export async function closeKaurKhorBenchmarkSession(
