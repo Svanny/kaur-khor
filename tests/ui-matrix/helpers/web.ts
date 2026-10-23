@@ -17,7 +17,9 @@ export interface PreparedWebPage {
 
 export async function openEmbeddedRoute(page: Page, mode: 'app' | 'demo', route: `/${string}` = '/') {
   await page.goto(`/kaur-khor/${mode}#${route}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(750);
+  await page.locator('[data-slot="embedded-phone-shell"], [data-slot="embedded-auto-zoom-viewport"]').first()
+    .waitFor({ state: 'visible' });
+  await page.waitForFunction(() => (document.body?.innerText.trim().length ?? 0) > 0);
 }
 
 export async function prepareWebPage(page: Page): Promise<PreparedWebPage> {

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
+import { _electron } from 'playwright';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { benchmarkChildEnv, clickWithBrowserStartTime, closeKaurKhorBenchmarkSession } from './electron-app';
+import { benchmarkChildEnv, clickWithBrowserStartTime, closeKaurKhorBenchmarkSession, launchKaurKhorForBenchmark } from './electron-app';
 
 interface MockChildProcess extends EventEmitter {
   exitCode: number | null;
@@ -97,6 +98,40 @@ describe('closeKaurKhorBenchmarkSession', () => {
 
     expect(tracing.stop).toHaveBeenCalledWith({ path: '/tmp/kaur-khor-trace.zip' });
     expect(app.close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('benchmark startup readiness', () => {
+  const options = { prepareWorkspace: false, runId: 'startup-test', outputDirectory: 'unused', dataDirectory: 'unused' };
+
+  it('shares the launch deadline with first-window and document readiness', async () => {
+    vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValue(30_000);
+    const page = { waitForLoadState: vi.fn(async () => undefined) };
+    const app = { firstWindow: vi.fn(async () => page) };
+    vi.spyOn(_electron, 'launch').mockResolvedValue(app as never);
+
+    const launched = await launchKaurKhorForBenchmark('startup', { retry: 0 } as never, options);
+
+    expect(launched.page).toBe(page);
+    expect(app.firstWindow).toHaveBeenCalledWith({ timeout: 90_000 });
+    expect(page.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', { timeout: 90_000 });
+  });
+
+  it('closes a connected app when window readiness fails', async () => {
+    vi.useFakeTimers();
+    const failure = new Error('window never ready');
+    const child = createMockChildProcess({ exitCode: 0 });
+    const app = {
+      firstWindow: vi.fn(async () => { throw failure; }),
+      process: () => child,
+      close: vi.fn(async () => undefined),
+    };
+    vi.spyOn(_electron, 'launch').mockResolvedValue(app as never);
+
+    await expect(launchKaurKhorForBenchmark('startup', { retry: 0 } as never, options)).rejects.toBe(failure);
+
+    expect(app.close).toHaveBeenCalledTimes(1);
+    expect(child.kill).not.toHaveBeenCalled();
   });
 });
 
