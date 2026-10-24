@@ -48,6 +48,10 @@ export async function launchDesktopUiMatrix({
     prepareWorkspace: false,
     runId,
   });
+  if (process.platform === 'win32') {
+    // Hidden Windows windows can stop producing frames for capturePage.
+    await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
+  }
   const issues = attachPageIssueCollector(launched.page);
   return { ...launched, issues };
 }
