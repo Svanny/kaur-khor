@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -158,6 +159,94 @@ describe('RecordUpdateHubRoute', () => {
     window.localStorage.clear();
   });
 
+  it.each([
+    ['Customer Order', 'customer-order-pending'],
+    ['Supplier Order', 'supplier-order-pending'],
+    ['Immediate Sale', 'customer-order-completed'],
+  ] as const)('contains keyboard focus and restores %s without changing its draft', async (label, laneId) => {
+    const lane = RECORD_UPDATE_LANES.find((entry) => entry.id === laneId)!;
+    const draft = JSON.stringify({ version: 1, notes: 'Interrupted operator work' });
+    window.localStorage.setItem(lane.draftStorageKey, draft);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/work/capture']}><HubRouteTestShell /></MemoryRouter>);
+    const trigger = screen.getByRole('button', { name: label });
+
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Resume draft' })).toHaveFocus();
+    for (let index = 0; index < 7; index += 1) {
+      await user.tab();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+    await user.tab({ shift: true });
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(window.localStorage.getItem(lane.draftStorageKey)).toBe(draft);
+
+    await user.click(trigger);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(window.localStorage.getItem(lane.draftStorageKey)).toBe(draft);
+  });
+
+  it('keeps draft replacement in the keyboard flow and returns safely to resume', async () => {
+    const lane = RECORD_UPDATE_LANES.find((entry) => entry.id === 'customer-order-pending')!;
+    const draft = JSON.stringify({ version: 1, notes: 'Customer called' });
+    window.localStorage.setItem(lane.draftStorageKey, draft);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/work/capture']}><HubRouteTestShell /></MemoryRouter>);
+
+    await user.click(screen.getByRole('button', { name: 'Customer Order' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'New' }));
+    const warning = screen.getByRole('dialog', { name: 'Delete saved draft?' });
+    expect(within(warning).getByRole('button', { name: 'Keep draft' })).toHaveFocus();
+    await user.tab();
+    expect(within(warning).getByRole('button', { name: 'Delete draft and start new' })).toHaveFocus();
+    await user.tab({ shift: true });
+    await user.keyboard('{Enter}');
+    const chooser = screen.getByRole('dialog');
+    expect(within(chooser).getByRole('button', { name: 'Resume draft' })).toHaveFocus();
+    expect(window.localStorage.getItem(lane.draftStorageKey)).toBe(draft);
+    await user.keyboard('{Enter}');
+    expect(screen.getAllByText(RECORD_UPDATE_CUSTOMER_PENDING_PATH)[0]).toBeInTheDocument();
+    expect(window.localStorage.getItem(lane.draftStorageKey)).toBe(draft);
+  });
+
+  it('returns from the ticket picker and restores its opening card on Escape', async () => {
+    inventoryHook.mockReturnValue(inventoryState({ orderBatches: [{
+      batchOrderId: 'keyboard-batch', supplierName: 'Keyboard Supplier', status: 'ordered', updatedAt: '2026-10-23T00:00:00Z',
+      shared: { supplierName: 'Keyboard Supplier', expectedArrivalAt: null, supplierNote: '' }, children: [{ skuId: 'sku-1' }],
+    }] }));
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/work/capture']}><HubRouteTestShell /></MemoryRouter>);
+    const trigger = screen.getByRole('button', { name: 'Supplier Order' });
+    await user.click(trigger);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Edit/Update' }));
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Keyboard Supplier/ })).toHaveFocus();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Back' }));
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Edit/Update' })).toBeEnabled();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
+  });
+
+  it('localizes the chooser and replacement confirmation in Khmer', async () => {
+    preferenceState.language = 'km';
+    const lane = RECORD_UPDATE_LANES.find((entry) => entry.id === 'customer-order-pending')!;
+    window.localStorage.setItem(lane.draftStorageKey, JSON.stringify({ version: 1, notes: 'Saved draft' }));
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/work/capture']}><HubRouteTestShell /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: translateUiLiteral('km', 'Customer Order') }));
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/[A-Za-z]/);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: translateUiLiteral('km', 'New') }));
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/[A-Za-z]/);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(window.localStorage.getItem(lane.draftStorageKey)).not.toBeNull();
+  });
+
   it('renders ticket-first workflow cards and does not expose a standalone supplier receipt card', () => {
     render(
       <MemoryRouter>
@@ -212,7 +301,7 @@ describe('RecordUpdateHubRoute', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Immediate Sale' }));
 
-    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /^(Customer Order|Supplier Order|Immediate Sale)$/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('/work/capture/immediate-sale?ticketMode=new')[0]).toBeInTheDocument();
   });
 
@@ -234,7 +323,7 @@ describe('RecordUpdateHubRoute', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Immediate Sale' }));
 
-      expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: /^(Customer Order|Supplier Order|Immediate Sale)$/ })).not.toBeInTheDocument();
       expect(screen.getAllByText('/work/capture/immediate-sale?ticketMode=new')[0]).toBeInTheDocument();
     } finally {
       if (localStorageDescriptor) {
@@ -312,8 +401,8 @@ describe('RecordUpdateHubRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Customer Order' }));
 
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('What do you want to do?');
-    expect(dialog).toHaveTextContent('Kaur Khor will create or update a durable ticket');
+    expect(dialog).toHaveAccessibleName('Customer Order');
+    expect(dialog).toHaveTextContent('Create a new order, continue a saved draft, or choose an open ticket to update.');
     expect(within(dialog).getByRole('button', { name: 'New' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Resume draft' })).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: 'Edit/Update' })).toBeEnabled();
@@ -333,7 +422,7 @@ describe('RecordUpdateHubRoute', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Customer Order' }));
 
-    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /^(Customer Order|Supplier Order|Immediate Sale)$/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('/work/capture/customer-order?ticketMode=new')[0]).toBeInTheDocument();
   });
 
@@ -353,14 +442,14 @@ describe('RecordUpdateHubRoute', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'New' }));
 
     expect(screen.getByText('Delete saved draft?')).toBeInTheDocument();
-    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /^(Customer Order|Supplier Order|Immediate Sale)$/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
     expect(window.localStorage.getItem(customerPendingLane.draftStorageKey)).toBe('{"version":1,"notes":"customer called"}');
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete draft and start new' }));
 
     expect(window.localStorage.getItem(customerPendingLane.draftStorageKey)).toBeNull();
-    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /^(Customer Order|Supplier Order|Immediate Sale)$/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('/work/capture/customer-order?ticketMode=new')[0]).toBeInTheDocument();
   });
 
@@ -414,7 +503,7 @@ describe('RecordUpdateHubRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Supplier Order' }));
 
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('What do you want to do?');
+    expect(dialog).toHaveAccessibleName('Supplier Order');
     expect(within(dialog).getByRole('button', { name: 'Edit/Update' })).toBeEnabled();
     expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Edit/Update' }));
@@ -568,7 +657,7 @@ describe('RecordUpdateHubRoute', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Supplier Order' }));
 
-    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /^(Customer Order|Supplier Order|Immediate Sale)$/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('/work/capture/supplier-order?ticketMode=new')[0]).toBeInTheDocument();
   });
 

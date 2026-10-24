@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEventHandler } from 'react';
+import { Dialog as DialogPrimitive } from 'radix-ui';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ActionAddBadgeIcon,
   ActionConfirmIcon,
+  ActionCloseIcon,
   ActionCreatePackageIcon,
   ActionEditIcon,
+  ActionDeleteIcon,
   ActionResumeIcon,
 } from '@icons/actions';
 import { EntityRevenueIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
+import { NavigationBackIcon } from '@icons/navigation';
 import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
-import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { CenteredTileGrid } from '@/components/system/centered-tile-grid';
 import { LiquidGridCardLayer, liquidGridCardBaseClassName } from '@/components/system/liquid-grid-card';
 import { WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
@@ -48,7 +51,7 @@ interface TicketEntryPromptState {
   family: 'customer' | 'supplier';
   href: string;
   laneId: RecordUpdateLaneId;
-  mode: 'actions' | 'edit';
+  mode: 'actions' | 'edit' | 'discard';
   options: TicketPickerOption[];
   showEdit: boolean;
 }
@@ -231,7 +234,7 @@ function removeDraftSavedForLane(laneId: RecordUpdateLaneId) {
   }
 }
 
-function HubCard({ card, compact = false, onClick }: { card: RecordUpdateHubCard; compact?: boolean; onClick?: () => void }) {
+function HubCard({ card, compact = false, onClick }: { card: RecordUpdateHubCard; compact?: boolean; onClick?: MouseEventHandler<HTMLButtonElement> }) {
   const CardIcon = card.icon;
   const { language } = usePreferences();
   const hasDraftSaved = hasDraftSavedForLane(card.laneId);
@@ -309,22 +312,41 @@ function TicketEntryPromptDialog({
   options,
   showEdit,
   onClose,
+  onBack,
+  onDiscardDraft,
   onOpenEdit,
   onRequestNewWithDraft,
-}: Omit<TicketEntryPromptState, 'mode'> & {
-  mode: 'actions' | 'edit';
+  returnFocusTo,
+}: TicketEntryPromptState & {
   onClose: () => void;
+  onBack: () => void;
+  onDiscardDraft: () => void;
   onOpenEdit: () => void;
   onRequestNewWithDraft: () => void;
+  returnFocusTo: HTMLButtonElement | null;
 }) {
   const { language } = usePreferences();
   const navigate = useNavigate();
+  const initialFocusRef = useRef<HTMLButtonElement>(null);
   const newLabel = 'New';
   const resumeDraftLabel = 'Resume draft';
   const editLabel = 'Edit/Update';
-  const title = mode === 'edit'
-    ? translateUiLiteral(language, family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order')
-    : translateUiLiteral(language, 'What do you want to do?');
+  const title = mode === 'discard'
+    ? translateUiLiteral(language, 'Delete saved draft?')
+    : mode === 'edit'
+      ? translateUiLiteral(language, family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order')
+      : translateUiLiteral(language, href === RECORD_UPDATE_CUSTOMER_COMPLETED_PATH ? 'Immediate Sale' : family === 'customer' ? 'Customer Order' : 'Supplier Order');
+  const description = mode === 'discard'
+    ? 'Starting a new update will permanently delete the saved draft for this lane. Resume the draft instead if you want to keep it.'
+    : mode === 'edit'
+      ? 'Select the existing ticket you want to update.'
+      : href === RECORD_UPDATE_CUSTOMER_COMPLETED_PATH
+        ? 'Continue your saved sale or start a new one.'
+        : 'Create a new order, continue a saved draft, or choose an open ticket to update.';
+
+  useLayoutEffect(() => {
+    initialFocusRef.current?.focus();
+  }, [mode]);
 
   function openTicketRoute(mode: 'new' | 'edit' | 'draft') {
     navigate(mode === 'draft' ? href : `${href}?ticketMode=${mode}`);
@@ -336,76 +358,103 @@ function TicketEntryPromptDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
-      role="presentation"
-      onClick={onClose}
-    >
-      <section
-        aria-describedby="record-update-ticket-entry-description"
-        aria-labelledby="record-update-ticket-entry-title"
-        aria-modal="true"
-        className="w-full max-w-lg rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
-        role="dialog"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="space-y-2">
-          <p id="record-update-ticket-entry-title" className="text-lg font-semibold tracking-[-0.03em] text-foreground">
-            {title}
-          </p>
-          <p id="record-update-ticket-entry-description" className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(
-              language,
-              mode === 'edit'
-                ? 'Select the existing ticket you want to update.'
-                : 'Kaur Khor will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
-            )}
-          </p>
-        </div>
-        {mode === 'actions' ? (
-          <div className="mt-6 flex flex-wrap justify-end gap-3">
-            <Button type="button" variant="outline" onClick={canResumeDraft ? onRequestNewWithDraft : () => openTicketRoute('new')}>
-              <ActionAddBadgeIcon className="size-4" />
-              {translateUiLiteral(language, newLabel)}
-            </Button>
-            <Button disabled={!canResumeDraft} type="button" variant="outline" onClick={() => openTicketRoute('draft')}>
-              <ActionResumeIcon className="size-4" />
-              {translateUiLiteral(language, resumeDraftLabel)}
-            </Button>
-            {showEdit ? (
-              <Button disabled={!canEdit} type="button" variant="outline" onClick={onOpenEdit}>
-                <ActionEditIcon className="size-4" />
-                {translateUiLiteral(language, editLabel)}
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/30" />
+        <DialogPrimitive.Content
+          className="fixed left-1/2 top-1/2 z-[110] max-h-[calc(100dvh-3rem)] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            initialFocusRef.current?.focus();
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (returnFocusTo?.isConnected) returnFocusTo.focus();
+          }}
+        >
+          <div className="space-y-2">
+            <DialogPrimitive.Title className="text-lg font-semibold tracking-[-0.03em] text-foreground">
+              {title}
+            </DialogPrimitive.Title>
+            <DialogPrimitive.Description className="text-sm leading-6 text-muted-foreground">
+              {translateUiLiteral(language, description)}
+            </DialogPrimitive.Description>
+          </div>
+          {mode === 'discard' ? (
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <Button ref={initialFocusRef} type="button" variant="ghost" onClick={onBack}>
+                <ActionCloseIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'Keep draft')}
               </Button>
-            ) : null}
-          </div>
-        ) : (
-          <div className="mt-5 grid gap-3">
-            <div className="max-h-72 overflow-auto rounded-2xl border border-border/70 bg-white">
-              {options.length > 0 ? options.map((option) => (
-                <button
-                  key={`${option.queryParam}:${option.id}`}
-                  className="grid w-full gap-1 border-b border-border/60 px-4 py-3 text-left last:border-b-0 hover:bg-muted/50"
-                  type="button"
-                  onClick={() => openExistingTicket(option)}
-                >
-                  <span className="flex items-center gap-2 font-medium text-foreground">
-                    <ActionConfirmIcon className="size-4 text-muted-foreground" />
-                    <span>{option.label}</span>
-                  </span>
-                  <span className="text-sm text-muted-foreground">{option.description}</span>
-                  <span className="text-xs text-muted-foreground">{option.metadata}</span>
-                </button>
-              )) : (
-                <p className="px-4 py-6 text-sm text-muted-foreground">
-                  {translateUiLiteral(language, 'No existing open tickets were found. Start a new ticket instead.')}
-                </p>
-              )}
+              <Button type="button" variant="destructive" onClick={onDiscardDraft}>
+                <ActionDeleteIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'Delete draft and start new')}
+              </Button>
             </div>
-          </div>
-        )}
-      </section>
-    </div>
+          ) : mode === 'actions' ? (
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <Button ref={canResumeDraft ? undefined : initialFocusRef} type="button" variant="outline" onClick={canResumeDraft ? onRequestNewWithDraft : () => openTicketRoute('new')}>
+                <ActionAddBadgeIcon data-icon="inline-start" />
+                {translateUiLiteral(language, newLabel)}
+              </Button>
+              <Button ref={canResumeDraft ? initialFocusRef : undefined} disabled={!canResumeDraft} type="button" variant="outline" onClick={() => openTicketRoute('draft')}>
+                <ActionResumeIcon data-icon="inline-start" />
+                {translateUiLiteral(language, resumeDraftLabel)}
+              </Button>
+              {showEdit ? (
+                <Button disabled={!canEdit} type="button" variant="outline" onClick={onOpenEdit}>
+                  <ActionEditIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, editLabel)}
+                </Button>
+              ) : null}
+              <DialogPrimitive.Close asChild>
+                <Button type="button" variant="ghost">
+                  <ActionCloseIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Cancel')}
+                </Button>
+              </DialogPrimitive.Close>
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-3">
+              <div className="max-h-72 overflow-auto rounded-2xl border border-border/70 bg-white">
+                {options.length > 0 ? options.map((option, index) => (
+                  <button
+                    key={`${option.queryParam}:${option.id}`}
+                    ref={index === 0 ? initialFocusRef : undefined}
+                    className="grid w-full gap-1 border-b border-border/60 px-4 py-3 text-left last:border-b-0 hover:bg-muted/50"
+                    type="button"
+                    onClick={() => openExistingTicket(option)}
+                  >
+                    <span className="flex items-center gap-2 font-medium text-foreground">
+                      <ActionConfirmIcon className="size-4 text-muted-foreground" />
+                      <span>{option.label}</span>
+                    </span>
+                    <span className="text-sm text-muted-foreground">{option.description}</span>
+                    <span className="text-xs text-muted-foreground">{option.metadata}</span>
+                  </button>
+                )) : (
+                  <p className="px-4 py-6 text-sm text-muted-foreground">
+                    {translateUiLiteral(language, 'No existing open tickets were found. Start a new ticket instead.')}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button ref={options.length === 0 ? initialFocusRef : undefined} type="button" variant="outline" onClick={onBack}>
+                  <NavigationBackIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Back')}
+                </Button>
+                <DialogPrimitive.Close asChild>
+                  <Button type="button" variant="ghost">
+                    <ActionCloseIcon data-icon="inline-start" />
+                    {translateUiLiteral(language, 'Cancel')}
+                  </Button>
+                </DialogPrimitive.Close>
+              </div>
+            </div>
+          )}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 
@@ -414,7 +463,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
   const { catalog, loadWorkSupportData, orderBatches, recordUpdateContext } = useInventory();
   const navigate = useNavigate();
   const [supportDataRequested, setSupportDataRequested] = useState(false);
-  const [confirmNewDiscardDraftOpen, setConfirmNewDiscardDraftOpen] = useState(false);
+  const ticketEntryTriggerRef = useRef<HTMLButtonElement>(null);
   const [ticketEntryPrompt, setTicketEntryPrompt] = useState<TicketEntryPromptState | null>(null);
   const canEditCustomerTicket = useMemo(
     () => openTicketSummaries(recordUpdateContext, 'customer').length > 0,
@@ -483,7 +532,8 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
     });
   }, [loadWorkSupportData, supportDataRequested]);
 
-  function handleHubCardClick(card: RecordUpdateHubCard) {
+  function handleHubCardClick(card: RecordUpdateHubCard, trigger: HTMLButtonElement) {
+    ticketEntryTriggerRef.current = trigger;
     if (card.laneId === 'customer-order-pending') {
       const promptState: TicketEntryPromptState = {
         canEdit: canEditCustomerTicket,
@@ -541,7 +591,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
 
   return (
     <WorkspacePage fitViewport className={embedded ? 'gap-4 p-0' : 'gap-5'}>
-      {ticketEntryPrompt && !confirmNewDiscardDraftOpen ? (
+      {ticketEntryPrompt ? (
         <TicketEntryPromptDialog
           canEdit={ticketEntryPrompt.canEdit}
           canResumeDraft={ticketEntryPrompt.canResumeDraft}
@@ -552,31 +602,20 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
           options={ticketEntryPrompt.options}
           showEdit={ticketEntryPrompt.showEdit}
           onClose={() => setTicketEntryPrompt(null)}
+          returnFocusTo={ticketEntryTriggerRef.current}
+          onBack={() => setTicketEntryPrompt((current) => current ? { ...current, mode: 'actions' } : current)}
           onOpenEdit={() =>
             setTicketEntryPrompt((current) => (current ? { ...current, mode: 'edit' } : current))
           }
-          onRequestNewWithDraft={() => setConfirmNewDiscardDraftOpen(true)}
+          onRequestNewWithDraft={() => setTicketEntryPrompt((current) => current ? { ...current, mode: 'discard' } : current)}
+          onDiscardDraft={() => {
+            const nextHref = ticketEntryPrompt.href;
+            removeDraftSavedForLane(ticketEntryPrompt.laneId);
+            setTicketEntryPrompt(null);
+            navigate(`${nextHref}?ticketMode=new`);
+          }}
         />
       ) : null}
-      <ConfirmActionDialog
-        cancelLabel={translateUiLiteral(language, 'Keep draft')}
-        confirmLabel={translateUiLiteral(language, 'Delete draft and start new')}
-        description={translateUiLiteral(language, 'Starting a new update will permanently delete the saved draft for this lane. Resume the draft instead if you want to keep it.')}
-        open={confirmNewDiscardDraftOpen}
-        title={translateUiLiteral(language, 'Delete saved draft?')}
-        onCancel={() => setConfirmNewDiscardDraftOpen(false)}
-        onConfirm={() => {
-          if (!ticketEntryPrompt) {
-            setConfirmNewDiscardDraftOpen(false);
-            return;
-          }
-          const nextHref = ticketEntryPrompt.href;
-          removeDraftSavedForLane(ticketEntryPrompt.laneId);
-          setTicketEntryPrompt(null);
-          setConfirmNewDiscardDraftOpen(false);
-          navigate(`${nextHref}?ticketMode=new`);
-        }}
-      />
       {!embedded ? (
         <WorkspaceTitleCard
           title={
@@ -611,7 +650,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
             compact={embedded}
             onClick={
               card.laneId === 'customer-order-pending' || card.laneId === 'customer-order-completed' || card.laneId === 'supplier-order-pending'
-                ? () => handleHubCardClick(card)
+                ? (event) => handleHubCardClick(card, event.currentTarget)
                 : undefined
             }
           />

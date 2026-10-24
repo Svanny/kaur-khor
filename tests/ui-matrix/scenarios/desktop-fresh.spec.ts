@@ -7,6 +7,7 @@ import {
   desktopWorkspaceCounts,
   launchDesktopUiMatrix,
   saveAllVisibilityPreferences,
+  resizeDesktopWindow,
 } from '../helpers/desktop';
 import {
   assertUiStable,
@@ -114,6 +115,97 @@ const freshEmptyRoutes: Array<{
 ];
 
 test.describe('UI matrix: desktop fresh state', () => {
+  test('ticket chooser keeps keyboard navigation and interrupted drafts safe', async ({}, testInfo) => {
+    testInfo.annotations.push({
+      type: 'ui-matrix',
+      description: UI_MATRIX_CASES.find((entry) => entry.id === 'desktop-ticket-chooser-keyboard')?.expectedUi ?? '',
+    });
+    const launched = await launchDesktopUiMatrix({ fresh: true, name: 'desktop-ticket-chooser', testInfo });
+    const { page } = launched;
+    try {
+      if (process.platform === 'win32') {
+        await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
+      }
+      await completeOnboardingThroughUi(page);
+      await saveAllVisibilityPreferences(page);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      const sku = await createSkuThroughUi(page, { name: 'Key item', supplier: 'Key supplier' });
+      await page.evaluate(async (skuId) => {
+        await window.kaurKhorDesktop.sena.createOrderBatch({
+          supplierName: 'Keyboard Supplier',
+          shared: { expectedArrivalAt: '2026-11-15T00:00:00.000Z', supplierNote: '' },
+          children: [{ skuId, overrides: { orderedQuantity: 5 } }],
+        });
+      }, sku.skuId);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      const lanes = [
+        { title: 'Customer Order', id: 'customer-order-pending' },
+        { title: 'Supplier Order', id: 'supplier-order-pending' },
+        { title: 'Immediate Sale', id: 'customer-order-completed' },
+      ];
+      const drafts = await page.evaluate((entries) => entries.map(({ id }) => {
+        const key = `kaur-khor:record-update:draft:${id}:v1`;
+        const value = JSON.stringify({
+          version: 1, currentStepId: 'stock', customSelectedLaneIds: [],
+          notes: 'Interrupted keyboard workflow', observedAt: '2026-05-19T09:00',
+          posTouchedLineKeys: [], rows: [], savedAt: '2026-05-19T09:00:00.000Z',
+          touchedPosMetadataPopupIds: [], unlockedStepCount: 1,
+        });
+        localStorage.setItem(key, value);
+        return { key, value };
+      }), lanes);
+      await navigateHashRoute(page, '/work/capture');
+      const before = await desktopWorkspaceCounts(page);
+      expect(before.orderBatchCount).toBe(1);
+      for (const { title } of lanes) {
+        const opener = page.getByRole('button', { name: title, exact: true });
+        await opener.click();
+        const dialog = page.getByRole('dialog', { name: title, exact: true });
+        await expect(dialog.getByRole('button', { name: 'Resume draft', exact: true })).toBeFocused();
+        for (let index = 0; index < 7; index += 1) {
+          await page.keyboard.press(index === 6 ? 'Shift+Tab' : 'Tab');
+          expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+        }
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+        await expect(opener).toBeFocused();
+        await opener.press('Enter');
+        await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(opener).toBeFocused();
+      }
+      const supplier = page.getByRole('button', { name: 'Supplier Order', exact: true });
+      await supplier.click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Edit/Update', exact: true }).click();
+      const picker = page.getByRole('dialog', { name: 'Edit / update existing supplier order' });
+      await expect(picker.getByRole('button').first()).toBeFocused();
+      await captureUi(page, testInfo, 'ticket-picker-keyboard');
+      await picker.getByRole('button', { name: 'Back', exact: true }).click();
+      await expect(page.getByRole('dialog').getByRole('button', { name: 'Resume draft' })).toBeFocused();
+      await page.getByRole('dialog').getByRole('button', { name: 'New', exact: true }).click();
+      const warning = page.getByRole('dialog', { name: 'Delete saved draft?' });
+      await expect(warning.getByRole('button', { name: 'Keep draft', exact: true })).toBeFocused();
+      await resizeDesktopWindow(launched, { width: 960, height: 760 });
+      await assertUiStable(page, 'ticket draft warning at compact desktop size');
+      await captureUi(page, testInfo, 'ticket-draft-safe-default');
+      await page.keyboard.press('Escape');
+      await expect(supplier).toBeFocused();
+      await supplier.press('Enter');
+      await page.getByRole('dialog').getByRole('button', { name: 'New', exact: true }).click();
+      await warning.getByRole('button', { name: 'Keep draft', exact: true }).click();
+      await expect(page.getByRole('dialog').getByRole('button', { name: 'Resume draft' })).toBeFocused();
+      expect(await page.evaluate((entries) => entries.map(({ key }) => localStorage.getItem(key)), drafts))
+        .toEqual(drafts.map(({ value }) => value));
+      expect(await desktopWorkspaceCounts(page)).toEqual(before);
+      await captureUi(page, testInfo, 'ticket-chooser-after-interruption');
+      await page.getByRole('dialog').getByRole('button', { name: 'Resume draft', exact: true }).click();
+      await expect(page).toHaveURL(/#\/work\/capture\/supplier-order$/);
+      await assertUiStable(page, 'resumed supplier draft');
+      launched.issues.assertNoIssues('ticket chooser repeated and interrupted keyboard workflow');
+    } finally {
+      await closeDesktopUiMatrix(launched);
+    }
+  });
+
   test('Home resumes product setup and leads directly to the first saved update', async ({}, testInfo) => {
     testInfo.annotations.push({
       type: 'ui-matrix',

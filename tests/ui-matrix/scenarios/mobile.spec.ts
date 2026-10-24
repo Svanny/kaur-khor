@@ -43,7 +43,7 @@ async function seedFullCaptureDraft(page: import('@playwright/test').Page, laneI
 }
 
 async function chooseNewCaptureTicketIfPrompted(page: import('@playwright/test').Page) {
-  const prompt = page.getByRole('dialog').filter({ hasText: 'What do you want to do?' });
+  const prompt = page.getByRole('dialog').filter({ has: page.getByRole('button', { name: 'New', exact: true }) });
   if (await prompt.isVisible().catch(() => false)) {
     await prompt.getByRole('button', { name: 'New' }).click();
   }
@@ -70,6 +70,37 @@ async function returnToPhoneCaptureMenu(page: import('@playwright/test').Page) {
 }
 
 test.describe('UI matrix: mobile and responsive embedded layouts', () => {
+  test('ticket chooser preserves drafts across phone portrait and landscape', async ({ page }, testInfo) => {
+    const prepared = await prepareWebPage(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openEmbeddedRoute(page, 'demo');
+    await expect(page.getByRole('heading', { name: 'Set up Kaur Khor' })).toBeVisible();
+    await completeEmbeddedOnboardingIfPresent(page);
+    await page.getByRole('navigation', { name: 'Phone navigation' }).getByRole('link', { name: 'Settings' }).click();
+    await importSeededDemoWorkspace(page, testInfo);
+    await seedFullCaptureDraft(page, 'customer-order-pending');
+    const key = 'kaur-khor:record-update:draft:customer-order-pending:v1';
+    const original = await page.evaluate((draftKey) => localStorage.getItem(draftKey), key);
+    for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      await openEmbeddedRoute(page, 'demo', '/work/capture');
+      const opener = page.getByRole('button', { name: 'Customer Order', exact: true });
+      await opener.click();
+      const chooser = page.getByRole('dialog', { name: 'Customer Order', exact: true });
+      await expect(chooser.getByRole('button', { name: 'Resume draft' })).toBeFocused();
+      await assertEmbeddedUiStable(page, `ticket chooser ${viewport.width}x${viewport.height}`);
+      await captureUi(page, testInfo, `mobile-ticket-chooser-${viewport.width}`);
+      await chooser.getByRole('button', { name: 'New', exact: true }).click();
+      const warning = page.getByRole('dialog', { name: 'Delete saved draft?' });
+      await expect(warning.getByRole('button', { name: 'Keep draft', exact: true })).toBeFocused();
+      await warning.getByRole('button', { name: 'Keep draft', exact: true }).click();
+      await chooser.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(opener).toBeFocused();
+      expect(await page.evaluate((draftKey) => localStorage.getItem(draftKey), key)).toBe(original);
+    }
+    prepared.issues.assertNoIssues('phone ticket chooser and interrupted draft');
+  });
+
   test('required phone viewport sizes keep the operator shell stable', async ({ page }, testInfo) => {
     const requiredViewports = [
       { width: 360, height: 740 },

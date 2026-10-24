@@ -116,6 +116,8 @@ The Capture hub has four primary lanes:
 
 For ticket-backed lanes, Kaur Khor opens a new ticket flow directly when there is no meaningful saved draft or editable ticket. It only asks whether to resume, start new, or edit/update when that choice would change real work. Mode-only placeholders are discarded instead of being shown as saved drafts.
 
+The ticket chooser keeps keyboard focus inside its controls. **Cancel** or **Escape** returns to the Capture card without changing the saved draft. **Back** returns from the existing-ticket list to the chooser. Starting new work over a saved draft asks for confirmation and focuses **Keep draft** first; only **Delete draft and start new** removes that draft.
+
 After validation and any required receipt confirmation, saving a capture closes the session immediately and returns you to the previous Work surface. The bottom-left **Saving...** indicator stays visible while Kaur Khor finishes writing the observation, ticket/order updates, and any follow-up analysis in the background. If that background save fails, the draft remains recoverable and the normal workspace error surface reports the failure.
 
 Clearing current data from Settings removes saved capture drafts and cached product detail pages from this device before reloading, so a blank workspace opens without previous Products Update, Customer Order, or demo rows.
