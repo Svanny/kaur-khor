@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 import { UI_MATRIX_CASES } from '../matrix-cases';
 import { captureUi, scrollMainSurface } from '../helpers/runtime-guards';
 import { createSkuThroughUi } from '../helpers/forms';
@@ -16,6 +17,34 @@ import {
 } from '../helpers/web';
 
 test.describe('UI matrix: browser and demo surfaces', () => {
+  test('backup import waits for the reloaded browser bridge before reading counts', async ({ page }, testInfo) => {
+    await page.route('**/kaur-khor/bridge-readiness-fixture', (route) => route.fulfill({
+      contentType: 'text/html',
+      body: `<!doctype html><html><body>
+        <input type="file" accept="application/json" onchange="location.reload()">
+        <script>
+          const loads = Number(sessionStorage.getItem('fixture-loads') || 0) + 1;
+          sessionStorage.setItem('fixture-loads', String(loads));
+          document.documentElement.dataset.fixtureLoads = String(loads);
+          setTimeout(() => {
+            window.kaurKhorDesktop = { sena: {
+              getCatalog: async () => ({ skus: [{}], services: [{}] }),
+              listObservations: async () => [{}],
+            } };
+          }, 2000);
+        </script>
+      </body></html>`,
+    }));
+    await page.goto('/kaur-khor/bridge-readiness-fixture', { waitUntil: 'domcontentloaded' });
+    const backupPath = testInfo.outputPath('bridge-readiness-backup.json');
+    await writeFile(backupPath, '{}', 'utf8');
+
+    await importEmbeddedBackup(page, backupPath);
+
+    await expect(page.locator('html')).toHaveAttribute('data-fixture-loads', '2');
+    expect(await browserWorkspaceCounts(page)).toEqual({ skuCount: 1, serviceCount: 1, observationCount: 1 });
+  });
+
   test('navigation waits for delayed visual viewport measurements', async ({ page }, testInfo) => {
     const prepared = await prepareWebPage(page);
     await page.setViewportSize({ width: 768, height: 1024 });
