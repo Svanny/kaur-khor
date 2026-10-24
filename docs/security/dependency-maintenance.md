@@ -199,3 +199,77 @@ Review temporary overrides when upstream consumers adopt the fixed versions.
 Reuse any existing maintenance automation instead of creating another schedule.
 Merging, auto-merge, tagging, release publication, and deployment require a
 separate explicit decision.
+
+## October 23 Node certificate maintenance
+
+The [October Node security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases)
+blocks compromised eMudhra intermediates and fixes other Node vulnerabilities.
+Source builds now require patched 22.23.4, 24.22.1, or 26.12.1 release lines.
+Both absent-Node wrappers pin 22.23.4 with the official archive SHA-256 digests
+for their supported platforms. Installed older Node versions remain untouched
+and are rejected before build work. CI pins 24.22.1 explicitly: the previous
+floating major resolved to cached 24.21.0 in the October 22 Pages test job.
+
+Electron 43.8.3 already carries the certificate mitigation even though
+process.versions.node reports 24.22.0. The [Electron advisory](https://github.com/electron/electron/security/advisories/GHSA-jr5w-w6x2-84p9)
+lists 43.8.1 as patched and covers Chromium plus Node tls, https, and fetch.
+An isolated Windows runtime probe rejected both public eMudhra test endpoints
+with CERT_REVOKED through Node fetch and ERR_CERT_REVOKED through net.fetch.
+The optional Telegram integration uses net.fetch in Electron, with global fetch
+as its fallback. No TLS flags, trust-store overrides, or security settings change.
+
+Neither Rust manifest or lockfile includes webpki-roots, webpki-root-certs,
+rustls-webpki, rustls-native-certs, or a Rust HTTP/TLS client. No Rust CA update
+applies to the current graph. This review establishes no Render deployment or
+exploitation, and the separate PHP advisory has no demonstrated application path.
+The package audit still has the documented low KaTeX/Markmap limitation; runtime
+certificate trust is checked separately from that package audit.
+
+## October 24 network dependency maintenance
+
+The npm advisory refresh reports new findings in the installed build and docs
+tools. Pin Undici 6.29.1 and 7.30.1 within their existing major lines and move
+the fast-uri override from 3.1.8 to 3.1.9. Regenerate the lockfile with pnpm
+10.34.5; keep the existing moderate threshold and required network audit.
+
+- Undici clears [GHSA-xjj6-f33q-929c](https://github.com/advisories/GHSA-xjj6-f33q-929c)
+  (process termination after an excessive content-encoding response closes
+  early), [GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685)
+  (unbounded EventSource parser state), and
+  [GHSA-f72v-6w45-q472](https://github.com/advisories/GHSA-f72v-6w45-q472)
+  (mixed-case integrity tokens bypass verification on the 7.x path).
+  The installed consumers are Electron's downloader, native rebuild tooling,
+  and Markmap's HTML importer. Their supported ranges accept these patches.
+- fast-uri clears [GHSA-w74x-v6f9-j3xg](https://github.com/advisories/GHSA-w74x-v6f9-j3xg)
+  (percent-decoded scheme spoofing) and
+  [GHSA-wjr9-j795-jxcr](https://github.com/advisories/GHSA-wjr9-j795-jxcr)
+  (ambiguous domain hosts). It is used by Electron Builder's Ajv schema
+  validator, not by application URL policy.
+
+`tools/scripts/network-dependency-maintenance.test.mjs` follows the installed
+consumer paths. Bounded loopback child processes reproduce the early-close
+crash without terminating the test runner. Coverage also rejects mismatched
+mixed-case integrity metadata and ambiguous URIs while preserving valid
+integrity checks, ordinary URI resolution, and Ajv reference validation.
+The old dependencies fail seven of these eight tests. Markmap's actual offline
+documentation command and the five platform packaging jobs check consumers.
+The completed package audit now reports one low finding and no moderate, high,
+or critical findings; the existing KaTeX limitation remains unchanged.
+
+Package overrides do not update Electron's embedded Node dependencies.
+Source-build Node 22.23.4 reports patched Undici 6.29.1, but the Windows Electron
+43.8.3 binary reports Node 24.22.0 and affected Undici 7.29.1. As of October 24,
+the published stable 43.8.3, 44.9.3, and 45.0.0 releases do not include the
+[Node 24.22.1 update](https://github.com/electron/electron/pull/55164); it appears
+in 46.0.0-alpha.1. Keep the supported stable runtime and track its upstream fix
+separately rather than claiming the npm overrides repair its built-in fetch.
+An isolated Windows `ELECTRON_RUN_AS_NODE` child reproduces the early-close
+crash through that binary's global fetch against a loopback fixture. This is
+component-level evidence, not a production application exploit demonstration.
+
+No application EventSource or fetch integrity usage was found. Telegram's
+normal Electron path uses Chromium `net.fetch`; its global-fetch fallback
+targets the fixed Telegram API origin. This review does not establish an
+attacker-controlled response path in the packaged application. It also does
+not assert that the embedded Undici is patched. The earlier certificate
+mitigation is a separate fix and does not establish coverage of these CVEs.

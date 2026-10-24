@@ -18,6 +18,13 @@ function runScript(args: string[], env: NodeJS.ProcessEnv = process.env) {
   });
 }
 
+function checkNodeVersion(version: string) {
+  return spawnSync(process.execPath, ['--input-type=module', '--eval',
+    `import { assertSupportedNodeVersion } from ${JSON.stringify(pathToFileURL(scriptPath).href)};
+     assertSupportedNodeVersion(${JSON.stringify(version)});`,
+  ], { encoding: 'utf8' });
+}
+
 function runShellBootstrap(args: string[], env: NodeJS.ProcessEnv = process.env) {
   return spawnSync('/bin/sh', [shellBootstrapPath, ...args], {
     encoding: 'utf8',
@@ -240,14 +247,15 @@ printf '%s\\n' "$COREPACK_DEFAULT_TO_LATEST" > "$KAUR_KHOR_PINNED_TOOL_MARKER-en
     }
   });
 
-  test.each(['22.12.0', '22.21.1', '24.0.0', '25.4.0'])('accepts supported Node.js %s for both source-build wrappers', async (version) => {
-    const { assertSupportedNodeVersion } = await import(pathToFileURL(scriptPath).href);
-    expect(() => assertSupportedNodeVersion(version)).not.toThrow();
+  test.each(['22.23.4', '22.24.0', '24.22.1', '24.23.0', '26.12.1', '26.13.0'])('accepts supported Node.js %s for both source-build wrappers', (version) => {
+    const result = checkNodeVersion(version);
+    expect(result.status, result.stderr).toBe(0);
   });
 
-  test.each(['20.19.0', '22.11.9', 'invalid'])('rejects unsupported Node.js %s before source-build work', async (version) => {
-    const { assertSupportedNodeVersion } = await import(pathToFileURL(scriptPath).href);
-    expect(() => assertSupportedNodeVersion(version)).toThrow('require Node.js 22.12.0 or newer');
+  test.each(['20.19.0', '22.12.0', '22.23.3', '23.11.0', '24.22.0', '25.4.0', '26.12.0', 'invalid'])('rejects unsupported Node.js %s before source-build work', (version) => {
+    const result = checkNodeVersion(version);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('require patched Node.js 22.23.4+, 24.22.1+, or 26.12.1+ within those release lines');
   });
 
   test('both wrappers delegate to an entry point that rejects old Node before build work', () => {
@@ -257,7 +265,7 @@ printf '%s\\n' "$COREPACK_DEFAULT_TO_LATEST" > "$KAUR_KHOR_PINNED_TOOL_MARKER-en
     try {
       const result = spawnSync(process.execPath, ['--require', preload, scriptPath, '--resolve-only'], { encoding: 'utf8' });
       expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain('require Node.js 22.12.0 or newer; found 20.19.0');
+      expect(result.stderr).toContain('require patched Node.js 22.23.4+, 24.22.1+, or 26.12.1+ within those release lines; found 20.19.0');
       expect(result.stdout).not.toContain('platform=');
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -351,13 +359,13 @@ exit 77
     const result = runShellBootstrap(['--resolve-only'], fixture.env);
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('SHA-256 mismatch for node-v22.21.1-darwin-arm64.tar.xz');
+    expect(result.stderr).toContain('SHA-256 mismatch for node-v22.23.4-darwin-arm64.tar.xz');
     expect(existsSync(fixture.tarMarker)).toBe(false);
   });
 
   test('shell bootstrap extracts a Node archive after digest verification', () => {
     const fixture = createShellBootstrapFixture(
-      '39f53ffcf1604291e85974c8588bb290c14b358ac085e342920e703651d63c5e',
+      '037650d0839f457747396f052073fb48333d31bf5abd3c98b74da20d89ebb1ad',
       `#!/bin/sh
 destination=""
 while [ "$#" -gt 0 ]; do
@@ -368,7 +376,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 printf 'called' > "$KAUR_KHOR_TAR_MARKER"
-node_dir="$destination/node-v22.21.1-darwin-arm64/bin"
+node_dir="$destination/node-v22.23.4-darwin-arm64/bin"
 mkdir -p "$node_dir"
 cat > "$node_dir/node" <<'NODE'
 #!/bin/sh
@@ -382,7 +390,7 @@ chmod +x "$node_dir/node"
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('verified fake node');
-    expect(result.stdout).toContain(`${fixture.root}/tools/node-v22.21.1/bin`);
+    expect(result.stdout).toContain(`${fixture.root}/tools/node-v22.23.4/bin`);
     expect(result.stdout).toContain('tools/scripts/build-from-source.mjs --resolve-only');
     expect(existsSync(fixture.tarMarker)).toBe(true);
   });
@@ -471,7 +479,7 @@ chmod +x "$node_dir/node"
     const script = readFileSync(powershellBootstrapPath, 'utf8');
 
     expect(script).toContain('node-v${NodeVersion}-${NodePlatform}.zip');
-    expect(script).toContain('3c624e9fbe07e3217552ec52a0f84e2bdc2e6ffa7348f3fdfb9fbf8f42e23fcf');
+    expect(script).toContain('cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20');
     expect(script).toContain('Get-FileHash -Algorithm SHA256');
     expect(script).toContain('Remove-Item -Force $ArchivePath');
     expect(script).toContain('build-from-source.mjs');
