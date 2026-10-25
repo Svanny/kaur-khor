@@ -124,10 +124,13 @@ export async function exportEmbeddedBackupPath(page: Page, testInfo: TestInfo, n
 }
 
 export async function importEmbeddedBackup(page: Page, path: string) {
+  const deadline = Date.now() + 15_000;
   const reloadPromise = page.waitForEvent('domcontentloaded', { timeout: 15_000 });
   await page.locator('input[type="file"][accept*="json"]').first().setInputFiles(path);
   await reloadPromise;
-  await page.waitForTimeout(750);
+  await page.waitForFunction(() => Boolean(window.kaurKhorDesktop?.sena), undefined, {
+    timeout: Math.max(1, deadline - Date.now()),
+  });
 }
 
 export async function resetEmbeddedWorkspaceThroughUi(page: Page, mode: 'app' | 'demo') {
