@@ -77,6 +77,12 @@ for (const surface of ['wide', 'phone'] as const) {
       expect(await page.evaluate((key) => localStorage.getItem(key), draftKey)).toBe(draft);
     }
 
+    if (surface === 'phone') {
+      // Rotation mounts the lazy desktop settings route. Finish that transition
+      // before the deliberate import reload can cancel its dependency requests.
+      await expect(page.locator('[data-slot="card-title"]').filter({ hasText: /^Preferences$/ })).toBeVisible();
+    }
+    prepared.issues.assertNoIssues(`backup preview ${surface} before deliberate reload`);
     await importEmbeddedBackup(page, emptyBackup);
     await expect(page.getByRole('button', { name: 'Export backup', exact: true }).first()).toBeEnabled();
     expect(await browserWorkspaceCounts(page)).toEqual({ skuCount: 0, serviceCount: 0, observationCount: 0 });
