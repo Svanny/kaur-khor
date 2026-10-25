@@ -21,7 +21,10 @@ test.describe('UI matrix: browser and demo surfaces', () => {
     await page.route('**/kaur-khor/bridge-readiness-fixture', (route) => route.fulfill({
       contentType: 'text/html',
       body: `<!doctype html><html><body>
-        <input type="file" accept="application/json" onchange="location.reload()">
+        <input type="file" accept="application/json" onchange="document.querySelector('[role=dialog]').hidden = false">
+        <div role="dialog" aria-label="Replace this browser workspace?" hidden>
+          <button onclick="location.reload()">Replace workspace</button>
+        </div>
         <script>
           const loads = Number(sessionStorage.getItem('fixture-loads') || 0) + 1;
           sessionStorage.setItem('fixture-loads', String(loads));

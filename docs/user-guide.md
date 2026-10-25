@@ -1006,6 +1006,8 @@ Desktop shows the data directory, workspace store, preferences file, and backup 
 
 Browser runtime is different. Browser data lives in the current browser profile. Native folder reveal, desktop snapshots, and log export are desktop-only. Use the browser app banner for browser backup import/export, and treat browser clear-data actions carefully because clearing browser storage can remove the workspace.
 
+When you select a browser backup, review its filename, export date and incoming item/update counts before choosing **Replace workspace**. Import replaces the saved browser workspace. Use **Export backup** in the preview to keep the current workspace first. **Cancel** or Escape keeps your current data and saved capture drafts. This preview also appears for phone safety imports. A failed import stays open with an error so you can retry or cancel.
+
 Restoring a snapshot replaces the local workspace with the selected snapshot. Create or confirm a backup before restoring when you may need the current state again.
 
 ### Automation Settings {#settings-automation}

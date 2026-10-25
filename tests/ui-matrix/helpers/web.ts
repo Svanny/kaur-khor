@@ -127,6 +127,8 @@ export async function importEmbeddedBackup(page: Page, path: string) {
   const deadline = Date.now() + 15_000;
   const reloadPromise = page.waitForEvent('domcontentloaded', { timeout: 15_000 });
   await page.locator('input[type="file"][accept*="json"]').first().setInputFiles(path);
+  await page.getByRole('dialog', { name: /Replace this (browser|demo) workspace\?/ })
+    .getByRole('button', { name: 'Replace workspace', exact: true }).click();
   await reloadPromise;
   await page.waitForFunction(() => Boolean(window.kaurKhorDesktop?.sena), undefined, {
     timeout: Math.max(1, deadline - Date.now()),
