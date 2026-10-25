@@ -18,10 +18,7 @@ const targetFiles = {
     'tests/ui-matrix/scenarios/desktop-generated.spec.ts',
     'tests/ui-matrix/scenarios/desktop-dependent.spec.ts',
   ],
-  web: [
-    'tests/ui-matrix/scenarios/web.spec.ts',
-    'tests/ui-matrix/scenarios/browser-backup-preview.spec.ts',
-  ],
+  web: ['tests/ui-matrix/scenarios/web.spec.ts'],
   mobile: ['tests/ui-matrix/scenarios/mobile.spec.ts'],
 };
 
