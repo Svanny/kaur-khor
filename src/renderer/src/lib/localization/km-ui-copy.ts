@@ -3032,6 +3032,14 @@ const exactValueTranslations: Record<string, string> = {
   'Sales-pattern and price changes will appear here once កខ has enough activity to explain them.':
     'ការផ្លាស់ប្តូរលំនាំលក់ និងតម្លៃ នឹងបង្ហាញនៅទីនេះ ពេលកខមានសកម្មភាពគ្រប់គ្រាន់សម្រាប់ពន្យល់។',
   ...literalTranslationGroup({
+    'Replace this browser workspace?': 'ជំនួសកន្លែងធ្វើការក្នុងកម្មវិធីរុករកនេះឬ?',
+    'Replace this demo workspace?': 'ជំនួសកន្លែងធ្វើការសាកល្បងនេះឬ?',
+    'The backup will replace the saved workspace in this browser. Export your current workspace first if you want to keep it.':
+      'បេកអាប់នឹងជំនួសកន្លែងធ្វើការដែលបានរក្សាទុកក្នុងកម្មវិធីរុករកនេះ។ នាំចេញកន្លែងធ្វើការបច្ចុប្បន្នជាមុន ប្រសិនបើអ្នកចង់រក្សាវាទុក។',
+    '{skus} SKUs · {services} services · {observations} updates': '{skus} មុខទំនិញ · {services} សេវាកម្ម · {observations} កំណត់ត្រា',
+    'Replace workspace': 'ជំនួសកន្លែងធ្វើការ',
+    'Importing backup.': 'កំពុងនាំចូលបេកអាប់។',
+    'Exporting backup.': 'កំពុងនាំចេញបេកអាប់។',
     'Continue your saved sale or start a new one.':
       'បន្តការលក់ដែលអ្នកបានរក្សាទុក ឬចាប់ផ្តើមការលក់ថ្មី។',
     'Create a new order, continue a saved draft, or choose an open ticket to update.':

@@ -1532,6 +1532,40 @@ describe('WebRoutes embedded app fallback state', () => {
     ]);
   });
 
+  test.each(['app', 'demo'] as const)('previews %s backups without replacing data on Cancel or Escape', async (mode) => {
+    const databaseName = mode === 'app' ? KAUR_KHOR_BROWSER_APP_DATABASE : KAUR_KHOR_BROWSER_DEMO_DATABASE;
+    const originalState = createMockState();
+    const handle = createSupportedBrowserStorageHandle([{
+      collection: 'browser_state', id: databaseName, json: originalState, updatedAt: '2026-05-05T00:00:00.000Z',
+    }]);
+    handle.init.databaseName = databaseName;
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+    const { container } = render(<EmbeddedAppRoute mode={mode} />);
+    const importButton = await screen.findByRole('button', { name: 'Import backup' });
+    const currentCatalog = structuredClone(getBrowserDesktopBridgeMockState().catalog);
+    const backup = {
+      databaseName, exportedAt: '2026-05-05T00:00:00.000Z', format: 'kaur-khor.browser.storage.backup',
+      records: [{ collection: 'browser_state', id: databaseName, json: fallbackStateForMode(mode), updatedAt: '2026-05-05T00:00:00.000Z' }],
+      schemaVersion: 1, version: 1,
+    };
+    const file = { name: 'selected-backup.json', text: vi.fn(async () => JSON.stringify(backup)) } as unknown as File;
+    for (const closeWithEscape of [false, true]) {
+      importButton.focus();
+      fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+      const dialog = await screen.findByRole('dialog', { name: mode === 'app' ? 'Replace this browser workspace?' : 'Replace this demo workspace?' });
+      expect(within(dialog).getByText('selected-backup.json')).toBeVisible();
+      expect(within(dialog).getByText('0 SKUs · 0 services · 0 updates')).toBeVisible();
+      expect(handle.importBackup).not.toHaveBeenCalled();
+      await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus());
+      if (closeWithEscape) fireEvent.keyDown(dialog, { key: 'Escape' });
+      else fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() => expect(importButton).toHaveFocus());
+      expect(handle.importBackup).not.toHaveBeenCalled();
+      expect(getBrowserDesktopBridgeMockState().catalog).toEqual(currentCatalog);
+    }
+  });
+
   test('imports older browser backups with recoverable partial workspace state', async () => {
     const existingState = fallbackStateForMode('app');
     const handle = createSupportedBrowserStorageHandle([
@@ -1603,7 +1637,17 @@ describe('WebRoutes embedded app fallback state', () => {
         },
       });
 
-      await waitFor(() => expect(handle.importBackup).toHaveBeenCalledTimes(1));
+      const preview = await screen.findByRole('dialog', { name: 'Replace this browser workspace?' });
+      expect(handle.importBackup).not.toHaveBeenCalled();
+      vi.mocked(handle.importBackup).mockRejectedValueOnce(new Error('Storage temporarily unavailable'));
+      fireEvent.click(within(preview).getByRole('button', { name: 'Replace workspace' }));
+      expect(await within(preview).findByRole('alert')).toHaveTextContent('Storage temporarily unavailable');
+      expect(getBrowserDesktopBridgeMockState().catalog.skus).toEqual([]);
+      expect(reloadLocation).not.toHaveBeenCalled();
+      const retry = within(preview).getByRole('button', { name: 'Replace workspace' });
+      fireEvent.click(retry);
+      fireEvent.click(retry);
+      await waitFor(() => expect(handle.importBackup).toHaveBeenCalledTimes(2));
       expect(getBrowserDesktopBridgeMockState().catalog.skus[0]?.skuId).toBe('sku-restored');
       expect(getBrowserDesktopBridgeMockState().skuDetails).toEqual({});
       expect(getBrowserDesktopBridgeMockState().orderBatches).toEqual([]);

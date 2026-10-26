@@ -162,6 +162,15 @@ or does not contain browser workspace state, the app reports the import problem
 and leaves export/import controls available so the operator can retry or export
 the current workspace before taking another action.
 
+Selecting a valid backup opens a preview with its filename, export date and
+incoming SKU, service and update counts. Nothing is imported until you choose
+**Replace workspace**. This replaces the saved workspace rather than merging
+records. Use **Export backup** in the preview to keep a copy of the current
+workspace first. **Cancel** or Escape closes the preview without changing the
+workspace or saved capture drafts. The same preview is used by the wide browser
+banner and phone safety actions. If import fails, the preview stays open with
+the error so you can retry or cancel.
+
 ## Verification
 
 Use:

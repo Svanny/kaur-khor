@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Dialog as DialogPrimitive } from 'radix-ui';
 import { HashRouter, useLocation } from 'react-router-dom';
 import App from '@/App';
 import {
@@ -14,12 +15,13 @@ import {
 import { Button } from '@/components/ui/button';
 import {
   ActionConfirmIcon,
+  ActionCloseIcon,
   ActionDatabaseUploadIcon,
   ActionExportIcon,
   ActionResetIcon,
   ActionResumeIcon,
 } from '@icons/actions';
-import { StatusWarningIcon } from '@icons/status';
+import { StatusLoadingIcon, StatusWarningIcon } from '@icons/status';
 import { WebDownloadIcon, WebHomeIcon } from '@icons/web';
 import { cn } from '@/lib/utils';
 import { translateUiLiteral } from '@/lib/localization/translations';
@@ -32,6 +34,7 @@ import {
   type BrowserStorageDocumentRecord,
   type BrowserStorageHandle,
   type BrowserStorageSupportedHandle,
+  type BrowserStorageJsonBackup,
 } from '@/runtime/web';
 import type { AppLanguage } from '@shared/inventory';
 import type { DesktopBridge } from '@shared/ipc';
@@ -901,6 +904,24 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
     handle: null,
   });
   const [isReady, setIsReady] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{
+    backup: BrowserStorageJsonBackup;
+    state: BrowserMockState;
+    fileName: string;
+    returnFocusTo: HTMLElement | null;
+    handle: BrowserStorageSupportedHandle;
+  } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importRequest = useRef(0);
+  const backupActionInFlight = useRef(false);
+  const cancelImportRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setPendingImport(null);
+    return () => { importRequest.current += 1; };
+  }, [mode]);
 
   useEffect(() => {
     const updateFitToViewport = () => {
@@ -1010,35 +1031,40 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
     };
   }, [isReady, mode]);
 
-  function handleExport() {
-    void (async () => {
-      if (!storage.handle) {
-        return;
-      }
-      try {
-        await persistCurrentState(storage.handle, databaseName);
-        const backup = await storage.handle.exportBackup();
-        downloadJson(`kaur-khor-${mode}-backup-${new Date().toISOString().slice(0, 10)}.kaur-khor-backup.json`, backup);
-        setStorage((current) => ({
-          ...current,
-          lastBackupAt: backup.exportedAt,
-        }));
-      } catch (error) {
-        setStorage((current) => storageStateWithActionableError(
-          current,
-          formatBrowserStorageErrorMessage(error instanceof Error ? error.message : String(error)),
-        ));
-      }
-    })();
+  async function handleExport() {
+    if (!storage.handle || backupActionInFlight.current) return;
+    backupActionInFlight.current = true;
+    setIsExporting(true);
+    setImportError(null);
+    try {
+      await persistCurrentState(storage.handle, databaseName);
+      const backup = await storage.handle.exportBackup();
+      downloadJson(`kaur-khor-${mode}-backup-${new Date().toISOString().slice(0, 10)}.kaur-khor-backup.json`, backup);
+      setStorage((current) => ({ ...current, lastBackupAt: backup.exportedAt }));
+    } catch (error) {
+      const message = formatBrowserStorageErrorMessage(error instanceof Error ? error.message : String(error));
+      if (pendingImport) setImportError(message);
+      setStorage((current) => storageStateWithActionableError(current, message));
+    } finally {
+      backupActionInFlight.current = false;
+      setIsExporting(false);
+    }
   }
 
   function handleImport(file: File) {
+    if (backupActionInFlight.current) return;
+    const request = ++importRequest.current;
+    const returnFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPendingImport(null);
+    setImportError(null);
     void (async () => {
       if (!storage.handle) {
         return;
       }
       try {
-        const validation = parseBrowserStorageBackupJson(await file.text());
+        const contents = await file.text();
+        if (request !== importRequest.current) return;
+        const validation = parseBrowserStorageBackupJson(contents);
         if (!validation.ok) {
           setStorage((current) => storageStateWithActionableError(current, validation.errors.join(' ')));
           return;
@@ -1055,16 +1081,39 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
           setStorage((current) => storageStateWithActionableError(current, 'Backup did not contain a browser workspace state.'));
           return;
         }
-        await storage.handle.importBackup(validation.backup);
-        setBrowserDesktopBridgeMockState(normalizeBrowserStateForMode(mode, restoredState));
-        window.location.reload();
+        setPendingImport({
+          backup: validation.backup,
+          state: normalizeBrowserStateForMode(mode, restoredState),
+          fileName: file.name,
+          returnFocusTo,
+          handle: storage.handle,
+        });
       } catch (error) {
+        if (request !== importRequest.current) return;
         setStorage((current) => storageStateWithActionableError(
           current,
           formatBrowserStorageErrorMessage(error instanceof Error ? error.message : String(error)),
         ));
       }
     })();
+  }
+
+  async function confirmImport() {
+    if (!pendingImport || backupActionInFlight.current || pendingImport.handle !== storage.handle) return;
+    backupActionInFlight.current = true;
+    setIsImporting(true);
+    setImportError(null);
+    try {
+      await pendingImport.handle.importBackup(pendingImport.backup);
+      setBrowserDesktopBridgeMockState(pendingImport.state);
+      setPendingImport(null);
+      window.location.reload();
+    } catch (error) {
+      setImportError(formatBrowserStorageErrorMessage(error instanceof Error ? error.message : String(error)));
+    } finally {
+      backupActionInFlight.current = false;
+      setIsImporting(false);
+    }
   }
 
   function handleReset(options?: { skipBrowserConfirm?: boolean }) {
@@ -1127,21 +1176,75 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   }
 
   return (
-    <EmbeddedAutoZoomViewport
-      fitToViewport={fitToViewport}
-      phoneLandscapeOverlay={undefined}
-    >
-      <HashRouter basename={hiddenPhoneOperator ? HIDDEN_PHONE_OPERATOR_BASENAME : undefined}>
-        <EmbeddedAppContent
-          hiddenPhoneOperator={hiddenPhoneOperator}
-          mode={mode}
-          storage={storage}
-          onExport={handleExport}
-          onImport={handleImport}
-          onReset={handleReset}
-        />
-      </HashRouter>
-    </EmbeddedAutoZoomViewport>
+    <>
+      {pendingImport ? (
+        <DialogPrimitive.Root open onOpenChange={(open) => { if (!open && !backupActionInFlight.current) setPendingImport(null); }}>
+          <DialogPrimitive.Portal>
+            <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-black/30" />
+            <DialogPrimitive.Content
+              className="fixed left-1/2 top-1/2 z-[110] grid max-h-[calc(100dvh-3rem)] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-panel"
+              onOpenAutoFocus={(event) => { event.preventDefault(); cancelImportRef.current?.focus(); }}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                const trigger = pendingImport.returnFocusTo?.isConnected ? pendingImport.returnFocusTo
+                  : Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-label]'))
+                    .find((button) => button.getAttribute('aria-label') === translateUiLiteral(language, 'Import backup') && button.offsetParent !== null);
+                trigger?.focus();
+              }}
+              onEscapeKeyDown={(event) => { if (backupActionInFlight.current) event.preventDefault(); }}
+              onPointerDownOutside={(event) => { if (backupActionInFlight.current) event.preventDefault(); }}
+            >
+              <DialogPrimitive.Title className="text-lg font-semibold text-foreground">
+                {translateUiLiteral(language, mode === 'demo' ? 'Replace this demo workspace?' : 'Replace this browser workspace?')}
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Description className="text-sm leading-6 text-muted-foreground">
+                {translateUiLiteral(language, 'The backup will replace the saved workspace in this browser. Export your current workspace first if you want to keep it.')}
+              </DialogPrimitive.Description>
+              <div className="grid gap-2 rounded-xl border border-border/70 p-3 text-sm">
+                <p className="break-all font-medium">{pendingImport.fileName}</p>
+                <p className="text-muted-foreground">{new Date(pendingImport.backup.exportedAt).toLocaleString(language === 'km' ? 'km-KH' : 'en-US')}</p>
+                <p>{translateUiLiteral(language, '{skus} SKUs · {services} services · {observations} updates', {
+                  skus: pendingImport.state.catalog.skus.length,
+                  services: pendingImport.state.catalog.services.length,
+                  observations: pendingImport.state.observations.length,
+                })}</p>
+              </div>
+              {importError ? <p className="text-sm text-destructive" role="alert">{importError}</p> : null}
+              <div className="flex flex-wrap justify-end gap-3">
+                <DialogPrimitive.Close asChild>
+                  <Button ref={cancelImportRef} className="min-h-11" disabled={isImporting || isExporting} type="button" variant="ghost">
+                    <ActionCloseIcon data-icon="inline-start" />{translateUiLiteral(language, 'Cancel')}
+                  </Button>
+                </DialogPrimitive.Close>
+                <Button aria-busy={isExporting} className="min-h-11" disabled={isImporting || isExporting} type="button" variant="outline" onClick={() => { void handleExport(); }}>
+                  {isExporting ? <StatusLoadingIcon className="animate-spin motion-reduce:animate-none" data-icon="inline-start" /> : <ActionExportIcon data-icon="inline-start" />}
+                  {translateUiLiteral(language, isExporting ? 'Exporting backup.' : 'Export backup')}
+                </Button>
+                <Button aria-busy={isImporting} className="min-h-11" disabled={isImporting || isExporting} type="button" variant="destructive" onClick={() => { void confirmImport(); }}>
+                  {isImporting ? <StatusLoadingIcon className="animate-spin motion-reduce:animate-none" data-icon="inline-start" /> : <ActionDatabaseUploadIcon data-icon="inline-start" />}
+                  {translateUiLiteral(language, isImporting ? 'Importing backup.' : 'Replace workspace')}
+                </Button>
+              </div>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
+      ) : null}
+      <EmbeddedAutoZoomViewport
+        fitToViewport={fitToViewport}
+        phoneLandscapeOverlay={undefined}
+      >
+        <HashRouter basename={hiddenPhoneOperator ? HIDDEN_PHONE_OPERATOR_BASENAME : undefined}>
+          <EmbeddedAppContent
+            hiddenPhoneOperator={hiddenPhoneOperator}
+            mode={mode}
+            storage={storage}
+            onExport={handleExport}
+            onImport={handleImport}
+            onReset={handleReset}
+          />
+        </HashRouter>
+      </EmbeddedAutoZoomViewport>
+    </>
   );
 }
 
