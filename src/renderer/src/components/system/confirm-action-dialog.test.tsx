@@ -1,7 +1,14 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
+import userEvent from '@testing-library/user-event';
+import { Dialog as DialogPrimitive } from 'radix-ui';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionSaveIcon } from '@icons/actions';
 import { ConfirmActionDialog, shouldFillWrappedConfirmActionRow } from './confirm-action-dialog';
+
+const preferences = vi.hoisted(() => ({ language: 'en' }));
+vi.mock('@/state/preferences', () => ({ usePreferences: () => preferences }));
+beforeEach(() => { preferences.language = 'en'; });
 
 describe('ConfirmActionDialog', () => {
   it('does not render when closed', () => {
@@ -180,5 +187,102 @@ describe('ConfirmActionDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Keep order' })).toHaveAttribute('data-variant', 'default');
+  });
+});
+
+function KeyboardDialogHarness({ nested = false, busy = false, hideCancel = false, busyOnConfirm = false }) {
+  const [open, setOpen] = useState(false);
+  const [parentOpen, setParentOpen] = useState(true);
+  const [pending, setPending] = useState(busy);
+  const content = <>
+    <button onClick={() => setOpen(true)}>Open warning</button>
+    <button>Background action</button>
+    <ConfirmActionDialog open={open} title="Keep your work" description="Unsaved draft"
+      cancelLabel="Keep editing" confirmLabel="Discard changes" hideCancel={hideCancel}
+      isSubmitting={pending} onCancel={() => setOpen(false)} onConfirm={() => busyOnConfirm ? setPending(true) : setOpen(false)} />
+  </>;
+  return nested ? <DialogPrimitive.Root open={parentOpen} onOpenChange={setParentOpen}>
+    <DialogPrimitive.Portal><DialogPrimitive.Content aria-describedby={undefined}>
+      <DialogPrimitive.Title>Parent editor</DialogPrimitive.Title>{content}
+    </DialogPrimitive.Content></DialogPrimitive.Portal>
+  </DialogPrimitive.Root> : content;
+}
+
+describe('confirmation keyboard safety', () => {
+  it.each([false, true])('contains focus, cancels safely and restores its trigger (nested=%s)', async (nested) => {
+    const user = userEvent.setup();
+    render(<KeyboardDialogHarness nested={nested} />);
+    const trigger = screen.getByRole('button', { name: 'Open warning' });
+    for (const dismissWithEscape of [true, false]) {
+      await user.click(trigger);
+      const dialog = await screen.findByRole('dialog', { name: 'Keep your work' });
+      const cancel = within(dialog).getByRole('button', { name: 'Keep editing' });
+      const confirm = within(dialog).getByRole('button', { name: 'Discard changes' });
+      await waitFor(() => expect(cancel).toHaveFocus());
+      await user.tab({ shift: true });
+      expect(confirm).toHaveFocus();
+      await user.tab();
+      expect(cancel).toHaveFocus();
+      if (dismissWithEscape) await user.keyboard('{Escape}');
+      else await user.click(cancel);
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Keep your work' })).not.toBeInTheDocument());
+      await waitFor(() => expect(trigger).toHaveFocus());
+      if (nested) expect(screen.getByRole('dialog', { name: 'Parent editor' })).toBeVisible();
+    }
+  });
+
+  it('keeps a busy confirmation open on Escape and outside interaction', async () => {
+    const user = userEvent.setup();
+    render(<KeyboardDialogHarness busy />);
+    await user.click(screen.getByRole('button', { name: 'Open warning' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Keep your work' });
+    await waitFor(() => expect(dialog).toHaveFocus());
+    await user.keyboard('{Escape}');
+    fireEvent.pointerDown(screen.getByRole('presentation'));
+    expect(dialog).toBeVisible();
+    await user.tab();
+    expect(dialog).toHaveFocus();
+  });
+
+  it('moves focus off the disabled action while work is pending and keeps Escape local', async () => {
+    const user = userEvent.setup();
+    const outerEscape = vi.fn();
+    window.addEventListener('keydown', outerEscape);
+    try {
+      render(<KeyboardDialogHarness busyOnConfirm />);
+      await user.click(screen.getByRole('button', { name: 'Open warning' }));
+      await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+      const dialog = screen.getByRole('dialog', { name: 'Keep your work' });
+      expect(dialog).toHaveFocus();
+      await user.tab();
+      expect(dialog).toHaveFocus();
+      await user.tab({ shift: true });
+      expect(dialog).toHaveFocus();
+      outerEscape.mockClear();
+      await user.keyboard('{Escape}');
+      expect(outerEscape).not.toHaveBeenCalled();
+      expect(dialog).toBeVisible();
+    } finally {
+      window.removeEventListener('keydown', outerEscape);
+    }
+  });
+
+  it('preserves Khmer language and font context across the body portal', async () => {
+    preferences.language = 'km';
+    const user = userEvent.setup();
+    const { container } = render(<KeyboardDialogHarness />);
+    await user.click(screen.getByRole('button', { name: 'Open warning' }));
+    const dialog = screen.getByRole('dialog', { name: 'Keep your work' });
+    expect(container).not.toContainElement(dialog);
+    const overlay = dialog.closest('[data-language]');
+    expect(overlay).toHaveAttribute('data-language', 'km');
+    expect(overlay).toHaveAttribute('lang', 'km');
+  });
+
+  it('focuses the dialog rather than a destructive action when Cancel is hidden', async () => {
+    const user = userEvent.setup();
+    render(<KeyboardDialogHarness hideCancel />);
+    await user.click(screen.getByRole('button', { name: 'Open warning' }));
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Keep your work' })).toHaveFocus());
   });
 });

@@ -1115,3 +1115,7 @@ Low confidence usually means the app has sparse, stale, or conflicting evidence.
 ### What should I do before clearing or restoring local data?
 
 Export or back up the workspace first, then confirm you are working on the correct device and data folder. Clearing local data is for starting over or recovering from a bad test workspace. Restoring a snapshot should be treated as replacing the current local truth.
+
+### Keyboard confirmation safety
+
+Confirmation dialogs keep keyboard focus inside the decision. **Cancel** or **Keep editing** receives initial focus when available; Tab and Shift+Tab cycle through enabled actions. Escape cancels without discarding your draft and returns focus to the control that opened the warning. While an action is working, dismissal is blocked until it finishes.

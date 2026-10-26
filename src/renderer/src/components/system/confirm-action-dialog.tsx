@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Dialog as DialogPrimitive } from 'radix-ui';
 import { ActionCloseIcon, ActionConfirmIcon, ActionDeleteIcon } from '@icons/actions';
 import { StatusAlertIcon } from '@icons/status';
 import { Button } from '@/components/ui/button';
+import { usePreferences } from '@/state/preferences';
 import { cn } from '@/lib/utils';
 
 const contentFitActionClassName = 'min-w-max justify-center';
@@ -62,9 +64,17 @@ export function ConfirmActionDialog({
   onDestructiveAction?: () => void;
   onConfirm: () => void;
 }) {
-  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const { language } = usePreferences();
+  const [actionsElement, setActionsElement] = useState<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const [actionsNeedRowFill, setActionsNeedRowFill] = useState(false);
   const hasDestructiveAction = Boolean(destructiveActionLabel && onDestructiveAction);
+
+  useLayoutEffect(() => {
+    if (open && isSubmitting) contentRef.current?.focus();
+  }, [open, isSubmitting]);
 
   useLayoutEffect(() => {
     if (!open || !hasDestructiveAction) {
@@ -73,7 +83,7 @@ export function ConfirmActionDialog({
     }
 
     const measureActions = () => {
-      const actions = actionsRef.current;
+      const actions = actionsElement;
       if (!actions) {
         return;
       }
@@ -90,7 +100,7 @@ export function ConfirmActionDialog({
     let measureFrame: number | null = null;
     let lastObservedWidth = 0;
     const scheduleNaturalWidthMeasure = (entries?: ResizeObserverEntry[]) => {
-      const observedWidth = entries?.[0]?.contentRect.width ?? actionsRef.current?.clientWidth ?? 0;
+      const observedWidth = entries?.[0]?.contentRect.width ?? actionsElement?.clientWidth ?? 0;
       if (observedWidth > 0 && Math.abs(observedWidth - lastObservedWidth) < 0.5) {
         return;
       }
@@ -106,8 +116,8 @@ export function ConfirmActionDialog({
 
     measureActions();
     const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleNaturalWidthMeasure);
-    if (resizeObserver && actionsRef.current) {
-      resizeObserver.observe(actionsRef.current);
+    if (resizeObserver && actionsElement) {
+      resizeObserver.observe(actionsElement);
     }
     const handleWindowResize = () => scheduleNaturalWidthMeasure();
     window.addEventListener('resize', handleWindowResize);
@@ -118,7 +128,7 @@ export function ConfirmActionDialog({
       resizeObserver?.disconnect();
       window.removeEventListener('resize', handleWindowResize);
     };
-  }, [hasDestructiveAction, open, destructiveActionLabel, cancelLabel, confirmLabel, hideCancel, isSubmitting]);
+  }, [actionsElement, hasDestructiveAction, open, destructiveActionLabel, cancelLabel, confirmLabel, hideCancel, isSubmitting]);
 
   if (!open) {
     return null;
@@ -130,115 +140,133 @@ export function ConfirmActionDialog({
     : 'mt-6 flex flex-wrap justify-end gap-3';
 
   return (
-    <div
-      className="pointer-events-auto fixed inset-0 z-[130] flex items-center justify-center bg-black/30 px-4 py-6 backdrop-blur-none"
-      role="presentation"
-      onClick={() => {
-        if (!isSubmitting) {
-          onCancel();
-        }
-      }}
-    >
-      <div
-        aria-label={title}
-        aria-modal="true"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
-        role="dialog"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start gap-3">
-          {hideIcon ? null : (
-            <span
-              className={`mt-0.5 rounded-full p-2 ${
-                iconTone === 'success'
-                  ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-700'
-                  : iconTone === 'default'
-                    ? 'border border-border/70 bg-muted/50 text-foreground'
-                    : 'border border-destructive/20 bg-destructive/10 text-destructive'
-              }`}
-              data-slot="confirm-action-dialog-icon"
-            >
-              {icon ?? (iconTone === 'success' ? <ActionConfirmIcon className="size-4" /> : <StatusAlertIcon className="size-4" />)}
-            </span>
-          )}
-          <div className={hasDestructiveAction ? 'min-w-0 max-w-lg' : 'min-w-0'}>
-            <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{title}</p>
-            {description ? (
-              <div className="mt-2 text-sm leading-6 text-muted-foreground">{description}</div>
-            ) : null}
-          </div>
-        </div>
-        <div
-          ref={actionsRef}
-          className={actionsClassName}
-          data-slot="confirm-action-dialog-actions"
+    <DialogPrimitive.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !isSubmitting) onCancel(); }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          data-language={language}
+          lang={language}
+          className="pointer-events-auto fixed inset-0 z-[130] flex items-center justify-center bg-black/30 px-4 py-6 backdrop-blur-none"
+          role="presentation"
         >
-          {hasDestructiveAction ? (
-            <div className={cn(actionClassName, !actionsNeedRowFill && 'mr-auto')} data-slot="confirm-action-dialog-action-item">
-              <Button
-                className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
-                disabled={isDestructiveActionDisabled || isSubmitting}
-                type="button"
-                variant="destructive-outline"
-                onClick={onDestructiveAction!}
-              >
-                <ActionDeleteIcon data-icon="inline-start" />
-                {destructiveActionLabel}
-              </Button>
-            </div>
-          ) : null}
-          {hideCancel ? null : (
-            hasDestructiveAction ? (
-              <div className={actionClassName} data-slot="confirm-action-dialog-action-item">
-                <Button
-                  className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
-                  disabled={isSubmitting}
-                  type="button"
-                  variant="ghost"
-                  onClick={onCancel}
+          <DialogPrimitive.Content
+            ref={contentRef}
+            {...(!description ? { 'aria-describedby': undefined } : {})}
+            className="pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+              (cancelRef.current && !cancelRef.current.disabled ? cancelRef.current : contentRef.current)?.focus();
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+            }}
+            onEscapeKeyDown={(event) => {
+              event.stopPropagation();
+              if (isSubmitting) event.preventDefault();
+            }}
+            onInteractOutside={(event) => { if (isSubmitting) event.preventDefault(); }}
+          >
+            <div className="flex items-start gap-3">
+              {hideIcon ? null : (
+                <span
+                  className={`mt-0.5 rounded-full p-2 ${
+                    iconTone === 'success'
+                      ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-700'
+                      : iconTone === 'default'
+                        ? 'border border-border/70 bg-muted/50 text-foreground'
+                        : 'border border-destructive/20 bg-destructive/10 text-destructive'
+                  }`}
+                  data-slot="confirm-action-dialog-icon"
                 >
-                  <ActionCloseIcon data-icon="inline-start" />
-                  {cancelLabel}
-                </Button>
-              </div>
-            ) : (
-              <Button disabled={isSubmitting} type="button" variant="ghost" onClick={onCancel}>
-                <ActionCloseIcon data-icon="inline-start" />
-                {cancelLabel}
-              </Button>
-            )
-          )}
-          {hasDestructiveAction ? (
-            <div className={actionClassName} data-slot="confirm-action-dialog-action-item">
-              <Button
-                className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
-                disabled={isConfirmDisabled || isSubmitting}
-                type="button"
-                variant={confirmVariant}
-                onClick={onConfirm}
-              >
-                <span data-icon="inline-start" className="contents">
-                  {confirmIcon ?? <ActionConfirmIcon />}
+                  {icon ?? (iconTone === 'success' ? <ActionConfirmIcon className="size-4" /> : <StatusAlertIcon className="size-4" />)}
                 </span>
-                {isSubmitting ? 'Working…' : confirmLabel}
-              </Button>
+              )}
+              <div className={hasDestructiveAction ? 'min-w-0 max-w-lg' : 'min-w-0'}>
+                <DialogPrimitive.Title asChild>
+                  <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{title}</p>
+                </DialogPrimitive.Title>
+                {description ? (
+                  <DialogPrimitive.Description asChild>
+                    <div className="mt-2 text-sm leading-6 text-muted-foreground">{description}</div>
+                  </DialogPrimitive.Description>
+                ) : null}
+              </div>
             </div>
-          ) : (
-            <Button
-              className="min-w-0"
-              disabled={isConfirmDisabled || isSubmitting}
-              type="button"
-              variant={confirmVariant}
-              onClick={onConfirm}
+            <div
+              ref={setActionsElement}
+              className={actionsClassName}
+              data-slot="confirm-action-dialog-actions"
             >
-              <span data-icon="inline-start" className="contents">
-                {confirmIcon ?? <ActionConfirmIcon />}
-              </span>
-              {isSubmitting ? 'Working…' : confirmLabel}
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
+              {hasDestructiveAction ? (
+                <div className={cn(actionClassName, !actionsNeedRowFill && 'mr-auto')} data-slot="confirm-action-dialog-action-item">
+                  <Button
+                    className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
+                    disabled={isDestructiveActionDisabled || isSubmitting}
+                    type="button"
+                    variant="destructive-outline"
+                    onClick={onDestructiveAction!}
+                  >
+                    <ActionDeleteIcon data-icon="inline-start" />
+                    {destructiveActionLabel}
+                  </Button>
+                </div>
+              ) : null}
+              {hideCancel ? null : (
+                hasDestructiveAction ? (
+                  <div className={actionClassName} data-slot="confirm-action-dialog-action-item">
+                    <Button
+                      className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
+                      ref={cancelRef}
+                      disabled={isSubmitting}
+                      type="button"
+                      variant="ghost"
+                      onClick={onCancel}
+                    >
+                      <ActionCloseIcon data-icon="inline-start" />
+                      {cancelLabel}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button ref={cancelRef} disabled={isSubmitting} type="button" variant="ghost" onClick={onCancel}>
+                    <ActionCloseIcon data-icon="inline-start" />
+                    {cancelLabel}
+                  </Button>
+                )
+              )}
+              {hasDestructiveAction ? (
+                <div className={actionClassName} data-slot="confirm-action-dialog-action-item">
+                  <Button
+                    className={cn('min-w-max justify-center', actionsNeedRowFill && 'w-full')}
+                    disabled={isConfirmDisabled || isSubmitting}
+                    type="button"
+                    variant={confirmVariant}
+                    onClick={onConfirm}
+                  >
+                    <span data-icon="inline-start" className="contents">
+                      {confirmIcon ?? <ActionConfirmIcon />}
+                    </span>
+                    {isSubmitting ? 'Working…' : confirmLabel}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  className="min-w-0"
+                  disabled={isConfirmDisabled || isSubmitting}
+                  type="button"
+                  variant={confirmVariant}
+                  onClick={onConfirm}
+                >
+                  <span data-icon="inline-start" className="contents">
+                    {confirmIcon ?? <ActionConfirmIcon />}
+                  </span>
+                  {isSubmitting ? 'Working…' : confirmLabel}
+                </Button>
+              )}
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Overlay>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

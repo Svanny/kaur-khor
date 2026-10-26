@@ -1560,17 +1560,21 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
 
     const warning = screen.getByRole('dialog', { name: 'Number not saved' });
-    const dimmedDialog = screen.getByRole('dialog', { name: 'Razor refill' });
+    const dimmedDialog = dialog;
+    expect(screen.queryByRole('dialog', { name: 'Razor refill' })).not.toBeInTheDocument();
     expect(within(warning).getByText('The entered number is too large or invalid and was not saved. Enter a smaller number to update this item.')).toBeInTheDocument();
     expect(dimmedDialog).not.toContainElement(warning);
     expect(dimmedDialog).not.toHaveClass('backdrop-blur-sm');
     expect(document.querySelector('[data-slot="pos-dialog-background-overlay"]')).toBe(backgroundOverlay);
     expect(backgroundOverlay).toHaveClass('backdrop-blur-sm');
     expect(tile.querySelector('.bg-foreground')).toBeNull();
-    fireEvent.keyDown(dialog, { key: 'Escape' });
-    expect(screen.getByRole('dialog', { name: 'Number not saved' })).toBeInTheDocument();
+    fireEvent.keyDown(warning, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Number not saved' })).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Razor refill' })).toBeInTheDocument();
-    fireEvent.click(within(warning).getByRole('button', { name: 'Keep editing' }));
+    expect(within(dialog).getByLabelText('Units in stock')).toHaveValue('12');
+    fireEvent.change(within(dialog).getByLabelText('Units in stock'), { target: { value: OVERFLOW_NUMBER_DRAFT } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Number not saved' })).getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByRole('dialog', { name: 'Number not saved' })).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Razor refill' })).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText('Units in stock'), {
@@ -2539,7 +2543,8 @@ describe('StockUpdateSessionRoute', () => {
 
     const warning = screen.getByRole('dialog', { name: 'Number not saved' });
     expect(within(warning).getByText('The entered number is too large or invalid and was not saved. Enter a smaller number to update this item.')).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: 'Razor refill' })).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Razor refill' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit Razor refill receipt line' })).not.toBeInTheDocument();
     fireEvent.click(within(warning).getByRole('button', { name: 'Keep editing' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));

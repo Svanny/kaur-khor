@@ -348,3 +348,41 @@ for (const surface of ['wide', 'phone'] as const) {
     prepared.issues.assertNoIssues(`backup preview ${surface} cancellation and explicit import`);
   });
 }
+
+test('unsaved product warnings keep keyboard actions inside the decision', async ({ page }, testInfo) => {
+  testInfo.annotations.push({ type: 'ui-matrix', description: 'confirmation-keyboard-safety' });
+  const prepared = await prepareWebPage(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openEmbeddedRoute(page, 'app');
+  await completeEmbeddedOnboardingIfPresent(page);
+  await page.getByRole('link', { name: 'Create first SKU', exact: true }).click();
+  const name = page.getByRole('textbox', { name: /^Name/ });
+  await name.fill('Keep this unsaved product');
+  const editorUrl = page.url();
+  const back = page.getByRole('button', { name: 'Back', exact: true });
+  for (const dismissWithEscape of [true, false]) {
+    await back.click();
+    const dialog = page.getByRole('dialog', { name: 'Discard changes?', exact: true });
+    const keep = dialog.getByRole('button', { name: 'Keep editing', exact: true });
+    const discard = dialog.getByRole('button', { name: 'Discard changes', exact: true });
+    await expect(keep).toBeFocused();
+    await expect(dialog.getByRole('button', { name: 'Save changes', exact: true })).toBeDisabled();
+    await page.keyboard.press('Tab');
+    await expect(discard).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(keep).toBeFocused();
+    await captureUi(page, testInfo, 'unsaved-product-keyboard-confirmation');
+    if (dismissWithEscape) await page.keyboard.press('Escape');
+    else await keep.click();
+    await expect(dialog).toHaveCount(0);
+    await expect(back).toBeFocused();
+    await expect(name).toHaveValue('Keep this unsaved product');
+    expect(page.url()).toBe(editorUrl);
+    expect(await browserWorkspaceCounts(page)).toEqual({ skuCount: 0, serviceCount: 0, observationCount: 0 });
+  }
+  await back.click();
+  await page.getByRole('dialog', { name: 'Discard changes?', exact: true })
+    .getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Create first SKU', exact: true })).toBeVisible();
+  prepared.issues.assertNoIssues('unsaved product keyboard decision');
+});
