@@ -925,7 +925,9 @@ describe('AutomationsRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Telegram settings' }));
 
     await waitFor(() => expect(screen.getByText('Telegram settings saved')).toBeInTheDocument());
-    expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Overview/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument());
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
     expect(saveConnection).toHaveBeenCalledTimes(1);
   });
