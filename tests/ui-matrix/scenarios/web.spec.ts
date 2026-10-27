@@ -419,6 +419,10 @@ test('browser history preserves unsaved products until the operator decides', as
   expect(await page.evaluate(() => window.history.state)).toEqual(editorState);
 
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  // Settings resolves its default section with a replace navigation. Capture
+  // the settled entry, not the temporary /settings route before lazy loading.
+  await expect(page).toHaveURL(/#\/settings\/workspace$/);
+  await expect(page.locator('[data-slot="card-title"]').filter({ hasText: /^Preferences$/ })).toBeVisible();
   const settingsUrl = page.url();
   const settingsState = await page.evaluate(() => window.history.state);
   await page.goBack();
