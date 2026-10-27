@@ -1119,3 +1119,5 @@ Export or back up the workspace first, then confirm you are working on the corre
 ### Keyboard confirmation safety
 
 Confirmation dialogs keep keyboard focus inside the decision. **Cancel** or **Keep editing** receives initial focus when available; Tab and Shift+Tab cycle through enabled actions. Escape cancels without discarding your draft and returns focus to the control that opened the warning. While an action is working, dismissal is blocked until it finishes.
+
+Browser Back and Forward between workspace pages also ask before leaving unsaved SKU, service, or settings edits. **Keep editing** or Escape preserves the exact draft and the current history entry; **Save changes** continues only after a successful save, while **Discard changes** leaves without saving. This covers in-workspace history navigation, not closing the tab, reloading, or manually changing the address.

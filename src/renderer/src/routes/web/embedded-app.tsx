@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import { HashRouter, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { AppHashRouter } from '@/lib/navigation/app-hash-router';
 import App from '@/App';
 import {
   browserStateForSenaPersistence,
@@ -1233,7 +1234,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
         fitToViewport={fitToViewport}
         phoneLandscapeOverlay={undefined}
       >
-        <HashRouter basename={hiddenPhoneOperator ? HIDDEN_PHONE_OPERATOR_BASENAME : undefined}>
+        <AppHashRouter basename={hiddenPhoneOperator ? HIDDEN_PHONE_OPERATOR_BASENAME : undefined}>
           <EmbeddedAppContent
             hiddenPhoneOperator={hiddenPhoneOperator}
             mode={mode}
@@ -1242,7 +1243,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
             onImport={handleImport}
             onReset={handleReset}
           />
-        </HashRouter>
+        </AppHashRouter>
       </EmbeddedAutoZoomViewport>
     </>
   );

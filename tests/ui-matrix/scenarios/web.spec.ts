@@ -386,3 +386,61 @@ test('unsaved product warnings keep keyboard actions inside the decision', async
   await expect(page.getByRole('link', { name: 'Create first SKU', exact: true })).toBeVisible();
   prepared.issues.assertNoIssues('unsaved product keyboard decision');
 });
+
+test('browser history preserves unsaved products until the operator decides', async ({ page }, testInfo) => {
+  testInfo.annotations.push({ type: 'ui-matrix', description: 'unsaved-product-history-navigation' });
+  const prepared = await prepareWebPage(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openEmbeddedRoute(page, 'app');
+  await completeEmbeddedOnboardingIfPresent(page);
+  await page.getByRole('link', { name: 'Create first SKU', exact: true }).click();
+  const name = page.getByRole('textbox', { name: /^Name/ });
+  const editorUrl = page.url();
+  const editorState = await page.evaluate(() => window.history.state);
+  await name.fill('History must keep this draft');
+  const dialog = page.getByRole('dialog', { name: 'Discard changes?', exact: true });
+  for (const escape of [true, false]) {
+    await page.goBack();
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(editorUrl);
+    await expect(dialog.getByRole('button', { name: 'Keep editing', exact: true })).toBeFocused();
+    await captureUi(page, testInfo, 'unsaved-product-history-warning');
+    if (escape) await page.keyboard.press('Escape');
+    else await dialog.getByRole('button', { name: 'Keep editing', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(name).toHaveValue('History must keep this draft');
+    expect(await page.evaluate(() => window.history.state)).toEqual(editorState);
+  }
+  await page.goBack();
+  await dialog.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Create first SKU', exact: true })).toBeVisible();
+  await page.goForward();
+  await expect(name).toHaveValue('');
+  expect(await page.evaluate(() => window.history.state)).toEqual(editorState);
+
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  // Settings resolves its default section with a replace navigation. Capture
+  // the settled entry, not the temporary /settings route before lazy loading.
+  await expect(page).toHaveURL(/#\/settings\/workspace$/);
+  await expect(page.locator('[data-slot="card-title"]').filter({ hasText: /^Preferences$/ })).toBeVisible();
+  const settingsUrl = page.url();
+  const settingsState = await page.evaluate(() => window.history.state);
+  await page.goBack();
+  await expect(name).toBeVisible();
+  await name.fill('Forward must keep this draft too');
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goForward();
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(editorUrl);
+    await page.keyboard.press('Escape');
+    await expect(name).toHaveValue('Forward must keep this draft too');
+    expect(await page.evaluate(() => window.history.state)).toEqual(editorState);
+  }
+  await page.goForward();
+  await dialog.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await expect(page).toHaveURL(settingsUrl);
+  await expect(page.locator('[data-slot="card-title"]').filter({ hasText: /^Preferences$/ })).toBeVisible();
+  expect(await page.evaluate(() => window.history.state)).toEqual(settingsState);
+  expect(await browserWorkspaceCounts(page)).toEqual({ skuCount: 0, serviceCount: 0, observationCount: 0 });
+  prepared.issues.assertNoIssues('unsaved product browser Back and Forward decisions');
+});
