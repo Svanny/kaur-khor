@@ -72,6 +72,8 @@ const env = {
 
 if (process.env.KAUR_KHOR_DESKTOP_CORE_BINARY) {
   env.KAUR_KHOR_DESKTOP_CORE_BINARY = process.env.KAUR_KHOR_DESKTOP_CORE_BINARY;
+} else if (needsDesktopBuild) {
+  env.KAUR_KHOR_DESKTOP_CORE_BINARY = desktopCoreBinary;
 }
 
 if (env.NO_COLOR) {
