@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import { BrowserRouter, HashRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
+import { AppHashRouter } from './lib/navigation/app-hash-router';
 import App from './App';
 import { isBenchmarkRendererMode } from './lib/settings/benchmark-mode';
 import { embeddedModeForPath, webLandingMountForPath } from './routes/web/embedded-entry';
@@ -24,9 +25,9 @@ async function renderApp() {
   await installBrowserBridgeWhenNeeded();
 
   const desktopApp = (
-    <HashRouter>
+    <AppHashRouter>
       <App />
-    </HashRouter>
+    </AppHashRouter>
   );
   const webLandingApp = (
     <BrowserRouter basename={webLandingMount ?? undefined}>

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { UNSAFE_DataRouterContext, useBlocker, useLocation, useNavigate } from 'react-router-dom';
 import { ActionSaveIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { translateUiLiteral } from '@/lib/localization/translations';
@@ -98,31 +98,37 @@ export function useDiscardChangesConfirm({
   const [open, setOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const pendingActionRef = useRef<(() => void) | null>(null);
+  const pendingCancelRef = useRef<(() => void) | null>(null);
+  const savingRef = useRef(false);
 
   const cancelDiscard = useCallback(() => {
-    if (isSaving) {
+    if (savingRef.current) {
       return;
     }
     pendingActionRef.current = null;
+    pendingCancelRef.current?.();
+    pendingCancelRef.current = null;
     setOpen(false);
-  }, [isSaving]);
+  }, []);
 
   const confirmDiscard = useCallback(() => {
-    if (isSaving) {
+    if (savingRef.current) {
       return;
     }
     const pendingAction = pendingActionRef.current;
     pendingActionRef.current = null;
+    pendingCancelRef.current = null;
     onDiscard?.();
     setOpen(false);
     pendingAction?.();
-  }, [isSaving, onDiscard]);
+  }, [onDiscard]);
 
   const saveAndContinue = useCallback(async () => {
-    if (!onSave || isSaving) {
+    if (!onSave || savingRef.current) {
       return;
     }
 
+    savingRef.current = true;
     setIsSaving(true);
     try {
       let didContinue = false;
@@ -133,6 +139,7 @@ export function useDiscardChangesConfirm({
         }
         didContinue = true;
         pendingActionRef.current = null;
+        pendingCancelRef.current = null;
         setOpen(false);
         pendingAction?.();
       };
@@ -144,18 +151,23 @@ export function useDiscardChangesConfirm({
     } catch (error) {
       console.error('Failed to save changes before continuing.', error);
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
-  }, [isSaving, onSave]);
+  }, [onSave]);
 
   const requestDiscard = useCallback(
-    (nextAction?: () => void) => {
+    (nextAction?: () => void, onCancel?: () => void) => {
+      if (savingRef.current) {
+        return false;
+      }
       if (!enabled) {
         nextAction?.();
         return true;
       }
 
       pendingActionRef.current = nextAction ?? null;
+      pendingCancelRef.current = onCancel ?? null;
       setOpen(true);
       return false;
     },
@@ -187,6 +199,25 @@ export function useDiscardChangesConfirm({
   };
 }
 
+function HistoryLeaveBlocker({ enabled, requestDiscard }: {
+  enabled: boolean;
+  requestDiscard: (nextAction?: () => void, onCancel?: () => void) => boolean;
+}) {
+  const blocker = useBlocker(({ currentLocation, nextLocation, historyAction }) => (
+    enabled && historyAction === 'POP' &&
+    `${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}` !==
+      `${nextLocation.pathname}${nextLocation.search}${nextLocation.hash}`
+  ));
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      requestDiscard(blocker.proceed, blocker.reset);
+    }
+  }, [blocker, requestDiscard]);
+
+  return null;
+}
+
 export function useRouteLeaveConfirm({
   enabled,
   description,
@@ -205,6 +236,7 @@ export function useRouteLeaveConfirm({
   saveLabel?: string;
 }) {
   const location = useLocation();
+  const dataRouter = useContext(UNSAFE_DataRouterContext);
   const navigate = useNavigate();
   const currentPathRef = useRef(`${location.pathname}${location.search}${location.hash}`);
   const enabledRef = useRef(enabled);
@@ -267,34 +299,18 @@ export function useRouteLeaveConfirm({
       });
     }
 
-    function handleHistoryNavigation() {
-      if (!enabledRef.current) {
-        return;
-      }
-
-      const previousPath = currentPathRef.current;
-      const nextPath = currentInternalNavigationPath();
-      if (nextPath === previousPath) {
-        return;
-      }
-
-      navigate(previousPath, { replace: true });
-      requestDiscardRef.current(() => navigate(nextPath));
-    }
-
     document.addEventListener('click', handleDocumentClick, true);
-    window.addEventListener('popstate', handleHistoryNavigation);
-    window.addEventListener('hashchange', handleHistoryNavigation);
 
     return () => {
       document.removeEventListener('click', handleDocumentClick, true);
-      window.removeEventListener('popstate', handleHistoryNavigation);
-      window.removeEventListener('hashchange', handleHistoryNavigation);
     };
   }, [navigate]);
 
   return {
     confirmLeave: requestDiscard,
-    discardConfirmDialog,
+    discardConfirmDialog: <>
+      {dataRouter ? <HistoryLeaveBlocker enabled={enabled} requestDiscard={requestDiscard} /> : null}
+      {discardConfirmDialog}
+    </>,
   };
 }
