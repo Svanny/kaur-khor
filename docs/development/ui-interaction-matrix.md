@@ -38,6 +38,11 @@ launching isolated Electron sessions. All targets start the local web app
 through the UI-matrix Playwright Vite server port so desktop-only and full
 matrix runs use the same launch contract.
 
+Desktop sessions use that prebuilt debug core directly via
+`KAUR_KHOR_DESKTOP_CORE_BINARY`, avoiding competing Cargo launches during
+parallel cold starts. An explicitly supplied binary path still takes priority.
+Web-only and mobile-only targets do not build or require the desktop core.
+
 The matrix runs independent spec files with multiple Playwright workers by
 default, but keeps test order inside each spec file. The desktop dependent spec
 must remain a single ordered scenario because it verifies one organic mutation
