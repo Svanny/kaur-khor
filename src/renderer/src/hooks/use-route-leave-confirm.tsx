@@ -38,13 +38,6 @@ export function resolveInternalNavigationPath(anchor: HTMLAnchorElement) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-export function currentInternalNavigationPath() {
-  if (window.location.hash.startsWith('#/')) {
-    return window.location.hash.slice(1);
-  }
-  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
-}
-
 export function navigationAnchorFromClick(event: MouseEvent) {
   const target = event.target;
   if (target instanceof Element) {
@@ -199,9 +192,9 @@ export function useDiscardChangesConfirm({
   };
 }
 
-function HistoryLeaveBlocker({ enabled, requestDiscard }: {
+function HistoryLeaveBlocker({ enabled, onBlocked }: {
   enabled: boolean;
-  requestDiscard: (nextAction?: () => void, onCancel?: () => void) => boolean;
+  onBlocked: (nextAction: () => void, onCancel: () => void) => void;
 }) {
   const blocker = useBlocker(({ currentLocation, nextLocation, historyAction }) => (
     enabled && historyAction === 'POP' &&
@@ -211,11 +204,20 @@ function HistoryLeaveBlocker({ enabled, requestDiscard }: {
 
   useEffect(() => {
     if (blocker.state === 'blocked') {
-      requestDiscard(blocker.proceed, blocker.reset);
+      onBlocked(blocker.proceed, blocker.reset);
     }
-  }, [blocker, requestDiscard]);
+  }, [blocker, onBlocked]);
 
   return null;
+}
+
+// Isolated MemoryRouter surfaces keep their existing explicit navigation guards.
+export function RouteHistoryLeaveBlocker(props: {
+  enabled: boolean;
+  onBlocked: (proceed: () => void, reset: () => void) => void;
+}) {
+  const dataRouter = useContext(UNSAFE_DataRouterContext);
+  return dataRouter ? <HistoryLeaveBlocker {...props} /> : null;
 }
 
 export function useRouteLeaveConfirm({
@@ -236,7 +238,6 @@ export function useRouteLeaveConfirm({
   saveLabel?: string;
 }) {
   const location = useLocation();
-  const dataRouter = useContext(UNSAFE_DataRouterContext);
   const navigate = useNavigate();
   const currentPathRef = useRef(`${location.pathname}${location.search}${location.hash}`);
   const enabledRef = useRef(enabled);
@@ -309,7 +310,7 @@ export function useRouteLeaveConfirm({
   return {
     confirmLeave: requestDiscard,
     discardConfirmDialog: <>
-      {dataRouter ? <HistoryLeaveBlocker enabled={enabled} requestDiscard={requestDiscard} /> : null}
+      <RouteHistoryLeaveBlocker enabled={enabled} onBlocked={requestDiscard} />
       {discardConfirmDialog}
     </>,
   };

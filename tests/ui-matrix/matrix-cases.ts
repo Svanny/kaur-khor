@@ -21,6 +21,21 @@ export interface UiMatrixCase {
 
 export const UI_MATRIX_CASES: UiMatrixCase[] = [
   {
+    id: 'capture-history-draft-decisions',
+    productTarget: 'browser-app',
+    dataState: 'dependent',
+    area: 'Capture history and resumable drafts',
+    initialData: 'One UI-created SKU with no saved observations.',
+    interaction: 'Count stock, repeatedly cancel Back/Forward, dismiss a warning above a POS popup, save/resume a draft, and discard.',
+    expectedUi: 'Keep editing has safe focus; cancellation preserves the session and nested popup; explicit decisions reach original history entries.',
+    expectedState: 'Draft-only save persists counts without committing observations; discard does not resurrect the draft.',
+    consistency: 'Capture uses the shared history blocker but retains its distinct draft-only save semantics.',
+    priority: 'P0',
+    testTypes: ['end-to-end', 'regression', 'interaction', 'stateful', 'visual'],
+    captures: ['capture-history-nested-warning'],
+    edgeNotes: 'Unit coverage verifies storage failure/retry and exact original entry state.',
+  },
+  {
     id: 'desktop-ticket-chooser-keyboard',
     productTarget: 'desktop',
     dataState: 'dependent',

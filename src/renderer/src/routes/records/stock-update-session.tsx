@@ -148,7 +148,7 @@ import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { useEmbeddedPhonePortraitViewport } from '@/routes/web/embedded-viewport';
 import {
-  currentInternalNavigationPath,
+  RouteHistoryLeaveBlocker,
   navigationAnchorFromClick,
   resolveInternalNavigationPath,
   useDiscardChangesConfirm,
@@ -1345,6 +1345,7 @@ interface EditSessionState {
 
 interface PendingNavigationState {
   continueNavigation: () => void;
+  cancelNavigation?: () => void;
 }
 
 const EMPTY_SIST_OVERVIEW: SistOverview = {
@@ -6965,6 +6966,7 @@ export function StockUpdateSessionRoute() {
   const [hasSavedDraft, setHasSavedDraft] = useState(() => hasStoredStockUpdateDraft(draftStorageKey));
   const [draftWasRestored, setDraftWasRestored] = useState(false);
   const [leaveDraftDialogOpen, setLeaveDraftDialogOpen] = useState(false);
+  const [leaveDraftSaveFailed, setLeaveDraftSaveFailed] = useState(false);
   const [phoneCaptureActionDialogOpen, setPhoneCaptureActionDialogOpen] = useState(false);
   const workbenchHoldTimerRef = useRef<number | null>(null);
   const workbenchHoldOriginRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
@@ -10635,19 +10637,25 @@ export function StockUpdateSessionRoute() {
   });
   const pendingNavigationRef = useRef<PendingNavigationState | null>(null);
 
-  function queueNavigation(continueNavigation: () => void) {
-    pendingNavigationRef.current = { continueNavigation };
+  const queueNavigation = useCallback((continueNavigation: () => void, cancelNavigation?: () => void) => {
+    pendingNavigationRef.current = { continueNavigation, cancelNavigation };
+    setLeaveDraftSaveFailed(false);
     setLeaveDraftDialogOpen(true);
-  }
+  }, []);
 
   function persistDraftForLater() {
     const latestState = latestDraftStateRef.current;
     if (!latestState) {
-      return;
+      return false;
     }
     const wroteDraft = writeStockUpdateDraft(latestState, draftStorageKey);
+    if (!wroteDraft && hasMeaningfulStockUpdateChanges(latestState)) {
+      setLeaveDraftSaveFailed(true);
+      return false;
+    }
     setHasSavedDraft(wroteDraft);
     setDraftWasRestored(false);
+    return true;
   }
 
   useEffect(() => {
@@ -10692,31 +10700,11 @@ export function StockUpdateSessionRoute() {
       });
     }
 
-    function handleHistoryNavigation() {
-      if (!canDiscardChanges) {
-        return;
-      }
-
-      const previousPath = `${location.pathname}${location.search}${location.hash}`;
-      const nextPath = currentInternalNavigationPath();
-      if (nextPath === previousPath) {
-        return;
-      }
-
-      navigate(previousPath, { replace: true });
-      queueNavigation(() => navigate(nextPath));
-    }
-
     document.addEventListener('click', handleDocumentClick, true);
-    window.addEventListener('popstate', handleHistoryNavigation);
-    window.addEventListener('hashchange', handleHistoryNavigation);
-
     return () => {
       document.removeEventListener('click', handleDocumentClick, true);
-      window.removeEventListener('popstate', handleHistoryNavigation);
-      window.removeEventListener('hashchange', handleHistoryNavigation);
     };
-  }, [canDiscardChanges, location.hash, location.pathname, location.search, navigate]);
+  }, [canDiscardChanges, location.hash, location.pathname, location.search, navigate, queueNavigation]);
 
   function handleRouteBack() {
     if (canDiscardChanges) {
@@ -13455,23 +13443,32 @@ export function StockUpdateSessionRoute() {
         />,
       )}
       {renderEmbeddedPhoneDialog(discardConfirmDialog)}
+      <RouteHistoryLeaveBlocker enabled={canDiscardChanges} onBlocked={queueNavigation} />
       {renderEmbeddedPhoneDialog(
         <ConfirmActionDialog
           cancelLabel={translateUiLiteral(language, 'Keep editing')}
           confirmLabel={translateUiLiteral(language, 'Save draft')}
           confirmVariant="default"
           destructiveActionLabel={translateUiLiteral(language, 'Discard changes')}
-          description={translateUiLiteral(language, 'Save this in-progress record update as a draft before leaving?')}
+          description={<>
+            {translateUiLiteral(language, 'Save this in-progress record update as a draft before leaving?')}
+            {leaveDraftSaveFailed ? <span className="mt-3 block text-destructive" role="alert">
+              {translateUiLiteral(language, 'Could not save this draft on this device. Keep editing or try saving again before leaving.')}
+            </span> : null}
+          </>}
           open={leaveDraftDialogOpen}
           title={translateUiLiteral(language, 'Leave record update?')}
           onCancel={() => {
+            pendingNavigationRef.current?.cancelNavigation?.();
             pendingNavigationRef.current = null;
             setLeaveDraftDialogOpen(false);
           }}
           onConfirm={() => {
+            if (!persistDraftForLater()) {
+              return;
+            }
             const pendingNavigation = pendingNavigationRef.current;
             pendingNavigationRef.current = null;
-            persistDraftForLater();
             setLeaveDraftDialogOpen(false);
             pendingNavigation?.continueNavigation();
           }}
@@ -14054,7 +14051,7 @@ export function StockUpdateSessionRoute() {
         open={sessionViewMode === 'pos' && activePosTile != null && (stockCountPosMode ? activePosStockCountRow != null || activePosServiceUpdate != null : activePosTileLine != null)}
         onOpenChange={(open) => {
           if (!open) {
-            if (invalidPosNumberPromptOpen) {
+            if (invalidPosNumberPromptOpen || leaveDraftDialogOpen) {
               return;
             }
             closePosTileDialog();
@@ -14067,7 +14064,7 @@ export function StockUpdateSessionRoute() {
             className="fixed inset-0 z-[90] bg-[rgba(29,20,12,0.42)] backdrop-blur-sm"
             data-slot="pos-dialog-background-overlay"
             onMouseDown={() => {
-              if (!invalidPosNumberPromptOpen) {
+              if (!invalidPosNumberPromptOpen && !leaveDraftDialogOpen) {
                 closePosTileDialog();
               }
             }}

@@ -2467,6 +2467,8 @@ const exactValueTranslations: Record<string, string> = {
   'Save draft and leave': 'រក្សាទុកសេចក្តីព្រាង ហើយចាកចេញ',
   'Save this in-progress record update as a draft before leaving?':
     'រក្សាទុកការអាប់ដេតកំណត់ត្រាដែលកំពុងធ្វើនេះជាសេចក្តីព្រាងមុនចាកចេញឬ?',
+  'Could not save this draft on this device. Keep editing or try saving again before leaving.':
+    'មិនអាចរក្សាទុកសេចក្តីព្រាងនេះនៅលើឧបករណ៍នេះបានទេ។ បន្តកែសម្រួល ឬព្យាយាមរក្សាទុកម្ដងទៀតមុនចាកចេញ។',
   'Leave record update?': 'ចាកចេញពីការអាប់ដេតកំណត់ត្រាឬ?',
   'Record reversed customer completions and choose whether usable stock should return now or later.':
     'កត់ត្រាការបញ្ចប់អតិថិជនដែលត្រូវបញ្ច្រាស ហើយជ្រើសថាស្តុកដែលអាចប្រើបានគួរត្រឡប់ឥឡូវនេះ ឬពេលក្រោយ។',

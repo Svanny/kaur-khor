@@ -444,3 +444,94 @@ test('browser history preserves unsaved products until the operator decides', as
   expect(await browserWorkspaceCounts(page)).toEqual({ skuCount: 0, serviceCount: 0, observationCount: 0 });
   prepared.issues.assertNoIssues('unsaved product browser Back and Forward decisions');
 });
+
+test('capture history keeps counts in draft until an explicit decision', async ({ page }, testInfo) => {
+  testInfo.annotations.push({ type: 'ui-matrix', description: 'capture-history-draft-decisions' });
+  const prepared = await prepareWebPage(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openEmbeddedRoute(page, 'app');
+  await completeEmbeddedOnboardingIfPresent(page);
+  // Enter through the real router link: the generic helper's direct hash assignment
+  // would otherwise create an unindexed manual-address entry, outside blocker support.
+  await page.getByRole('link', { name: 'Create first SKU', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'New SKU', exact: true })).toBeVisible();
+  const { name } = await createSkuThroughUi(page, { name: 'Capture history item' });
+  const detailUrl = page.url();
+  const detailState = await page.evaluate(() => window.history.state);
+  expect(Number.isInteger(detailState?.idx), 'detail entry must come from router navigation').toBe(true);
+  await page.getByRole('button', { name: 'Record', exact: true }).click();
+  await page.getByRole('menu').getByText('Products Update', { exact: true }).click();
+  await page.getByRole('button', { name: 'Continue to capture', exact: true }).click();
+  const tile = page.locator('[data-slot="workbench-tile-visual"]').filter({ hasText: name }).first();
+  await tile.click();
+  const itemDialog = page.getByRole('dialog', { name, exact: true });
+  await itemDialog.getByRole('textbox', { name: 'Units in stock', exact: true }).fill('7');
+  await itemDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(page.getByRole('button', { name: `Edit ${name} changed item` })).toBeVisible();
+  const captureUrl = page.url();
+  const captureState = await page.evaluate(() => window.history.state);
+  expect(captureState?.idx).toBe(detailState.idx + 1);
+  const leave = page.getByRole('dialog', { name: 'Leave record update?', exact: true });
+  for (const escape of [true, false]) {
+    await page.goBack();
+    await expect(leave).toBeVisible();
+    await expect(page).toHaveURL(captureUrl);
+    await expect(leave.getByRole('button', { name: 'Keep editing', exact: true })).toBeFocused();
+    if (escape) await page.keyboard.press('Escape');
+    else await leave.getByRole('button', { name: 'Keep editing', exact: true }).click();
+    await expect(leave).toHaveCount(0);
+    expect(await page.evaluate(() => window.history.state)).toEqual(captureState);
+    await expect(tile).toContainText('7');
+  }
+  // A history warning must also dismiss safely above an open POS item popup.
+  await tile.click();
+  await itemDialog.getByRole('textbox', { name: 'Units in stock', exact: true }).fill('11');
+  await page.goBack();
+  await expect(leave).toBeVisible();
+  await captureUi(page, testInfo, 'capture-history-nested-warning');
+  await page.keyboard.press('Escape');
+  await expect(leave).toHaveCount(0);
+  await expect(itemDialog).toBeVisible();
+  await expect(itemDialog.getByRole('textbox', { name: 'Units in stock', exact: true })).toHaveValue('11');
+  await itemDialog.getByRole('textbox', { name: 'Units in stock', exact: true }).fill('7');
+  await itemDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.goBack();
+  await leave.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page).toHaveURL(detailUrl);
+  expect(await page.evaluate(() => window.history.state)).toEqual(detailState);
+  expect(await browserWorkspaceCounts(page)).toEqual({ skuCount: 1, serviceCount: 0, observationCount: 0 });
+  const draftKey = 'kaur-khor:record-update:draft:stock-count:v1';
+  const savedDraft = await page.evaluate((key) => localStorage.getItem(key), draftKey);
+  expect(JSON.parse(savedDraft!).rows).toEqual(expect.arrayContaining([expect.objectContaining({ unitsInStock: 7 })]));
+  await page.goForward();
+  await expect(tile).toContainText('7');
+  expect(await page.evaluate(() => window.history.state)).toEqual(captureState);
+  await page.goBack();
+  await leave.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await expect(page).toHaveURL(detailUrl);
+  expect(await page.evaluate((key) => localStorage.getItem(key), draftKey)).toBeNull();
+  await page.goForward();
+  await expect(tile).toBeVisible();
+  await expect(page.getByRole('button', { name: `Edit ${name} changed item` })).toHaveCount(0);
+  // Establish a real forward destination from a clean session.
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page).toHaveURL(/#\/settings\/workspace$/);
+  await expect(page.locator('[data-slot="card-title"]').filter({ hasText: /^Preferences$/ })).toBeVisible();
+  const settingsUrl = page.url();
+  const settingsState = await page.evaluate(() => window.history.state);
+  await page.goBack();
+  await tile.click();
+  await itemDialog.getByRole('textbox', { name: 'Units in stock', exact: true }).fill('9');
+  await itemDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.goForward();
+  await expect(leave).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(tile).toContainText('9');
+  expect(await page.evaluate(() => window.history.state)).toEqual(captureState);
+  await page.goForward();
+  await leave.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await expect(page).toHaveURL(settingsUrl);
+  expect(await page.evaluate(() => window.history.state)).toEqual(settingsState);
+  expect(await browserWorkspaceCounts(page)).toEqual({ skuCount: 1, serviceCount: 0, observationCount: 0 });
+  prepared.issues.assertNoIssues('capture history draft-only save, cancellation, and discard');
+});
