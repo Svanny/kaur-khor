@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import userEvent from '@testing-library/user-event';
-import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider, Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { createRecordUpdateEditSession } from '@/lib/records/observation-edit-session';
@@ -5019,6 +5019,108 @@ describe('StockUpdateSessionRoute', () => {
         ],
       }),
     );
+  });
+
+  it('keeps capture mounted on repeated history cancellation and saves only a resumable draft', async () => {
+    setStoredSessionViewMode('form');
+    inventoryHook.mockReturnValue(inventoryState({ observations }));
+    const router = createMemoryRouter([
+      { path: '/catalog', element: <div>Products destination</div> },
+      { path: RECORD_UPDATE_STOCK_COUNT_PATH, element: <StockUpdateSessionRoute /> },
+      { path: '/settings/help', element: <div>Help destination</div> },
+    ], { initialEntries: [
+      { pathname: '/catalog', key: 'products', state: { origin: 'before' } },
+      { pathname: RECORD_UPDATE_STOCK_COUNT_PATH, key: 'capture', state: { origin: 'capture' } },
+      { pathname: '/settings/help', key: 'help', state: { origin: 'after' } },
+    ], initialIndex: 1 });
+    render(<RouterProvider router={router} />);
+    goToStockStep();
+    const input = screen.getAllByLabelText('Current Units')[0]!;
+    fireEvent.change(input, { target: { value: '7' } });
+    for (const delta of [-1, 1, -1]) {
+      await act(async () => { await router.navigate(delta); });
+      const dialog = await screen.findByRole('dialog', { name: 'Leave record update?' });
+      expect(router.state.location.key).toBe('capture');
+      expect(within(dialog).getByRole('button', { name: 'Keep editing' })).toHaveFocus();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+      expect(screen.getAllByLabelText('Current Units')[0]).toBe(input);
+      expect(input).toHaveValue('7');
+      expect(router.state.location.state).toEqual({ origin: 'capture' });
+    }
+    await act(async () => { await router.navigate(-1); });
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Save draft' }));
+    await screen.findByText('Products destination');
+    expect(router.state.location).toMatchObject({ key: 'products', state: { origin: 'before' } });
+    expect(JSON.parse(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY) ?? '{}').rows)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ skuId: 'sku-1', unitsInStock: 7 })]));
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+    expect(createSenaOrderBatch).not.toHaveBeenCalled();
+    await act(async () => { await router.navigate(1); });
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
+    await act(async () => { await router.navigate(1); });
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
+    await screen.findByText('Help destination');
+    expect(router.state.location).toMatchObject({ key: 'help', state: { origin: 'after' } });
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+    await act(async () => { await router.navigate(-1); });
+    goToStockStep();
+    expect(screen.getAllByLabelText('Current Units')[0]).not.toHaveValue('7');
+    router.dispose();
+  });
+
+  it('keeps an open POS item and its pending value when history warning is cancelled', async () => {
+    inventoryHook.mockReturnValue(inventoryState({ observations }));
+    const router = createMemoryRouter([
+      { path: '/catalog', element: <div>Products destination</div> },
+      { path: RECORD_UPDATE_STOCK_COUNT_PATH, element: <StockUpdateSessionRoute /> },
+    ], { initialEntries: ['/catalog', RECORD_UPDATE_STOCK_COUNT_PATH], initialIndex: 1 });
+    render(<RouterProvider router={router} />);
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Units in stock' }), { target: { value: '7' } });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Done' }));
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    const pendingInput = screen.getByRole('textbox', { name: 'Units in stock' });
+    fireEvent.change(pendingInput, { target: { value: '11' } });
+    await act(async () => { await router.navigate(-1); });
+    const warning = await screen.findByRole('dialog', { name: 'Leave record update?' });
+    fireEvent.click(within(warning).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByRole('textbox', { name: 'Units in stock' })).toBe(pendingInput);
+    expect(pendingInput).toHaveValue('11');
+    expect(screen.queryByText('Products destination')).not.toBeInTheDocument();
+    router.dispose();
+  });
+
+  it.each(['link', 'history'] as const)('keeps the live capture when a %s draft save fails and permits retry', async (navigation) => {
+    setStoredSessionViewMode('form');
+    const router = navigation === 'history' ? createMemoryRouter([
+      { path: '/catalog', element: <div>Products destination</div> },
+      { path: RECORD_UPDATE_STOCK_COUNT_PATH, element: <StockUpdateSessionRoute /> },
+    ], { initialEntries: ['/catalog', RECORD_UPDATE_STOCK_COUNT_PATH], initialIndex: 1 }) : null;
+    if (router) {
+      inventoryHook.mockReturnValue(inventoryState({ observations }));
+      render(<RouterProvider router={router} />);
+    } else {
+      renderRoutedSession();
+    }
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
+    if (router) await act(async () => { await router.navigate(-1); });
+    else fireEvent.click(screen.getByRole('link', { name: 'Products' }));
+    const storage = window.localStorage;
+    const originalSetItem = storage.setItem.bind(storage);
+    const write = vi.spyOn(storage, 'setItem').mockImplementation((key, value) => {
+      if (key === STOCK_UPDATE_DRAFT_STORAGE_KEY) throw new Error('Quota exceeded');
+      originalSetItem(key, value);
+    });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft' }));
+    expect(screen.queryByText('Products destination')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not save this draft');
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
+    write.mockRestore();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft' }));
+    await screen.findByText('Products destination');
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+    router?.dispose();
   });
 
   it('saves the draft before navigating away from a record update session', async () => {
