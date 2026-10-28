@@ -451,9 +451,14 @@ test('capture history keeps counts in draft until an explicit decision', async (
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openEmbeddedRoute(page, 'app');
   await completeEmbeddedOnboardingIfPresent(page);
+  // Enter through the real router link: the generic helper's direct hash assignment
+  // would otherwise create an unindexed manual-address entry, outside blocker support.
+  await page.getByRole('link', { name: 'Create first SKU', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'New SKU', exact: true })).toBeVisible();
   const { name } = await createSkuThroughUi(page, { name: 'Capture history item' });
   const detailUrl = page.url();
   const detailState = await page.evaluate(() => window.history.state);
+  expect(Number.isInteger(detailState?.idx), 'detail entry must come from router navigation').toBe(true);
   await page.getByRole('button', { name: 'Record', exact: true }).click();
   await page.getByRole('menu').getByText('Products Update', { exact: true }).click();
   await page.getByRole('button', { name: 'Continue to capture', exact: true }).click();
@@ -465,6 +470,7 @@ test('capture history keeps counts in draft until an explicit decision', async (
   await expect(page.getByRole('button', { name: `Edit ${name} changed item` })).toBeVisible();
   const captureUrl = page.url();
   const captureState = await page.evaluate(() => window.history.state);
+  expect(captureState?.idx).toBe(detailState.idx + 1);
   const leave = page.getByRole('dialog', { name: 'Leave record update?', exact: true });
   for (const escape of [true, false]) {
     await page.goBack();

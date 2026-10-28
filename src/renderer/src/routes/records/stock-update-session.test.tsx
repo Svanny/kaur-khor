@@ -17,6 +17,7 @@ import {
 } from '@/lib/navigation/record-update-routes';
 import { recordUpdateSessionViewStorageKey, writeRecordUpdateSessionViewMode } from '@/lib/records/record-update-session-view';
 import type { SenaObservationRecord } from '@shared/sena';
+import { AppHashRouter } from '@/lib/navigation/app-hash-router';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { buildDeliveryFeeMetadata } from '@/lib/tickets/ticketing';
 import { getTranslation } from '@/lib/localization/translations';
@@ -5019,6 +5020,26 @@ describe('StockUpdateSessionRoute', () => {
         ],
       }),
     );
+  });
+
+  it('blocks native hash history from a targeted POS capture session', async () => {
+    inventoryHook.mockReturnValue(inventoryState({ observations: [] }));
+    window.history.replaceState(null, '', '/#/catalog');
+    const view = render(<AppHashRouter><NavigationHistoryProvider><Routes>
+      <Route path="/catalog" element={<Link to={`${RECORD_UPDATE_STOCK_COUNT_PATH}?targetAction=stock&targetType=sku&targetId=sku-1`}>Open targeted capture</Link>} />
+      <Route path={RECORD_UPDATE_STOCK_COUNT_PATH} element={<StockUpdateSessionRoute />} />
+    </Routes></NavigationHistoryProvider></AppHashRouter>);
+    fireEvent.click(screen.getByRole('link', { name: 'Open targeted capture' }));
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Units in stock' }), { target: { value: '7' } });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Done' }));
+    const captureState = window.history.state;
+    act(() => window.history.back());
+    const warning = await screen.findByRole('dialog', { name: 'Leave record update?' });
+    await waitFor(() => expect(window.history.state).toEqual(captureState));
+    fireEvent.click(within(warning).getByRole('button', { name: 'Keep editing' }));
+    expect(getPosWorkbenchTile('Razor refill')).toHaveTextContent('7');
+    view.unmount();
   });
 
   it('keeps capture mounted on repeated history cancellation and saves only a resumable draft', async () => {
