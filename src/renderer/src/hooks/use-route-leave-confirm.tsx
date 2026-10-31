@@ -201,11 +201,36 @@ function HistoryLeaveBlocker({ enabled, onBlocked }: {
     `${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}` !==
       `${nextLocation.pathname}${nextLocation.search}${nextLocation.hash}`
   ));
+  const blockedTransitionHandledRef = useRef(false);
+  const proceedingRef = useRef(false);
 
   useEffect(() => {
-    if (blocker.state === 'blocked') {
-      onBlocked(blocker.proceed, blocker.reset);
+    if (blocker.state === 'unblocked') {
+      blockedTransitionHandledRef.current = false;
+      proceedingRef.current = false;
+      return;
     }
+    if (blocker.state !== 'blocked' || blockedTransitionHandledRef.current || proceedingRef.current) {
+      return;
+    }
+
+    blockedTransitionHandledRef.current = true;
+    onBlocked(
+      () => {
+        if (!blockedTransitionHandledRef.current || proceedingRef.current) {
+          return;
+        }
+        proceedingRef.current = true;
+        blocker.proceed();
+      },
+      () => {
+        if (!blockedTransitionHandledRef.current) {
+          return;
+        }
+        blockedTransitionHandledRef.current = false;
+        blocker.reset();
+      },
+    );
   }, [blocker, onBlocked]);
 
   return null;
