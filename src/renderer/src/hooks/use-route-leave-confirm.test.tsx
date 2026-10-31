@@ -85,27 +85,33 @@ function renderHistoryEditor(save?: () => Promise<boolean>) {
 
 describe('useRouteLeaveConfirm', () => {
   test.each([-1, 1])('preserves draft and history state after repeated cancelled navigation (%s)', async (direction) => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const user = userEvent.setup();
-    const { router, dispose } = renderHistoryEditor();
-    await user.type(screen.getByRole('textbox', { name: 'Draft' }), 'Exact unsaved draft');
-    const editor = screen.getByRole('textbox', { name: 'Draft' });
+    try {
+      const { router, dispose } = renderHistoryEditor();
+      await user.type(screen.getByRole('textbox', { name: 'Draft' }), 'Exact unsaved draft');
+      const editor = screen.getByRole('textbox', { name: 'Draft' });
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        await act(() => router.navigate(direction));
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+        expect(router.state.location.key).toBe('editor-key');
+        expect(screen.getByRole('textbox', { name: 'Draft' })).toBe(editor);
+        expect(editor).toHaveValue('Exact unsaved draft');
+      }
       await act(() => router.navigate(direction));
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-      await user.keyboard('{Escape}');
+      await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+      await waitFor(() => expect(router.state.location.key).toBe(direction < 0 ? 'back-key' : 'forward-key'));
+      expect(screen.getByTestId('preserved-origin')).toHaveTextContent(direction < 0 ? 'back entry' : 'forward entry');
+      await act(() => router.navigate(-direction));
       expect(router.state.location.key).toBe('editor-key');
-      expect(screen.getByRole('textbox', { name: 'Draft' })).toBe(editor);
-      expect(editor).toHaveValue('Exact unsaved draft');
+      expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('');
+      expect(consoleError.mock.calls.flat().some((value) => String(value).includes('Invalid blocker state transition'))).toBe(false);
+      dispose();
+    } finally {
+      consoleError.mockRestore();
     }
-    await act(() => router.navigate(direction));
-    await user.click(screen.getByRole('button', { name: 'Discard changes' }));
-    await waitFor(() => expect(router.state.location.key).toBe(direction < 0 ? 'back-key' : 'forward-key'));
-    expect(screen.getByTestId('preserved-origin')).toHaveTextContent(direction < 0 ? 'back entry' : 'forward entry');
-    await act(() => router.navigate(-direction));
-    expect(router.state.location.key).toBe('editor-key');
-    expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('');
-    dispose();
   });
 
   test('keeps a failed save editable and retries the original history destination only once', async () => {
