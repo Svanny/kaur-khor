@@ -85,7 +85,7 @@ function renderHistoryEditor(save?: () => Promise<boolean>) {
 
 describe('useRouteLeaveConfirm', () => {
   test.each([-1, 1])('preserves draft and history state after repeated cancelled navigation (%s)', async (direction) => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, 'error');
     const user = userEvent.setup();
     try {
       const { router, dispose } = renderHistoryEditor();
