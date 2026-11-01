@@ -273,3 +273,45 @@ targets the fixed Telegram API origin. This review does not establish an
 attacker-controlled response path in the packaged application. It also does
 not assert that the embedded Undici is patched. The earlier certificate
 mitigation is a separate fix and does not establish coverage of these CVEs.
+
+## November 1 static-server and glob maintenance
+
+The refreshed audit blocks the existing product PR on
+[@hono/node-server double decoding](https://github.com/advisories/GHSA-rmxm-3fg6-px4f)
+and [minimatch pattern amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249).
+The published fixes start at node-server 2.1.3 and minimatch 11.0.1; neither
+advisory lists a patched older major. Keep the moderate threshold and required
+network audit unchanged.
+
+- Markmap 0.18.12 still declares node-server 1.x. Its actual integration uses
+  `serve({ fetch, port }, callback)`, the returned Node server, and `close()`.
+  These APIs work with the 2.1.3 pin on the project's patched Node versions.
+  The regression exercises protected static paths with malformed percent
+  encoding, ordinary encoded filenames, and Markmap's real client route
+  through two start/stop cycles. Markmap itself uses its own static-file handler;
+  this does not establish an exploit path in the packaged application.
+- ASAR 3 calls minimatch as a function, incompatible with minimatch 11's named
+  exports. Move ASAR to 4.3.1 and Universal to 3.0.6, which supports ASAR 4's ESM
+  exports. Universal 3 uses Node's `path.matchesGlob` instead of minimatch.
+  Both support Node 22.12+; all declared source-build Node lines satisfy that.
+  Jake's FileList moves to 2.0.2, retaining its include/exclude API. Pin the
+  remaining modern minimatch consumers to 11.0.1. Tests follow the installed
+  consumer paths and verify archive creation, native-file unpacking, Builder's
+  archive checker and include/exclude filters, Universal allowlists, and FileList.
+- Remove Builder's optional Squirrel.Windows integration, the only remaining
+  path to legacy `temp > rimraf > glob > minimatch`. Kaur's Windows configuration
+  and native packaging command explicitly ship NSIS; Squirrel is not a supported
+  target. This removes unused installed tooling rather than overriding the
+  callback-based Glob 7 API with an incompatible modern implementation. The
+  Windows packaging job verifies the supported installer path.
+- ASAR 4 introduces modern Glob, whose current
+  [cancellation advisory](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4)
+  is fixed in 14.0.2. Pin that version and verify an aborted walk stops directory
+  reads while ordinary traversal and ASAR's real archive creation still work.
+
+Run `pnpm test -- tools/scripts/glob-static-maintenance.test.mjs` for the bounded
+exploit and compatibility cases. Pathological matcher inputs run in child
+processes with a ten-second deadline and a memory limit. The unchanged package
+audit now reports only the existing low KaTeX finding. No runtime application
+code, audit exclusions, threshold changes, or generated documentation changes
+are part of this maintenance repair.
