@@ -153,10 +153,16 @@ export async function resetEmbeddedWorkspaceThroughUi(page: Page, mode: 'app' | 
 }
 
 export async function completeEmbeddedOnboardingIfPresent(page: Page) {
-  const setupHeading = page.getByRole('heading', { name: 'Set up Kaur Khor' });
-  if (!(await setupHeading.isVisible().catch(() => false))) {
+  // The responsive shell can render before preferences hydrate or setup mounts.
+  await page.waitForFunction(() => Boolean(window.kaurKhorDesktop?.preferences?.get));
+  const isComplete = await page.evaluate(async () => Boolean(
+    (await window.kaurKhorDesktop.preferences.get()).onboardingCompletedAt,
+  ));
+  if (isComplete) {
     return;
   }
+  const setupHeading = page.getByRole('heading', { name: 'Set up Kaur Khor' });
+  await expect(setupHeading).toBeVisible();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForFunction(() => (
     !document.body.innerText.includes('Set up Kaur Khor')
