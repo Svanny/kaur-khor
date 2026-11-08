@@ -18,6 +18,57 @@ import {
 } from '../helpers/web';
 
 test.describe('UI matrix: browser and demo surfaces', () => {
+  test('onboarding waits for delayed preferences and setup rendering', async ({ page }) => {
+    await page.route('**/kaur-khor/onboarding-readiness-fixture', (route) => route.fulfill({
+      contentType: 'text/html',
+      body: `<!doctype html><html data-onboarding-state="loading"><body>
+        <p>Export a backup before closing.</p>
+        <button onclick="hydrate()">Resolve preferences</button>
+        <button onclick="renderSetup()">Render setup</button>
+        <main><h1>Loading preferences…</h1></main>
+        <script>
+          const preferences = { onboardingCompletedAt: null };
+          let hydrate;
+          const hydration = new Promise((resolve) => { hydrate = resolve; });
+          window.kaurKhorDesktop = { preferences: { get: async () => {
+            document.documentElement.dataset.preferencesRead = 'true';
+            await hydration;
+            return preferences;
+          } } };
+          function continueSetup() {
+            if (document.documentElement.dataset.onboardingState === 'preferences') {
+              document.documentElement.dataset.onboardingState = 'interface';
+              document.querySelector('main').innerHTML = '<h1>Choose interface view</h1><button onclick="continueSetup()">Continue</button>';
+            } else {
+              preferences.onboardingCompletedAt = new Date().toISOString();
+              document.documentElement.dataset.onboardingState = 'complete';
+              document.querySelector('main').innerHTML = '<h1>Home</h1>';
+              location.hash = '#/';
+            }
+          }
+          function renderSetup() {
+            document.documentElement.dataset.onboardingState = 'preferences';
+            document.querySelector('main').innerHTML = '<h1>Set up Kaur Khor</h1><button onclick="continueSetup()">Continue</button>';
+          }
+        </script>
+      </body></html>`,
+    }));
+    await page.goto('/kaur-khor/onboarding-readiness-fixture', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('html')).toHaveAttribute('data-onboarding-state', 'loading');
+
+    let completed = false;
+    const completion = completeEmbeddedOnboardingIfPresent(page).then(() => { completed = true; });
+    await expect(page.locator('html')).toHaveAttribute('data-preferences-read', 'true');
+    expect(completed).toBe(false);
+    await page.getByRole('button', { name: 'Resolve preferences', exact: true }).click();
+    expect(completed).toBe(false);
+    await page.getByRole('button', { name: 'Render setup', exact: true }).click();
+    await completion;
+
+    await expect(page.locator('html')).toHaveAttribute('data-onboarding-state', 'complete');
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  });
+
   test('backup import waits for the reloaded browser bridge before reading counts', async ({ page }, testInfo) => {
     await page.route('**/kaur-khor/bridge-readiness-fixture', (route) => route.fulfill({
       contentType: 'text/html',
